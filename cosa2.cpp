@@ -31,6 +31,7 @@
 #include "frontends/btor2_encoder.h"
 #include "interpolant.h"
 #include "kinduction.h"
+#include "printers/vcd_witness_printer.h"
 #include "printers/btor2_witness_printer.h"
 #include "prop.h"
 #include "utils/logger.h"
@@ -243,6 +244,7 @@ int main(int argc, char ** argv)
       vector<UnorderedTermMap> cex;
       if (prover->witness(cex)) {
         print_witness_btor(btor_enc, cex);
+        VCDWitnessPrinter(btor_enc, cex);
       }
       return 1;
     } else if (r == TRUE) {

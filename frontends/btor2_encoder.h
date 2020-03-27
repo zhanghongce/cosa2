@@ -63,8 +63,10 @@ class BTOR2Encoder
   // and lazily converts them to the majority
   smt::TermVec lazy_convert(const smt::TermVec &) const;
 
+  // preprocess a btor2 file
+  void preprocess(const std::string & filename);
   // parse a btor2 file
-  void parse(const std::string filename);
+  void parse(const std::string & filename);
 
   // Important members
   smt::SmtSolver & solver_;
@@ -75,6 +77,7 @@ class BTOR2Encoder
   smt::TermVec inputsvec_;
   smt::TermVec statesvec_;
   std::map<uint64_t, smt::Term> no_next_states_;
+  std::unordered_map<uint64_t, std::string> state_renaming_table;
 
   // Useful variables
   smt::Sort linesort_;
