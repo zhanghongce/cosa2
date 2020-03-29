@@ -244,7 +244,9 @@ int main(int argc, char ** argv)
       vector<UnorderedTermMap> cex;
       if (prover->witness(cex)) {
         print_witness_btor(btor_enc, cex);
-        VCDWitnessPrinter(btor_enc, cex);
+        VCDWitnessPrinter vcdprinter(btor_enc, fts);
+        vcdprinter.DebugDump(cex);
+        vcdprinter.DumpTraceToFile("test.vcd", cex);
       }
       return 1;
     } else if (r == TRUE) {
