@@ -31,8 +31,8 @@
 #include "frontends/btor2_encoder.h"
 #include "interpolant.h"
 #include "kinduction.h"
-#include "printers/vcd_witness_printer.h"
 #include "printers/btor2_witness_printer.h"
+#include "printers/vcd_witness_printer.h"
 #include "prop.h"
 #include "utils/logger.h"
 
@@ -50,7 +50,8 @@ enum optionIndex
   ENGINE,
   BOUND,
   PROP,
-  VERBOSITY
+  VERBOSITY,
+  VCDNAME
 };
 
 struct Arg : public option::Arg
@@ -119,6 +120,12 @@ const option::Descriptor usage[] = {
     "verbosity",
     Arg::Numeric,
     "  --verbosity, -v \tVerbosity for printing to standard out." },
+  { VCDNAME,
+    0,
+    "",
+    "vcd",
+    Arg::NonEmpty,
+    "  --vcd \tName of Value Change Dump (VCD) if witness exists." },
   { 0, 0, 0, 0, 0, 0 }
 };
 /*********************************** end Option Handling setup
@@ -161,6 +168,7 @@ int main(int argc, char ** argv)
   unsigned int prop_idx = default_prop_idx;
   unsigned int bound = default_bound;
   unsigned int verbosity = default_verbosity;
+  std::string vcd_name;
 
   for (int i = 0; i < parse.optionsCount(); ++i) {
     option::Option & opt = buffer[i];
@@ -171,6 +179,7 @@ int main(int argc, char ** argv)
       case BOUND: bound = atoi(opt.arg); break;
       case PROP: prop_idx = atoi(opt.arg); break;
       case VERBOSITY: verbosity = atoi(opt.arg); break;
+      case VCDNAME: vcd_name = opt.arg; break;
       case UNKNOWN_OPTION:
         // not possible because Arg::Unknown returns ARG_ILLEGAL
         // which aborts the parse with an error
@@ -244,9 +253,10 @@ int main(int argc, char ** argv)
       vector<UnorderedTermMap> cex;
       if (prover->witness(cex)) {
         print_witness_btor(btor_enc, cex);
-        VCDWitnessPrinter vcdprinter(btor_enc, fts);
-        vcdprinter.DebugDump(cex);
-        vcdprinter.DumpTraceToFile("test.vcd", cex);
+        if (!vcd_name.empty()) {
+          VCDWitnessPrinter vcdprinter(btor_enc, fts);
+          vcdprinter.DumpTraceToFile(vcd_name, cex);
+        }
       }
       return 1;
     } else if (r == TRUE) {
