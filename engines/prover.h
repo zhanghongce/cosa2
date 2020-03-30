@@ -34,7 +34,7 @@ class Prover
 
   virtual ProverResult check_until(int k) = 0;
 
-  bool witness(std::vector<smt::UnorderedTermMap> & out);
+  bool witness(std::vector<smt::UnorderedTermMap> & out, bool include_internal_wires = false);
 
   ProverResult prove();
 
