@@ -253,8 +253,9 @@ int main(int argc, char ** argv)
       vector<UnorderedTermMap> cex;
       if (prover->witness(cex, !vcd_name.empty())) {
         if (!vcd_name.empty()) {
-          VCDWitnessPrinter vcdprinter(btor_enc, fts);
-          vcdprinter.DumpTraceToFile(vcd_name, cex);
+          VCDWitnessPrinter vcdprinter(btor_enc, fts, cex);
+          vcdprinter.DebugDump();
+          vcdprinter.DumpTraceToFile(vcd_name);
         } else {
           print_witness_btor(btor_enc, cex);
         }
