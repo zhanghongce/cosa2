@@ -355,7 +355,7 @@ void VCDWitnessPrinter::dump_all(const smt::UnorderedTermMap & valmap,
   for (auto && sig_bv_ptr : allsig_bv_) {
     auto pos = valmap.find(sig_bv_ptr->ast);
     if (pos == valmap.end()) {
-      logger.log(0, "missing value in provided trace @{}: {}" ,
+      logger.log(1, "missing value in provided trace @{}: {}" ,
         t,
         sig_bv_ptr->full_name);
       continue;
@@ -371,7 +371,7 @@ void VCDWitnessPrinter::dump_all(const smt::UnorderedTermMap & valmap,
   for (auto && sig_array_ptr : allsig_array_) {
     auto pos = valmap.find(sig_array_ptr->ast);
     if (pos == valmap.end()) {
-      logger.log(0, "missing value in provided trace @{}: {}" ,
+      logger.log(1, "missing value in provided trace @{}: {}" ,
         t,
         sig_array_ptr->full_name);
       continue;
@@ -392,7 +392,7 @@ void VCDWitnessPrinter::dump_all(const smt::UnorderedTermMap & valmap,
         valbuf.insert(std::make_pair(addr_pos->second, data));
         fout << data << " " << addr_pos->second << std::endl;
       } else {
-        logger.log(0, "missing addr index for array: {}: , addr : {}" ,
+        logger.log(1, "missing addr index for array: {}: , addr : {}" ,
           sig_array_ptr->full_name, addr);
       }
 
@@ -407,7 +407,7 @@ void VCDWitnessPrinter::dump_all(const smt::UnorderedTermMap & valmap,
         valbuf.insert(std::make_pair(addr_pos->second, data_default));
         fout << data_default << " " << addr_pos->second << std::endl;
       } else {
-        logger.log(0, "missing addr index for array: {}: , addr : {}" ,
+        logger.log(1, "missing addr index for array: {}: , addr : {}" ,
           sig_array_ptr->full_name, "-default-");
       }
     } // handling the inner constant default
@@ -422,7 +422,7 @@ void VCDWitnessPrinter::dump_diff(const smt::UnorderedTermMap & valmap,
   for (auto && sig_bv_ptr : allsig_bv_) {
     auto pos = valmap.find(sig_bv_ptr->ast);
     if (pos == valmap.end()) {
-      logger.log(0, "missing value in provided trace @{}: {}" ,
+      logger.log(1, "missing value in provided trace @{}: {}" ,
         t,
         sig_bv_ptr->full_name);
       continue;
@@ -432,7 +432,7 @@ void VCDWitnessPrinter::dump_diff(const smt::UnorderedTermMap & valmap,
     if (prev_pos == valprev.end()) {
       valprev.insert(std::make_pair(sig_bv_ptr->hash, val ));
       fout << val << " " << sig_bv_ptr->hash << std::endl;
-      logger.log(0, "Bug, {} was not cached before time : {}.",
+      logger.log(1, "Bug, {} was not cached before time : {}.",
         sig_bv_ptr->full_name, std::to_string(t));
       continue;
     }
@@ -447,7 +447,7 @@ void VCDWitnessPrinter::dump_diff(const smt::UnorderedTermMap & valmap,
   for (auto && sig_array_ptr : allsig_array_) {
     auto pos = valmap.find(sig_array_ptr->ast);
     if (pos == valmap.end()) {
-      logger.log(0, "missing value in provided trace @{}: {}" ,
+      logger.log(1, "missing value in provided trace @{}: {}" ,
         t,
         sig_array_ptr->full_name);
       continue;
@@ -469,7 +469,7 @@ void VCDWitnessPrinter::dump_diff(const smt::UnorderedTermMap & valmap,
         if (prev_pos == valprev.end()) {
           valprev.insert(std::make_pair(addr_pos->second, data ));
           fout << data << " " << addr_pos->second << std::endl;
-          logger.log(0, "{} was not cached before time : {}.",
+          logger.log(1, "{} was not cached before time : {}.",
             sig_array_ptr->full_name+"["+addr+"]", std::to_string(t));
         } else {
           if (prev_pos->second != data) {
@@ -478,7 +478,7 @@ void VCDWitnessPrinter::dump_diff(const smt::UnorderedTermMap & valmap,
           }
         } // exists in prev pos or not
       } else {
-        logger.log(0, "missing addr index for array: {}: , addr : {}" ,
+        logger.log(1, "missing addr index for array: {}: , addr : {}" ,
           sig_array_ptr->full_name, addr);
       }
       memvalue = store_children[0];
@@ -493,7 +493,7 @@ void VCDWitnessPrinter::dump_diff(const smt::UnorderedTermMap & valmap,
         if (prev_pos == valprev.end()) {
           valprev.insert(std::make_pair(addr_pos->second, data_default ));
           fout << data_default << " " << addr_pos->second << std::endl;
-          logger.log(0, "{} was not cached before time : {}.",
+          logger.log(1, "{} was not cached before time : {}.",
             sig_array_ptr->full_name+"[default]", std::to_string(t));
         } else {
           if (prev_pos->second != data_default) {
@@ -502,7 +502,7 @@ void VCDWitnessPrinter::dump_diff(const smt::UnorderedTermMap & valmap,
           }
         } // exists in prev pos or not
       } else {
-        logger.log(0, "missing addr index for array: {}: , addr : {}" ,
+        logger.log(1, "missing addr index for array: {}: , addr : {}" ,
           sig_array_ptr->full_name, "-default-");
       }
     } // handling the inner constant default
