@@ -36,8 +36,16 @@ target_include_directories(available-solvers PUBLIC "${PROJECT_SOURCE_DIR}/deps/
 # Rely on cmake link forwarding to link available-solvers with relevant smt-switch libs
 target_link_libraries(available-solvers PUBLIC cosa2)
 
+add_executable(test_sygus "${PROJECT_SOURCE_DIR}/tests/test_partial_model.cpp")
+target_link_libraries(test_sygus gtest_main)
+target_link_libraries(test_sygus cosa2)
+target_link_libraries(test_sygus available-solvers)
+add_test(NAME test_sygus COMMAND test_sygus)
+
 add_executable(test_fts "${PROJECT_SOURCE_DIR}/tests/test_fts.cpp")
 target_link_libraries(test_fts gtest_main)
 target_link_libraries(test_fts cosa2)
 target_link_libraries(test_fts available-solvers)
 add_test(NAME test_fts COMMAND test_fts)
+
+
