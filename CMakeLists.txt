@@ -37,6 +37,7 @@ add_library(cosa2
   "${PROJECT_SOURCE_DIR}/engines/kinduction.cpp"
   "${PROJECT_SOURCE_DIR}/engines/sygus/evalcond.cpp"
   "${PROJECT_SOURCE_DIR}/engines/sygus/walker.cpp"
+  "${PROJECT_SOURCE_DIR}/engines/sygus/partial_model.cpp"
   "${PROJECT_SOURCE_DIR}/utils/logger.cpp"
   "${PROJECT_SOURCE_DIR}/utils/term_analysis.cpp"
   "${PROJECT_SOURCE_DIR}/printers/vcd_witness_printer.cpp"

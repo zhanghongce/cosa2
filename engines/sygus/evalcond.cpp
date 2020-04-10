@@ -190,7 +190,7 @@ PartialEvalTreeManager::~PartialEvalTreeManager() {
 
 FlattenedParitalEvalTreeNode * 
 PartialEvalTreeManager::get_flatten_varlist(const smt::Term & ast) {
-  walker_.WalkRecursion(ast);
+  walker_.WalkDFS(ast);
   ParitalEvalTreeNode * unflattened_tree = walker_.get_node(ast);
   auto pos = node_tree_buffer.find(unflattened_tree);
   if (pos != node_tree_buffer.end())

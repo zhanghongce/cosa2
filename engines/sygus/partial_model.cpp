@@ -1,0 +1,410 @@
+/*********************                                                        */
+/*! \file 
+ ** \verbatim
+ ** Top contributors (to current version):
+ **   Hongce Zhang
+ ** This file is part of the cosa2 project.
+ ** Copyright (c) 2019 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file LICENSE in the top-level source
+ ** directory for licensing information.\endverbatim
+ **
+ ** \brief parital eval tree
+ **
+ ** 
+ **/
+
+#include "utils/logger.h"
+#include "partial_model.h"
+#include "container_shortcut.h"
+
+#include <cassert>
+
+namespace cosa {
+
+
+// ------------------------------- // 
+//
+//    Model
+//
+// ------------------------------- // 
+
+std::ostream & operator<< (std::ostream & os, const Model & m) {
+  for (auto && v_val : m.cube ) {
+    os << "" << v_val.first->to_string() << "= "
+              << v_val.second->to_string() << "";
+    os << " , ";
+  }
+  return os;
+}
+
+
+#define NOT(x)    (solver_->make_term(smt::Not, (x)))
+#define EQ(x, y)  (solver_->make_term(smt::BVComp, (x), (y)))
+#define AND(x, y) (solver_->make_term(smt::And, (x), (y)))
+#define OR(x, y)  (solver_->make_term(smt::Or, (x), (y)))
+
+smt::Term Model::to_expr(const cube_t & c, smt::SmtSolver & solver_) {
+  smt::Term ret = nullptr;
+  for (auto && v_val : c ) {
+    if (ret == nullptr)
+      ret = EQ(v_val.first, v_val.second);
+    else
+      ret = AND(ret, EQ(v_val.first, v_val.second));
+  }
+  return ret;
+}
+
+smt::Term Model::to_expr(smt::SmtSolver & solver_) {
+  return to_expr(this->cube, solver_);
+}
+
+// ------------------------------- // 
+//
+//    PartialModelGen
+//
+// ------------------------------- // 
+
+PartialModelGen::PartialModelGen(smt::SmtSolver & solver):
+  solver_(solver) {
+  // do nothing
+}
+
+PartialModelGen::~PartialModelGen() {
+  for (auto ptr : node_allocation_table_) {
+    assert (ptr);
+    delete (ptr);
+  }
+}
+
+void PartialModelGen::GetPartialModel(const smt::Term & ast, cube_t & m, bool use_cache) {
+  GetVarList(ast, use_cache);
+
+  for (smt::Term v : dfs_vars_) {
+    smt::Term val = solver_->get_value(v);
+    m.insert(std::make_pair(v,val));
+  }
+}
+
+
+void PartialModelGen::GetVarList(const smt::Term & ast, bool use_cache ) {
+  dfs_walked_.clear();
+  dfs_vars_.clear();
+  use_cache_ = use_cache;
+  dfs_walk(ast);
+}
+
+
+static inline bool is_all_zero(const std::string & s)  {
+  assert(s.substr(0, 2) == "#b");
+  for (auto pos = s.begin()+2; pos != s.end(); ++ pos)
+    if (*pos != '0')
+      return false;
+  return true;
+}
+
+static inline bool is_all_one(const std::string & s, uint64_t w)  {
+  assert(s.substr(0, 2) == "#b");
+  assert (s.length() + 2 <= w);
+  if (s.length() + 2 < w) // if it has fewer zeros
+    return false;
+  for (auto pos = s.begin()+2; pos != s.end(); ++ pos)
+    if (*pos != '1')
+      return false;
+  return true;  
+}
+
+
+#define ARG2(a1,a2)            \
+      auto ptr = ast->begin();    \
+      auto a1  = *(ptr++);      \
+      auto a2  = *(ptr++);      \
+      assert (ptr == ast->end()); 
+
+#define ARG3(a1,a2,a3)            \
+      auto ptr = ast->begin();    \
+      auto a1  = *(ptr++);      \
+      auto a2  = *(ptr++);      \
+      auto a3  = *(ptr++);      \
+      assert (ptr == ast->end());
+
+void PartialModelGen::dfs_walk(const smt::Term & ast ) {
+  // std::cout << "[DEBUG] expr : " << ast->to_string() << std::endl;
+  if (IN(ast, dfs_walked_)) {
+    // std::cout << "[DEBUG] cached." << std::endl;
+    return;
+  }
+  dfs_walked_.insert(ast);
+
+  if (use_cache_) {
+    CondVarBuffer * buf = CheckCache(ast);
+    if (buf)
+      InterpretCache(buf, dfs_vars_);
+  }
+
+  smt::Op op = ast->get_op();
+  if (op.is_null()) { // this is the root node
+    if (ast->is_symbolic_const()) {
+      dfs_vars_.insert(ast);
+    }
+  } else {
+    if (op.prim_op == smt::PrimOp::Ite)  {
+      ARG3(cond, texpr, fexpr)
+      auto cond_val = solver_->get_value(cond);
+      assert(cond_val->is_value());
+      if (cond_val->to_int()) {
+        dfs_walk(cond);
+        dfs_walk(texpr);
+      }
+      else {
+        dfs_walk(cond);
+        dfs_walk(fexpr);
+      }
+    } else if (op.prim_op == smt::PrimOp::Implies) {
+      ARG2(left,right)
+      auto cond_left = solver_->get_value(left);
+      auto cond_right = solver_->get_value(right);
+      assert(cond_left->is_value() && cond_right->is_value());
+      if (!(cond_left->to_int())) // if it is false
+        dfs_walk(left);
+      else if (cond_right->to_int()) {
+        dfs_walk(right);
+      } else {
+        dfs_walk(left);
+        dfs_walk(right);        
+      }
+    } else if (op.prim_op == smt::PrimOp::And) {
+      ARG2(left,right)
+      auto cond_left = solver_->get_value(left);
+      auto cond_right = solver_->get_value(right);
+      assert(cond_left->is_value() && cond_right->is_value());
+      if (!(cond_left->to_int())) // if it is false
+        dfs_walk(left);
+      else if (!(cond_right->to_int())) {
+        dfs_walk(right);
+      } else {
+        dfs_walk(left);
+        dfs_walk(right);
+      }
+    } else if (op.prim_op == smt::PrimOp::Or) {
+      ARG2(left,right)
+      auto cond_left = solver_->get_value(left);
+      auto cond_right = solver_->get_value(right);
+      assert(cond_left->is_value() && cond_right->is_value());
+      if (cond_left->to_int()) // if it is true
+        dfs_walk(left);
+      else if (cond_right->to_int()) {
+        dfs_walk(right);
+      } else  { // it is 0, so both matter
+        dfs_walk(left);
+        dfs_walk(right);
+      }
+    } else if (op.prim_op == smt::PrimOp::BVAnd || op.prim_op == smt::PrimOp::BVNand) {
+      ARG2(left,right)
+      auto cond_left = solver_->get_value(left);
+      auto cond_right = solver_->get_value(right);
+      assert(cond_left->is_value() && cond_right->is_value());
+      std::string left_val = cond_left->to_string();
+      std::string right_val = cond_right->to_string();
+
+      if (is_all_zero(left_val)) // if all zeros
+        dfs_walk(left);
+      else if (is_all_zero(right_val)) {
+        dfs_walk(right);
+      } else { // it is 0, so both matter
+        dfs_walk(left);
+        dfs_walk(right);
+      }
+
+    } else if (op.prim_op == smt::PrimOp::BVOr  || op.prim_op == smt::PrimOp::BVNor) {
+      ARG2(left,right)
+      auto cond_left = solver_->get_value(left);
+      auto cond_right = solver_->get_value(right);
+      assert(cond_left->is_value() && cond_right->is_value());
+      std::string left_val = cond_left->to_string();
+      std::string right_val = cond_right->to_string();
+
+      if (is_all_one(left_val, left->get_sort()->get_width())) // if all ones
+        dfs_walk(left);
+      else if (is_all_one(right_val, right->get_sort()->get_width())) {
+        dfs_walk(right);
+      } else { // it is 0, so both matter
+        dfs_walk(left);
+        dfs_walk(right);
+      }
+    } else {
+      for (const auto & arg : *ast)
+        dfs_walk(arg);
+    }
+  } // end non-variable case
+} // end of PartialModelGen::dfs_walk
+
+void PartialModelGen::CacheNode(const smt::Term & ast) {
+  // another dfs, go to each leaf (even it has been walked?)
+  if (IN(ast, node_buffer_))
+    return;
+  cur_node_ = new CondVarBuffer;
+  node_allocation_table_.push_back(cur_node_);
+  dfs_variable_stack_.push_back(std::unordered_set<smt::Term>());
+  dfs_bufwalk(ast, nullptr);
+  assert(dfs_variable_stack_.size() == 1);
+  cur_node_->vars.insert(
+    dfs_variable_stack_.back().begin(),
+    dfs_variable_stack_.back().end());
+}
+
+void PartialModelGen::InterpretCache(CondVarBuffer * n, std::unordered_set<smt::Term> & var)  {
+  for(auto & v : n->vars)
+    var.insert(v);
+  auto pos = n->condition_map.begin();
+  for (auto & cond_vars_pair : n->condition_map) {
+    auto cond = solver_->get_value(cond_vars_pair.first)->to_int();
+    if (cond) {
+      for (auto && v : cond_vars_pair.second)
+        var.insert(v);
+    }
+  }
+} // InterpretCache
+
+CondVarBuffer * PartialModelGen::CheckCache(const smt::Term & ast) const {
+  auto pos = node_buffer_.find(ast);
+  if (pos == node_buffer_.end())
+    return NULL;
+  return pos->second;
+}
+
+void PartialModelGen::cur_node_insert_back(const smt::Term & cond) {
+  assert(cur_node_); // not NULL
+  assert(cond != nullptr);
+  cur_node_->condition_map[cond].insert(
+    dfs_variable_stack_.back().begin(),
+    dfs_variable_stack_.back().end());
+}
+
+bool PartialModelGen::not_in_parent_vars(const smt::Term & var) {
+  for (auto && vs : dfs_variable_stack_) {
+    if (IN(var, vs))
+      return false;
+  }
+  return true;
+}
+
+#define ANDx(x, y) (((x) == nullptr )? (y) : (solver_->make_term(smt::And, (x), (y))))
+
+void PartialModelGen::dfs_bufwalk(const smt::Term & ast, const smt::Term & cond_so_far) {
+
+  smt::Op op = ast->get_op();
+  if (op.is_null()) { // this is the root node
+    if (ast->is_symbolic_const()) {
+      // TODO: check parent stacks
+      if (not_in_parent_vars(ast))
+        dfs_variable_stack_.back().insert(ast);
+    }
+  } else {
+    if (op.prim_op == smt::PrimOp::Ite)  {
+      ARG3(cond, texpr, fexpr)
+      dfs_bufwalk(cond, cond_so_far);
+
+      dfs_variable_stack_.push_back(std::unordered_set<smt::Term>());
+      auto l_cond = ANDx(cond_so_far, cond);
+      dfs_bufwalk(texpr, l_cond);
+      cur_node_insert_back(l_cond);
+      dfs_variable_stack_.pop_back();
+
+      dfs_variable_stack_.push_back(std::unordered_set<smt::Term>());
+      auto r_cond = ANDx(cond_so_far, NOT(cond));
+      dfs_bufwalk(fexpr, r_cond);
+      cur_node_insert_back(r_cond);
+      dfs_variable_stack_.pop_back();
+
+    } else if (op.prim_op == smt::PrimOp::Implies) {
+      ARG2(left,right)
+
+      dfs_variable_stack_.push_back(std::unordered_set<smt::Term>());
+      auto l_cond = ANDx(cond_so_far, OR(NOT(left),NOT(right)) );
+      dfs_bufwalk(left, l_cond);
+      cur_node_insert_back(l_cond);
+      dfs_variable_stack_.pop_back();
+
+      dfs_variable_stack_.push_back(std::unordered_set<smt::Term>());
+      auto r_cond = ANDx(cond_so_far, left);
+      dfs_bufwalk(right, r_cond);
+      cur_node_insert_back(r_cond);
+      dfs_variable_stack_.pop_back();
+
+    } else if (op.prim_op == smt::PrimOp::And) {
+      ARG2(left,right)
+
+      dfs_variable_stack_.push_back(std::unordered_set<smt::Term>());
+      auto l_cond = ANDx(cond_so_far, OR(NOT(left),(right)) );
+      dfs_bufwalk(left, l_cond);
+      cur_node_insert_back(l_cond);
+      dfs_variable_stack_.pop_back();
+
+      dfs_variable_stack_.push_back(std::unordered_set<smt::Term>());
+      auto r_cond = ANDx(cond_so_far, left);
+      dfs_bufwalk(right, r_cond);
+      cur_node_insert_back(r_cond);
+      dfs_variable_stack_.pop_back();
+
+    } else if (op.prim_op == smt::PrimOp::Or) {
+      ARG2(left,right)
+
+      dfs_variable_stack_.push_back(std::unordered_set<smt::Term>());
+      auto l_cond = ANDx(cond_so_far, OR((left),NOT(right)) );
+      dfs_bufwalk(left, l_cond);
+      cur_node_insert_back(l_cond);
+      dfs_variable_stack_.pop_back();
+      
+      dfs_variable_stack_.push_back(std::unordered_set<smt::Term>());
+      auto r_cond = ANDx(cond_so_far, NOT(left));
+      dfs_bufwalk(right, r_cond);
+      cur_node_insert_back(r_cond);
+      dfs_variable_stack_.pop_back();
+
+    } else if (op.prim_op == smt::PrimOp::BVAnd || op.prim_op == smt::PrimOp::BVNand) {
+      ARG2(left,right)
+
+      auto zero = solver_->make_term(0, ast->get_sort() );
+
+      dfs_variable_stack_.push_back(std::unordered_set<smt::Term>());
+      auto l_cond = ANDx(cond_so_far, OR(EQ(left, zero), NOT(EQ(right, zero))) );
+      dfs_bufwalk(left, l_cond);
+      cur_node_insert_back(l_cond);
+      dfs_variable_stack_.pop_back();
+      
+      dfs_variable_stack_.push_back(std::unordered_set<smt::Term>());
+      auto r_cond = ANDx(cond_so_far, NOT(EQ(left, zero)) );
+      dfs_bufwalk(right, r_cond);
+      cur_node_insert_back(r_cond);
+      dfs_variable_stack_.pop_back();
+
+    } else if (op.prim_op == smt::PrimOp::BVOr  || op.prim_op == smt::PrimOp::BVNor) {
+      ARG2(left,right)
+      
+      std::string binary_all_one;
+      for (uint64_t idx = 0; idx < ast->get_sort()->get_width(); ++ idx)
+        binary_all_one += "1";
+      auto allone = solver_->make_term(binary_all_one, ast->get_sort(), 2 );
+
+      dfs_variable_stack_.push_back(std::unordered_set<smt::Term>());
+      auto l_cond = ANDx(cond_so_far, OR(EQ(left, allone), NOT(EQ(right, allone))) );
+      dfs_bufwalk(left, l_cond);
+      cur_node_insert_back(l_cond);
+      dfs_variable_stack_.pop_back();
+
+      auto r_cond = ANDx(cond_so_far, NOT(EQ(left, allone)) );
+      dfs_bufwalk(right, r_cond);
+      cur_node_insert_back(r_cond);
+      dfs_variable_stack_.pop_back();
+
+    } else {
+      for (const auto & arg : *ast)
+        dfs_bufwalk(arg, cond_so_far);
+    }
+  } // end non-variables
+} // dfs_bufwalk
+
+
+
+} // namespace cosa

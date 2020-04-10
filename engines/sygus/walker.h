@@ -24,8 +24,8 @@ namespace cosa {
 class Walker {
 
 public:
-  void Walk(const smt::Term & ast);
-  void WalkRecursion(const smt::Term & ast);
+  void WalkDFS(const smt::Term & ast);
+  void WalkBFS(const smt::Term & ast);
   // if you want to buffer and avoid further walk
   // Skip is your chance to do that, return true
   // if already buffered

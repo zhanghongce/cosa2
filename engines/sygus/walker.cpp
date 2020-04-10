@@ -20,40 +20,39 @@
 namespace cosa {
 
 // I was worried that this will make stack overflow
-void Walker::WalkRecursion(const smt::Term & ast) {
+void Walker::WalkDFS(const smt::Term & ast) {
   if (Skip(ast))
     return;
   PreChild(ast);
   for (const auto & c : *ast)
-    WalkRecursion(c);
+    WalkDFS(c);
   PostChild(ast);
 }
 
-void Walker::Walk(const smt::Term & ast) {
-  std::vector<smt::Term> term_stack;
-  std::unordered_set<smt::Term> walked;
-  // for post-walk function
+void Walker::WalkBFS(const smt::Term & ast) {
+  std::vector<std::pair<smt::Term,bool>> term_stack;
   
-  term_stack.push_back(ast);
+  term_stack.push_back(std::make_pair(ast,false));
   while(!term_stack.empty()) {
-    const auto & cur = term_stack.back();
-    if (Skip(cur)) {
+    auto & cur = term_stack.back();
+    const auto & astnode = cur.first;
+    if (Skip(astnode)) {
       term_stack.pop_back();
       continue;
     }
 
-    if (IN(cur, walked)) { // this is after its children
-      PostChild(cur);
+    if (cur.second) { // this is after its children
+      PostChild(astnode);
       term_stack.pop_back();
       continue;
     } // this is after its child
 
-    PreChild(cur);
-    walked.insert(cur);
+    PreChild(astnode);
+    cur.second = true;
     // for each of its child
-    for (const auto & c : *ast)
-      term_stack.push_back(c);
+    for (const auto & c : *astnode)
+      term_stack.push_back(std::make_pair(c, false));
   }
-} // end of Walker::Walk
+} // end of Walker::WalkBFS
 
 } // namespace cosa
