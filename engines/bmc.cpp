@@ -61,6 +61,13 @@ bool Bmc::step(int i)
     solver_->assert_formula(unroller_.at_time(ts_.trans(), i - 1));
   }
 
+  {
+    Result r = solver_->check_sat();
+    if (!r.is_sat()) {
+      logger.log(0, "Transition dead-end at bound: {}, constraint may be too tight.", i);
+    }
+  }
+
   solver_->push();
   logger.log(1, "Checking bmc at bound: {}", i);
   solver_->assert_formula(unroller_.at_time(bad_, i));

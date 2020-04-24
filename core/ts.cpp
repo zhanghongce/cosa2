@@ -55,6 +55,8 @@ void TransitionSystem::assign_next(const Term & state, const Term & val)
   }
 
   state_updates_[state] = val;
+  nxt_state_updates_[next_map_.at(state)] = val;
+
   trans_ = solver_->make_term(
       And, trans_, solver_->make_term(Equal, next_map_.at(state), val));
 }
@@ -136,6 +138,15 @@ Term TransitionSystem::next(const Term & term) const
   return solver_->substitute(term, next_map_);
 }
 
+Term TransitionSystem::next_to_expr(const Term & term) const
+{
+  if (next_map_.find(term) != next_map_.end()) {
+    return next_map_.at(term);
+  }
+  return solver_->substitute(term, nxt_state_updates_);
+}
+
+
 bool TransitionSystem::is_curr_var(const Term & sv) const
 {
   return (states_.find(sv) != states_.end());
@@ -189,6 +200,12 @@ bool TransitionSystem::contains(const Term & term,
 bool TransitionSystem::only_curr(const Term & term) const
 {
   return contains(term, UnorderedTermSetPtrVec{ &states_ });
+}
+
+
+bool TransitionSystem::only_next(const Term & term) const
+{
+  return contains(term, UnorderedTermSetPtrVec{ &next_states_ });
 }
 
 bool TransitionSystem::no_next(const Term & term) const

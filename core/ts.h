@@ -110,6 +110,13 @@ class TransitionSystem
    */
   smt::Term next(const smt::Term & term) const;
 
+  /* Map all next state variables to its update function in the term
+   * @param t the term to map
+   * @return the term with next state variables replaced by update function 
+   *   using current state variables
+   */
+  smt::Term next_to_expr(const smt::Term & term) const;
+
   /* @param sv the state variable to check
    * @return true if sv is a current state variable
    *
@@ -172,7 +179,9 @@ class TransitionSystem
   smt::Term trans_;
 
   // next state update function
-  smt::UnorderedTermMap state_updates_;
+  smt::UnorderedTermMap state_updates_; // state -> update function
+  smt::UnorderedTermMap nxt_state_updates_; // nxt_state -> update_function
+  
 
   // system state variables
   smt::UnorderedTermSet states_;
@@ -195,7 +204,7 @@ class TransitionSystem
   typedef std::vector<const smt::UnorderedTermSet *> UnorderedTermSetPtrVec;
 
   // helpers and checkers
-
+public:
   /** Returns true iff all symbols in term are present in at least one of the
    * term sets
    *  @param term the term to check
@@ -207,6 +216,9 @@ class TransitionSystem
 
   /* Returns true iff all the symbols in the formula are current states */
   bool only_curr(const smt::Term & term) const;
+
+  /* Returns true iff all the symbols in the formula are next states */
+  bool only_next(const smt::Term & term) const;
 
   /* Returns true iff all the symbols in the formula are inputs and current
    * states */

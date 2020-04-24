@@ -39,6 +39,23 @@ std::ostream & operator<< (std::ostream & os, const Model & m) {
 }
 
 
+std::string Model::to_string() const {
+  std::string ret;
+  for (auto && v_val : cube ) {
+    ret += v_val.first->to_string()  + "= " +
+       v_val.second->to_string() ;
+    ret += " , ";
+  }
+  return ret;
+}
+
+Model::Model(smt::SmtSolver & solver_, const std::unordered_set<smt::Term> & vars) {
+  for (smt::Term v : vars) {
+    smt::Term val = solver_->get_value(v);
+    cube.insert(std::make_pair(v,val));
+  }
+}
+
 #define NOT(x)    (solver_->make_term(smt::Not, (x)))
 #define EQ(x, y)  (solver_->make_term(smt::BVComp, (x), (y)))
 #define AND(x, y) (solver_->make_term(smt::And, (x), (y)))
@@ -92,6 +109,17 @@ void PartialModelGen::GetVarList(const smt::Term & ast, bool use_cache ) {
   dfs_vars_.clear();
   use_cache_ = use_cache;
   dfs_walk(ast);
+}
+
+
+void PartialModelGen::GetVarList(const smt::Term & ast, 
+  std::unordered_set<smt::Term> & out_vars, bool use_cache ) {
+
+  dfs_walked_.clear();
+  dfs_vars_.clear();
+  use_cache_ = use_cache;
+  dfs_walk(ast);
+  out_vars.insert(dfs_vars_.begin(), dfs_vars_.end());
 }
 
 
@@ -245,12 +273,16 @@ void PartialModelGen::CacheNode(const smt::Term & ast) {
     return;
   cur_node_ = new CondVarBuffer;
   node_allocation_table_.push_back(cur_node_);
+
+  dfs_variable_stack_.clear();
   dfs_variable_stack_.push_back(std::unordered_set<smt::Term>());
   dfs_bufwalk(ast, nullptr);
   assert(dfs_variable_stack_.size() == 1);
   cur_node_->vars.insert(
     dfs_variable_stack_.back().begin(),
     dfs_variable_stack_.back().end());
+  
+  node_buffer_.insert(std::make_pair(ast, cur_node_));
 }
 
 void PartialModelGen::InterpretCache(CondVarBuffer * n, std::unordered_set<smt::Term> & var)  {

@@ -25,9 +25,15 @@ namespace cosa {
 typedef std::unordered_map<smt::Term, smt::Term> cube_t;
 struct Model {
   cube_t cube;
+  std::string to_string() const;
   smt::Term to_expr(smt::SmtSolver & solver_);
   static smt::Term to_expr(const cube_t & c, smt::SmtSolver & solver_);
+  Model() {}
+  // from get value from a solver
+  Model(smt::SmtSolver & solver_, const std::unordered_set<smt::Term> & varset);
 };
+
+typedef std::shared_ptr<Model> ModelPtr;
 
 std::ostream & operator<< (std::ostream & os, const Model & m);
 
@@ -63,6 +69,8 @@ protected:
   void dfs_bufwalk(const smt::Term & ast, const smt::Term & cond);
   void cur_node_insert_back(const smt::Term & cond);
 
+  void GetVarList(const smt::Term & ast, bool use_cache = true);
+
 public:
 
   PartialModelGen(smt::SmtSolver & solver);
@@ -71,7 +79,8 @@ public:
   PartialModelGen(const PartialModelGen &) = delete;
   PartialModelGen & operator=(const PartialModelGen &) = delete;
 
-  void GetVarList(const smt::Term & ast, bool use_cache = true);
+  void GetVarList(const smt::Term & ast, 
+    std::unordered_set<smt::Term> & out_vars, bool use_cache = true);
   // get a partial model and put in the cube
   void GetPartialModel(const smt::Term & ast, cube_t & m, bool use_cache = true);
 
