@@ -57,6 +57,55 @@ Lemma * Lemma::copy(ModelLemmaManager & mfm) {
   return mfm.new_lemma(expr_, expr_msat_, cex_, origin_);
 }
 
+
+Lemma * Lemma::direct_push(ModelLemmaManager & mfm) {
+  pushed = true;
+  Lemma * ret = mfm.new_lemma(expr_, expr_msat_, cex_, origin_);
+  stats_push_fail(false);
+  ret->n_itp_push_failure = n_itp_push_failure;
+  ret->n_itp_push_trial   = n_itp_push_trial;
+  ret->n_itp_enhance_failure = n_itp_enhance_failure;
+  ret->n_itp_enhance_trial   = n_itp_enhance_trial;
+  return ret;
+}
+
+// --------------------- DUMPs --------------------- //
+
+
+void Lemma::stats_push_fail(bool failed) {
+  if (failed)
+    ++ n_itp_push_failure;
+  ++ n_itp_push_trial;
+}
+void Lemma::stats_sygus_fail(bool failed) {
+  if (failed)
+    ++ n_itp_enhance_failure;
+  ++ n_itp_enhance_trial;
+}
+
+std::vector<std::string_view> origin2str = {
+  "prop", "push", "init"
+};
+
+std::string Lemma::origin_to_string(LemmaOrigin o) {
+  return static_cast<std::string>(origin2str.at(o));
+}
+
+std::string Lemma::dump_expr() const {
+  return ( pushed ? "P" : " " ) + 
+    ("|" + expr_->to_string() ) + 
+    ("|" + origin_to_string(origin_) ) + 
+    ("| (" + std::to_string(n_itp_push_failure) + "," + std::to_string(n_itp_push_trial)+ "),("
+           + std::to_string(n_itp_enhance_failure) + "," + std::to_string(n_itp_enhance_trial)+ ")" );
+}
+std::string Lemma::dump_cex() const {
+  return ( pushed ? "P" : " " ) + 
+    ("|" + cex_->to_string() ) + 
+    ("|" + origin_to_string(origin_) ) + 
+    ("| (" + std::to_string(n_itp_push_failure) + "," + std::to_string(n_itp_push_trial)+ "),("
+           + std::to_string(n_itp_enhance_failure) + "," + std::to_string(n_itp_enhance_trial)+ ")" );
+}
+
 } // namespace cosa
  
  

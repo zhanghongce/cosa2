@@ -53,6 +53,7 @@ namespace cosa {
 #endif
 
 // -----------------------------------------------------------------------
+// HERE begins APDR's function definitions
 
 APDR::APDR(const Property & p, smt::SmtSolver & s, smt::SmtSolver & itp_solver,
     const std::unordered_set<smt::Term> & keep_vars,
@@ -180,8 +181,27 @@ smt::Term APDR::frame_prop_btor(unsigned fidx) const {
   for (auto lp_pos = lemmas.begin() + 1; lp_pos != lemmas.end() ; ++ lp_pos)
     e = AND(e, (*lp_pos)->expr() );
   return e;
-}
+} // frame_prop_btor
 
+smt::Term  APDR::frame_prop_btor(unsigned fidx, unsigned not_include_lemmaIdx) const {
+  assert(fidx < frames.size());
+  auto & lemmas = frames.at(fidx);
+  if(lemmas.size() == 0 || (lemmas.size() == 1 && not_include_lemmaIdx == 0) )
+    return TERM_TRUE;
+  if(lemmas.size() == 1)
+    return lemmas.at(0)->expr();
+
+  smt::Term e = NULL;
+  for (auto lp_pos = lemmas.begin(); lp_pos != lemmas.end() ; ++ lp_pos) {
+    if (lp_pos - lemmas.begin() == not_include_lemmaIdx)
+      continue;
+    if (e == NULL)
+      e = (*lp_pos)->expr();
+    else
+      e = AND(e, (*lp_pos)->expr() );
+  }
+  return e;
+} // frame_prop_btor
 
 smt::Term APDR::frame_prop_msat(unsigned fidx) const {
   assert(fidx < frames.size());
@@ -273,7 +293,7 @@ void APDR::dump_frames(std::ostream & os) const {
     // dump lemmas
     for ( lidx = 0; lidx < frame.size() ; ++ lidx) {
       char ptr = (push_pos == lidx) ? '*' : ' ';
-      os << "  " << ptr << " l" << lidx <<  " : " << frame.at(lidx)->expr->to_string() << std::endl;
+      os << "  " << ptr << " l" << lidx <<  " : " << frame.at(lidx)->dump_expr() << std::endl;
     }
     if (lidx == push_pos)
       os << "    all tried to push" << std::endl;
@@ -281,7 +301,7 @@ void APDR::dump_frames(std::ostream & os) const {
     os << "  CEX blocked :" << std::endl;
     for ( lidx = 0; lidx < frame.size() ; ++ lidx) {
       char ptr = (push_pos == lidx) ? '*' : ' ';
-      os << "  " << ptr << " l" << lidx <<  " : " << * (frame.at(lidx)->cex()) << std::endl;
+      os << "  " << ptr << " l" << lidx <<  " : " << (frame.at(lidx)->dump_cex()) << std::endl;
     }
     if (lidx == push_pos)
       os << "    all tried to push" << std::endl;
@@ -314,7 +334,9 @@ void APDR::_add_pushed_lemma(Lemma * lemma, unsigned start, unsigned end) {
 void APDR::_add_fact(Model * fact, unsigned fidx) {
   if (!IN(fidx, unblockable_fact))
     unblockable_fact.insert(std::make_pair(fidx, facts_t()));
+#ifdef DEBUG
   assert (!FIND_IN(fact, unblockable_fact.at(fidx)));
+#endif
   unblockable_fact.at(fidx).push_back(fact);
 }
 
@@ -367,10 +389,10 @@ APDR::solve_trans_result APDR::solveTrans(
     cut_vars_cur(varlist);
     if (get_post_state)
       put_vars_nxt( varlist , post_varlist);
-    Model * pre_ex = new_model(varlist);
+    Model * prev_ex = new_model(varlist);
     Model * post_ex = get_post_state ? new_model(post_varlist) : NULL;
     solver_->pop();
-    return solve_trans_result(pre_ex, post_ex, smt::Term(NULL));
+    return solve_trans_result(prev_ex, post_ex, smt::Term(NULL));
   } // else unsat
   solver_->pop();
   if (!findItp)
@@ -428,7 +450,7 @@ Model * APDR::get_bad_state_from_property_invalid_after_trans (
     idx, prop_btor,
     /*remove_prop_in_prev*/ false, use_init,
     /*find itp*/ false, /*post state*/ false, /*fc*/ NULL );
-  return trans_result.pre_ex;
+  return trans_result.prev_ex;
 }
 
 bool APDR::do_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_origin) {
@@ -464,7 +486,7 @@ bool APDR::do_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex
 
     D(3, "      [block] check at F{} -> F{} : {}", fidx-1, fidx, prop_btor_cex->to_string());
 
-    if (trans_result.pre_ex == NULL) {
+    if (trans_result.prev_ex == NULL) {
       // unsat -- no reachable
       Lemma * lemma = new_lemma(trans_result.itp, to_itp_solver_.transfer_term(trans_result.itp),
         cex, cex_origin);
@@ -472,8 +494,8 @@ bool APDR::do_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex
       _add_pushed_lemma(lemma, 1, fidx -1 );
       priorityQueue.pop();
     } else {
-      priorityQueue.push(std::make_pair(fidx-1, trans_result.pre_ex));
-      D(3, "      [block] push to queue, F{} : {}", fidx-1,  trans_result.pre_ex->to_string());
+      priorityQueue.push(std::make_pair(fidx-1, trans_result.prev_ex));
+      D(3, "      [block] push to queue, F{} : {}", fidx-1,  trans_result.prev_ex->to_string());
     }
   } //  while there is cube to block
   // block succeeded
@@ -515,7 +537,7 @@ bool APDR::try_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin ce
 
     D(3, "      [block-try] check at F{} -> F{} : {}", fidx-1, fidx, prop_btor_cex->to_string());
 
-    if (trans_result.pre_ex == NULL) {
+    if (trans_result.prev_ex == NULL) {
       // unsat -- no reachable
       Lemma * lemma = new_lemma(trans_result.itp, to_itp_solver_.transfer_term(trans_result.itp),
         cex, cex_origin);
@@ -523,8 +545,8 @@ bool APDR::try_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin ce
       frame_cache._add_pushed_lemma(lemma, 1, fidx -1 );
       priorityQueue.pop();
     } else {
-      priorityQueue.push(std::make_pair(fidx-1, trans_result.pre_ex));
-      D(3, "      [block-try] push to queue, F{} : {}", fidx-1,  trans_result.pre_ex->to_string());
+      priorityQueue.push(std::make_pair(fidx-1, trans_result.prev_ex));
+      D(3, "      [block-try] push to queue, F{} : {}", fidx-1,  trans_result.prev_ex->to_string());
     }
   } //  while there is cube to block
   // block succeeded
@@ -591,8 +613,140 @@ ProverResult APDR::check_until(int k) {
 }
 
 void APDR::push_lemma_from_the_lowest_frame() {
-
+  unsigned start_frame = 1;
+  D(1, "[pushes] F{} --- F{}", start_frame, frames.size() -2);
+  for (unsigned fidx = start_frame; fidx < frames.size() -1 ; ++ fidx) {
+    push_lemma_from_frame(fidx);
+  }
 }
+
+void APDR::push_lemma_from_frame(unsigned fidx) {
+  assert (frames.size() > fidx + 1);
+  assert (frames.at(fidx).size() > 0 );
+
+  // 1. push facts
+  unsigned start_fact_idx = get_with_default(facts_pushed_idxs_map, fidx, 0);
+  unsigned end_fact_idx =  IN(fidx, unblockable_fact) ? unblockable_fact.at(fidx).size() : 0;
+  if (IN(fidx, unblockable_fact)) {
+    for (unsigned factIdx = start_fact_idx; factIdx < end_fact_idx; ++ factIdx) {
+      Model * fact = unblockable_fact.at(fidx).at(factIdx);
+      if (!IN(fidx+1, unblockable_fact))
+        unblockable_fact.insert(std::make_pair(fidx+1, facts_t()));
+      if (!FIND_IN(fact, unblockable_fact.at(fidx+1)))
+        _add_fact(fact, fidx+1);
+    }
+  }
+  facts_pushed_idxs_map[fidx] = end_fact_idx;
+
+  // 2. push lemmas
+  unsigned start_lemma_idx = get_with_default(frames_pushed_idxs_map, fidx, 0);
+  unsigned end_lemma_idx   = frames.size();
+
+  //                      lemmaIdx, Lemma, prev_ex, post_ex
+  std::vector<std::tuple<unsigned, Lemma *, Model *, Model *>> unpushed_lemmas;
+
+  for (unsigned lemmaIdx = start_lemma_idx ; lemmaIdx < end_lemma_idx; ++ lemmaIdx) {
+    Lemma * lemma = frames.at(fidx).at(lemmaIdx);
+    if (lemma->pushed)
+      continue;
+    D(2, "  [push_lemma F{}] Try pushing lemma l{} to F{}: {}",
+      fidx, lemmaIdx, fidx+1, lemma->to_string());
+    auto result = solveTrans(fidx, lemma->expr(), 
+      false /*rm prop in prev frame*/, false /*use_init*/, false /*itp*/,
+      true /*post state*/, NULL /*frame cache*/);
+    if (result.prev_ex == NULL) {
+      assert (result.post_ex == NULL);
+      D(2, "  [push_lemma F{}] Succeed in pushing l{}",
+        fidx, lemmaIdx);
+      _add_lemma(lemma->direct_push(), fidx+1);
+    } else {
+      unpushed_lemmas.push_back(std::make_tuple(
+        lemmaIdx, lemma, result.prev_ex, result.post_ex
+      ));
+    }
+  } // try plain pushing
+
+  // 3. handle unpushed lemmas
+  for (auto && unpushed_lemma : unpushed_lemmas) {
+    unsigned lemmaIdx;
+    Lemma * lemma;
+    Model * prev_ex, * post_ex;
+    std::tie(lemmaIdx, lemma, prev_ex, post_ex) = unpushed_lemma; // unpack
+    if (lemma->cex == NULL) {
+      D(2, "  [push_lemma F{}] will give up on lemma as it blocks None, l{} : {}",
+        fidx, lemmaIdx, lemma->to_string());
+      continue; 
+    }
+    // 3.1 if subsume, then we don't need to worry about
+    if (lemma->subsume_by_frame(fidx + 1))
+      continue;
+    // 3.2 try itp repair to see if the cex is pushable or not
+    //     - if it is pushable, we will use the pushed one the last
+    //       but the others the first
+    //     - if it is not pushable, we don't need to try anymore
+    //       just give up
+    FrameCache itp_fc(solver_, itp_solver_, *this);
+    Model * cex_failed; smt::Term itp;
+    std::tie(cex_failed, itp) = lemma->try_itp_push(itp_fc, fidx);
+    if (cex_failed) {
+      assert (itp == NULL);
+      D(2, "  [push_lemma F{}] skip r-block l{} : {} , as its cex cannot be pushed.",
+        fidx, lemmaIdx, lemma->to_string());
+      continue;
+    }
+
+    Lemma * sygus_hint = NULL;
+    if (pdr_config::USE_SYGUS_REPAIR)  {
+      sygus_hint = lemma->try_sygus_repair(fidx, lemmaIdx, post_ex, itp);
+      // can still result in sygus_hint == NULL
+    }
+    if (sygus_hint) {
+      _add_lemma(sygus_hint, fidx+1);
+      _add_pushed_lemma(sygus_hint, 1, fidx);
+      D(2, "  [push_lemma F{}] repair l{} : {}", fidx, lemmaIdx, lemma->to_string());
+      D(2, "  [push_lemma F{}] get l{} : {}",    fidx, lemmaIdx, sygus_hint->to_string());
+      continue;
+    }
+
+    D(2, "  [push_lemma F{}] try strengthening l{}", fidx, lemmaIdx, lemma->to_string());
+    FrameCache strengthen_fc(solver_, itp_solver_, *this);
+
+    bool prop_succ, all_succ; unsigned rmBnd; Model * unblockable_cube;
+    std::tie(prop_succ, all_succ, rmBnd, unblockable_cube) = 
+      lemma->try_strengthen(strengthen_fc, pdr_config::STRENGTHEN_EFFORT_FOR_PROP,
+        fidx, prev_ex);
+    // all possible cases: full/prop itself/bad_state
+    if (all_succ || prop_succ) {
+      D(2, "  [push_lemma F{}] strengthened l{} : {} with extra lemma {}",
+        fidx, lemmaIdx, lemma->to_string(), all_succ ? 'A' :'P');
+      merge_frame_cache(strengthen_fc);
+      continue;
+    }
+
+    if (unblockable_cube && rmBnd >= 0) 
+      _add_fact(unblockable_cube, fidx);
+    else
+      assert (rmBnd < 0); // bound limit reached
+    
+    // try strengthen, but unable to even strengthen the main prop 
+    // in the given bound
+    D(2, "  [push_lemma F{}] unable to push l{} : {}", fidx, lemmaIdx, lemma->to_string());
+    D(2, "  [push_lemma F{}] use new itp l{}: {}", fidx, lemmaIdx, itp->to_string());
+
+    merge_frame_cache(itp_fc);
+  } // for each unpushe lemma
+
+  frames_pushed_idxs_map[fidx] = end_lemma_idx;
+} // push_lemma_from_frame
+
+void APDR::merge_frame_cache(FrameCache & fc) {
+  for (auto && fidx_lemmas_pair : fc.get_frames()) {
+    for (Lemma * l : fidx_lemmas_pair.second)
+      _add_lemma(l, fidx_lemmas_pair.first);
+  }
+}
+
+
 
 
 } // namespace cosa

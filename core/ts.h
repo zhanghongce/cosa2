@@ -136,6 +136,8 @@ class TransitionSystem
 
   const smt::UnorderedTermSet & states() const { return states_; };
 
+  const smt::UnorderedTermSet & next_states() const { return next_states_; };
+
   const smt::UnorderedTermSet & inputs() const { return inputs_; };
 
   /* Returns the initial state constraints

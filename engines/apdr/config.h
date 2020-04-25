@@ -23,7 +23,8 @@ namespace pdr_config {
   const bool     USE_ITP_IN_PUSHING = false;
   const bool     DEBUG = true;
   const bool     DEBUG_PRINT = true;
-  const bool     USE_SYGUS = false;
+  const bool     USE_SYGUS_REPAIR = false;
+  const bool     USE_SYGUS_LEMMA_GEN = false;
   const bool     RM_CEX_IN_PREV = true;
   const bool     USE_FACT_IN_SYGUS = false;
   const unsigned ENHANCE_GIVEUP_THRESHOLD_FAILED = 2;

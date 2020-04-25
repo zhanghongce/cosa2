@@ -28,12 +28,17 @@ namespace cosa {
 // use to commit change all at 
 // once
 class FrameCache {
+public:
+  typedef std::vector<Lemma *> frame_t;
 protected:
   std::unordered_map<unsigned, std::vector<Lemma *>> frames;
   smt::SmtSolver & btor_;
   smt::SmtSolver & msat_;
+  ModelLemmaManager & mlm_;
 public:
-  FrameCache (smt::SmtSolver & btor, smt::SmtSolver & msat);
+  FrameCache (smt::SmtSolver & btor, smt::SmtSolver & msat,
+    ModelLemmaManager & mlm) :
+    btor_(btor), msat_(msat), mlm_(mlm) {}
 
   void _add_lemma(Lemma * lemma, unsigned fidx);
   void _add_pushed_lemma(Lemma * lemma, unsigned start, unsigned end);
@@ -41,6 +46,8 @@ public:
   bool has_lemma_at_frame(unsigned fidx) const;
   smt::Term conjoin_frame_for_props_btor(unsigned fidx);
   smt::Term conjoin_frame_for_props_msat(unsigned fidx);
+
+  std::unordered_map<unsigned, std::vector<Lemma *>> & get_frames() { return frames; }
 }; // framecache
 
 
@@ -61,19 +68,13 @@ public:
   ProverResult prove();
 */
 
-class APDR : public Prover, public ModelLemmaManager {
+class APDR : public Prover, public ModelLemmaManager, public LemmaPDRInterface {
 public:
   // type definition
+  using frame_t = FrameCache::frame_t;
   typedef std::unordered_set<smt::Term> varset_t;
-  typedef std::vector<Lemma *> frame_t;
   typedef std::vector<Model *> facts_t;
-  struct solve_trans_result {
-    Model * pre_ex;
-    Model * post_ex;
-    smt::Term itp;
-    solve_trans_result (Model * pre, Model * post, const smt::Term & itp_):
-      pre_ex(pre), post_ex (post), itp(itp_) {}
-  };
+
   // comparator for fidx, cex
   typedef std::pair<unsigned, Model *> fcex_t;
   struct fcex_queue_comparator {
@@ -95,6 +96,7 @@ public:
   APDR(const APDR &) = delete;
 
   smt::SmtSolver & solver() override { return solver_; }
+  virtual smt::SmtSolver & btor() override { return solver_; }
   smt::SmtSolver & itp_solver() override { return itp_solver_; }
   smt::TermTranslator & to_itp_solver() override { return to_itp_solver_; }
   smt::TermTranslator & to_btor() override { return to_btor_; }
@@ -126,7 +128,8 @@ protected:
 
 
 protected: // frame handling
-  smt::Term frame_prop_btor(unsigned fidx) const;
+  virtual smt::Term frame_prop_btor(unsigned fidx) const override;
+  virtual smt::Term frame_prop_btor(unsigned fidx, unsigned not_include_lemmaIdx) const override;
   smt::Term frame_prop_msat(unsigned fidx) const;
   smt::Term get_inv() const;
   bool frame_implies(unsigned fidx, const smt::Term &prop);
@@ -141,7 +144,7 @@ protected: // frame handling
 
 protected:
   // member class
-  bool is_valid(const smt::Term & e);
+  virtual bool is_valid(const smt::Term & e) override;
   bool is_sat(const smt::Term & e);
   Model * get_not_valid_model(const smt::Term & e);
   Model * solve(const smt::Term & formula);
@@ -151,24 +154,36 @@ public:
   bool is_safe_inductive_inv(const smt::Term & inv);
   void sanity_check_imply();
   void sanity_check_frame_monotone();
-  void dump_frames(std::ostream & os) const;
+  virtual void dump_frames(std::ostream & os) const override;
 
-  solve_trans_result solveTrans(
+  virtual solve_trans_result solveTrans(
     unsigned prevFidx, const smt::Term & prop_btor, bool remove_prop_in_prev_frame,
-    bool use_init, bool findItp, bool get_post_state, FrameCache * fc );
+    bool use_init, bool findItp, bool get_post_state, FrameCache * fc ) override;
   
   Model * get_bad_state_from_property_invalid_after_trans (
     const smt::Term & prop, unsigned idx, bool use_init);
 
   bool do_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_origin);
   
-  bool try_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_origin,
-    FrameCache & frame_cache);
+  virtual bool try_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_origin,
+    FrameCache & frame_cache) override;
 
   bool check_init_failed();
-  
+
   void push_lemma_from_the_lowest_frame();
 
+  void push_lemma_from_frame(unsigned fidx);
+
+  void merge_frame_cache(FrameCache & fc);
+
+  // --------------- accessor --------------- //
+  // --------- delegate to TransitionSystem -------- //
+  virtual smt::Term next(const smt::Term &e) const override { return ts_.next(e);}
+  virtual smt::Term curr(const smt::Term &e) const override { return ts_.curr(e);}
+  virtual smt::Term init() const override { return ts_.init(); }
+  virtual smt::Term trans() const override { return ts_.trans(); }
+  virtual const smt::UnorderedTermSet & states() const override { return ts_.states(); }
+  virtual const smt::UnorderedTermSet & next_states() const override { return ts_.next_states(); }
 
 }; // class APDR
 
