@@ -686,7 +686,7 @@ void APDR::push_lemma_from_frame(unsigned fidx) {
     //     - if it is not pushable, we don't need to try anymore
     //       just give up
     FrameCache itp_fc(solver_, itp_solver_, *this);
-    Model * cex_failed; smt::Term itp;
+    Model * cex_failed; Lemma * itp;
     std::tie(cex_failed, itp) = lemma->try_itp_push(itp_fc, fidx);
     if (cex_failed) {
       assert (itp == NULL);
@@ -711,7 +711,7 @@ void APDR::push_lemma_from_frame(unsigned fidx) {
     D(2, "  [push_lemma F{}] try strengthening l{}", fidx, lemmaIdx, lemma->to_string());
     FrameCache strengthen_fc(solver_, itp_solver_, *this);
 
-    bool prop_succ, all_succ; unsigned rmBnd; Model * unblockable_cube;
+    bool prop_succ, all_succ; int rmBnd; Model * unblockable_cube;
     std::tie(prop_succ, all_succ, rmBnd, unblockable_cube) = 
       lemma->try_strengthen(strengthen_fc, pdr_config::STRENGTHEN_EFFORT_FOR_PROP,
         fidx, prev_ex);
@@ -723,7 +723,7 @@ void APDR::push_lemma_from_frame(unsigned fidx) {
       continue;
     }
 
-    if (unblockable_cube && rmBnd >= 0) 
+    if (unblockable_cube && rmBnd >= 0)  // true unblockable fact
       _add_fact(unblockable_cube, fidx);
     else
       assert (rmBnd < 0); // bound limit reached

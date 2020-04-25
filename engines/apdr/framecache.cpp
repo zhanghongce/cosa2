@@ -58,6 +58,14 @@ void FrameCache::_add_pushed_lemma(Lemma * lemma, unsigned start, unsigned end) 
 bool FrameCache::has_lemma_at_frame(unsigned fidx) const {
   return IN(fidx, frames);
 }
+
+unsigned FrameCache::n_lemma_at_frame(unsigned fidx) const {
+  if (!IN(fidx,frames))
+    return 0;
+  return frames.at(fidx).size();
+}
+
+
 smt::Term FrameCache::conjoin_frame_for_props_btor(unsigned fidx) {
   if (!IN(fidx,frames))
     return TERM_TRUE;

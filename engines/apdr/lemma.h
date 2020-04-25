@@ -24,6 +24,7 @@ namespace cosa {
 
 class Lemma;
 class ModelLemmaManager;
+class FrameCache;
 
 class LemmaPDRInterface {
 public:
@@ -40,6 +41,7 @@ public:
   virtual smt::Term frame_prop_btor(unsigned fidx, unsigned not_include_lemmaIdx) const = 0;
 
   virtual smt::SmtSolver & btor() = 0;
+  virtual smt::SmtSolver & msat() = 0;
   virtual solve_trans_result solveTrans(
     unsigned prevFidx, const smt::Term & prop_btor, bool remove_prop_in_prev_frame,
     bool use_init, bool findItp, bool get_post_state, FrameCache * fc ) = 0;
@@ -79,6 +81,16 @@ public:
   void stats_sygus_fail(bool failed);
 
   Lemma * direct_push(ModelLemmaManager & mfm);
+  bool subsume_by_frame(unsigned fidx, LemmaPDRInterface & pdr);
+  // cex_failed, and ITP
+  std::pair<bool, Lemma *> try_itp_push(FrameCache &fc, unsigned src_fidx, 
+     LemmaPDRInterface & pdr);
+  // prop_succ, all_succ, bmBnd, unblocked_cube
+  std::tuple<bool, bool, int, Model *> try_strengthen(FrameCache &fc,
+    int bnd, unsigned src_fidx, Model * prev_ex, LemmaPDRInterface & pdr, ModelLemmaManager & mlm);
+  Lemma * try_sygus_repair(unsigned fidx, unsigned lemmaIdx, Model * post_ex,
+    Lemma * new_itp, LemmaPDRInterface & pdr, ModelLemmaManager & mfm);
+
 
 
   static std::string origin_to_string(LemmaOrigin o) ;

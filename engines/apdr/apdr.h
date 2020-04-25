@@ -44,6 +44,7 @@ public:
   void _add_pushed_lemma(Lemma * lemma, unsigned start, unsigned end);
 
   bool has_lemma_at_frame(unsigned fidx) const;
+  unsigned n_lemma_at_frame(unsigned fidx) const;
   smt::Term conjoin_frame_for_props_btor(unsigned fidx);
   smt::Term conjoin_frame_for_props_msat(unsigned fidx);
 
@@ -97,6 +98,7 @@ public:
 
   smt::SmtSolver & solver() override { return solver_; }
   virtual smt::SmtSolver & btor() override { return solver_; }
+  virtual smt::SmtSolver & msat() override { return itp_solver_; }
   smt::SmtSolver & itp_solver() override { return itp_solver_; }
   smt::TermTranslator & to_itp_solver() override { return to_itp_solver_; }
   smt::TermTranslator & to_btor() override { return to_btor_; }

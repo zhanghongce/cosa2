@@ -14,9 +14,29 @@
  ** 
  **/
  
- #include "lemma.h"
- #include "apdr.h"
- 
+#include "lemma.h"
+#include "apdr.h"
+
+#include <cassert>
+
+// some helper functions
+#define TERM_TRUE    (pdr.btor()->make_term(true))
+#define NOT(x)       (pdr.btor()->make_term(smt::Not, (x)))
+#define EQ(x, y)     (pdr.btor()->make_term(smt::BVComp, (x), (y)))
+#define AND(x, y)    (pdr.btor()->make_term(smt::And, (x), (y)))
+#define OR(x, y)     (pdr.btor()->make_term(smt::Or, (x), (y)))
+#define IMPLY(x, y)  (pdr.btor()->make_term(smt::Implies, (x), (y)))
+
+// some helper functions
+#define TERM_TRUE_msat    (pdr.msat()->make_term(true))
+#define NOT_msat(x)       (pdr.msat()->make_term(smt::Not, (x)))
+#define EQ_msat(x, y)     (pdr.msat()->make_term(smt::BVComp, (x), (y)))
+#define AND_msat(x, y)    (pdr.msat()->make_term(smt::And, (x), (y)))
+#define OR_msat(x, y)     (pdr.msat()->make_term(smt::Or, (x), (y)))
+#define IMPLY_msat(x, y)  (pdr.msat()->make_term(smt::Implies, (x), (y)))
+
+
+
 namespace cosa {
 
 ModelLemmaManager::ModelLemmaManager() { }
@@ -68,6 +88,89 @@ Lemma * Lemma::direct_push(ModelLemmaManager & mfm) {
   ret->n_itp_enhance_trial   = n_itp_enhance_trial;
   return ret;
 }
+
+
+bool Lemma::subsume_by_frame(unsigned fidx, LemmaPDRInterface & pdr) {
+  if (!pdr.is_valid(IMPLY(pdr.frame_prop_btor(fidx), cex_->to_expr(pdr.btor()))  )) 
+    return false;
+  return true;
+}
+
+// cex_failed? and ITP
+std::pair<bool, Lemma *> Lemma::try_itp_push(FrameCache &fc, unsigned src_fidx, 
+    LemmaPDRInterface & pdr) {
+  unsigned nl_at_f =  fc.n_lemma_at_frame(src_fidx+1);
+  bool blockable = pdr.try_recursive_block(cex_, src_fidx+1, origin_, fc);
+  if (blockable) {
+    assert ( fc.n_lemma_at_frame(src_fidx+1) == nl_at_f + 1);
+    stats_push_fail(false);
+    Lemma * l = fc.get_frames().at(src_fidx+1).back();
+    l->n_itp_push_failure = n_itp_push_failure;
+    l->n_itp_push_trial = n_itp_push_trial;
+    return std::make_pair(false, l);
+  }
+  return std::make_pair<bool,Lemma *>(true, NULL);
+} // try_itp_push
+
+// prop_succ, all_succ, bmBnd, unblocked_cube
+std::tuple<bool, bool, int, Model *> Lemma::try_strengthen(FrameCache &fc,
+  int bnd, unsigned src_fidx, Model * prev_ex, LemmaPDRInterface & pdr, ModelLemmaManager & mlm) {
+  
+  assert (prev_ex);
+  while (prev_ex) {
+    bool blockable = pdr.try_recursive_block(prev_ex, src_fidx, LemmaOrigin::ORIGIN_FROM_PUSH, fc);
+    if (!blockable) {
+      stats_push_fail(true);
+      return std::make_tuple(false, false, bnd, prev_ex);
+    }
+    auto trans_result = pdr.solveTrans(src_fidx, expr_, 
+      false /*rm prop*/, false /*init*/, false /*itp*/, false /*post_state*/, &fc);
+    prev_ex = trans_result.prev_ex; // update the cex
+    -- bnd;
+    if (bnd < 0) {
+      stats_push_fail(true);
+      return std::make_tuple(false, false, bnd, prev_ex);
+    }
+  }
+  // okay, we know the current lemma holds on src_fidx+1
+  // add its direct push to fc next level
+  //  - prev_ex is None from this point
+  fc._add_lemma(direct_push(mlm), src_fidx+1);
+  // but for the newly added lemma at src_fidx, we want them to be pushable as well
+  // there could be more lemma in earlier frames, but we don't bother them
+  //  - prop_succ = true from this point
+  // try block all lemmas on the current frame
+  if (fc.has_lemma_at_frame(src_fidx)) {
+    for (Lemma * l : fc.get_frames().at(src_fidx)) {
+      auto trans_result = pdr.solveTrans(src_fidx, expr_, 
+        false /*rm prop*/, false /*init*/, false /*itp*/, false /*post_state*/, &fc);
+      prev_ex =  trans_result.prev_ex; // update the cex
+
+      if (prev_ex == NULL)
+        continue;
+      
+      bool prop_succ, all_succ; int rmBnd; Model * unblockable_cube;
+      std::tie(prop_succ, all_succ, rmBnd, unblockable_cube) = 
+        l->try_strengthen(fc, bnd, src_fidx, prev_ex, pdr, mlm);
+      bnd = rmBnd;
+      if (bnd < 0)
+        return std::make_tuple<bool, bool, int, Model *>(true, false, bnd, (Model *) NULL);
+      if (! (all_succ || prop_succ)) {
+        assert (unblockable_cube);
+        return std::make_tuple(true, false, bnd, unblockable_cube);
+      }
+    } // end each lemma @ src_fidx in fc
+  } // fc lemma
+
+  return std::make_tuple<bool, bool, int, Model *>(true, true, bnd, (Model *) NULL);
+} // try_strengthen
+
+Lemma * Lemma::try_sygus_repair(unsigned fidx, unsigned lemmaIdx, Model * post_ex,
+  Lemma * new_itp, LemmaPDRInterface & pdr, ModelLemmaManager & mfm) {
+  // TO BE IMPLEMENTED
+  return NULL;
+} // try_sygus_repair
+
 
 // --------------------- DUMPs --------------------- //
 
