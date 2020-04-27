@@ -20,24 +20,40 @@
 #include <cassert>
 
 // some helper functions
-#define TERM_TRUE    (pdr.btor()->make_term(true))
+// #define TERM_TRUE    (pdr.btor()->make_term(true))
 #define NOT(x)       (pdr.btor()->make_term(smt::Not, (x)))
-#define EQ(x, y)     (pdr.btor()->make_term(smt::BVComp, (x), (y)))
-#define AND(x, y)    (pdr.btor()->make_term(smt::And, (x), (y)))
-#define OR(x, y)     (pdr.btor()->make_term(smt::Or, (x), (y)))
+// #define EQ(x, y)     (pdr.btor()->make_term(smt::Equal, (x), (y)))
+// #define AND(x, y)    (pdr.btor()->make_term(smt::And, (x), (y)))
+// #define OR(x, y)     (pdr.btor()->make_term(smt::Or, (x), (y)))
 #define IMPLY(x, y)  (pdr.btor()->make_term(smt::Implies, (x), (y)))
 
 // some helper functions
-#define TERM_TRUE_msat    (pdr.msat()->make_term(true))
-#define NOT_msat(x)       (pdr.msat()->make_term(smt::Not, (x)))
-#define EQ_msat(x, y)     (pdr.msat()->make_term(smt::BVComp, (x), (y)))
-#define AND_msat(x, y)    (pdr.msat()->make_term(smt::And, (x), (y)))
-#define OR_msat(x, y)     (pdr.msat()->make_term(smt::Or, (x), (y)))
-#define IMPLY_msat(x, y)  (pdr.msat()->make_term(smt::Implies, (x), (y)))
+// #define TERM_TRUE_msat    (pdr.msat()->make_term(true))
+// #define NOT_msat(x)       (pdr.msat()->make_term(smt::Not, (x)))
+// #define EQ_msat(x, y)     (pdr.msat()->make_term(smt::Equal, (x), (y)))
+// #define AND_msat(x, y)    (pdr.msat()->make_term(smt::And, (x), (y)))
+// #define OR_msat(x, y)     (pdr.msat()->make_term(smt::Or, (x), (y)))
+// #define IMPLY_msat(x, y)  (pdr.msat()->make_term(smt::Implies, (x), (y)))
 
 
 
 namespace cosa {
+
+
+smt::Term bv_to_bool_msat(const smt::Term & t, const smt::SmtSolver & itp_solver_ )
+{
+  smt::Sort sort = t->get_sort();
+  if (sort->get_sort_kind() == smt::BV) {
+    if (sort->get_width() != 1) {
+      throw CosaException("Can't convert non-width 1 bitvector to bool.");
+    }
+    return itp_solver_->make_term(
+        smt::Equal, t, itp_solver_->make_term(1, itp_solver_->make_sort(smt::BV, 1)));
+  } else {
+    return t;
+  }
+}
+
 
 ModelLemmaManager::ModelLemmaManager() { }
 
@@ -91,7 +107,7 @@ Lemma * Lemma::direct_push(ModelLemmaManager & mfm) {
 
 
 bool Lemma::subsume_by_frame(unsigned fidx, LemmaPDRInterface & pdr) {
-  if (!pdr.is_valid(IMPLY(pdr.frame_prop_btor(fidx), cex_->to_expr(pdr.btor()))  )) 
+  if (!pdr.is_valid(IMPLY(pdr.frame_prop_btor(fidx), NOT(cex_->to_expr_btor(pdr.btor())) )  )) 
     return false;
   return true;
 }
@@ -123,7 +139,7 @@ std::tuple<bool, bool, int, Model *> Lemma::try_strengthen(FrameCache &fc,
       stats_push_fail(true);
       return std::make_tuple(false, false, bnd, prev_ex);
     }
-    auto trans_result = pdr.solveTrans(src_fidx, expr_, 
+    auto trans_result = pdr.solveTrans(src_fidx, expr_, expr_msat_,
       false /*rm prop*/, false /*init*/, false /*itp*/, false /*post_state*/, &fc);
     prev_ex = trans_result.prev_ex; // update the cex
     -- bnd;
@@ -142,7 +158,7 @@ std::tuple<bool, bool, int, Model *> Lemma::try_strengthen(FrameCache &fc,
   // try block all lemmas on the current frame
   if (fc.has_lemma_at_frame(src_fidx)) {
     for (Lemma * l : fc.get_frames().at(src_fidx)) {
-      auto trans_result = pdr.solveTrans(src_fidx, expr_, 
+      auto trans_result = pdr.solveTrans(src_fidx, expr_,  expr_msat_,
         false /*rm prop*/, false /*init*/, false /*itp*/, false /*post_state*/, &fc);
       prev_ex =  trans_result.prev_ex; // update the cex
 
@@ -154,15 +170,15 @@ std::tuple<bool, bool, int, Model *> Lemma::try_strengthen(FrameCache &fc,
         l->try_strengthen(fc, bnd, src_fidx, prev_ex, pdr, mlm);
       bnd = rmBnd;
       if (bnd < 0)
-        return std::make_tuple<bool, bool, int, Model *>(true, false, bnd, (Model *) NULL);
+        return std::make_tuple<bool, bool, int, Model *>(true, false, (int)bnd, (Model *) NULL);
       if (! (all_succ || prop_succ)) {
         assert (unblockable_cube);
-        return std::make_tuple(true, false, bnd, unblockable_cube);
+        return std::make_tuple(true, false, (int)bnd, unblockable_cube);
       }
     } // end each lemma @ src_fidx in fc
   } // fc lemma
 
-  return std::make_tuple<bool, bool, int, Model *>(true, true, bnd, (Model *) NULL);
+  return std::make_tuple<bool, bool, int, Model *>(true, true, (int)bnd, (Model *) NULL);
 } // try_strengthen
 
 Lemma * Lemma::try_sygus_repair(unsigned fidx, unsigned lemmaIdx, Model * post_ex,

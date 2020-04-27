@@ -9,7 +9,7 @@
  ** All rights reserved.  See the file LICENSE in the top-level source
  ** directory for licensing information.\endverbatim
  **
- ** \brief APDR header
+ ** \brief Apdr header
  **
  ** 
  **/
@@ -55,7 +55,7 @@ public:
 /*
   Although inherited from Prover, I don't want to use the unroller,
   because we are not unrolling. So it is just for interface.
-  And I hope "witness" & "prove" are virtual. 
+  And I hope "witness" and "prove" are virtual. 
 
   Prover(const Property & p, smt::SmtSolver & s);
   virtual ~Prover();
@@ -69,7 +69,7 @@ public:
   ProverResult prove();
 */
 
-class APDR : public Prover, public ModelLemmaManager, public LemmaPDRInterface {
+class Apdr : public Prover, public ModelLemmaManager, public LemmaPDRInterface {
 public:
   // type definition
   using frame_t = FrameCache::frame_t;
@@ -85,22 +85,23 @@ public:
   
 public:
   // inherited interfaces
-  APDR(const Property & p, smt::SmtSolver & s, smt::SmtSolver & itp_solver,
+  Apdr(const Property & p, smt::SmtSolver & s, 
+    const Property & p_msat, smt::SmtSolver & itp_solver,
     const std::unordered_set<smt::Term> & keep_vars,
     const std::unordered_set<smt::Term> & remove_vars);
   virtual void initialize() override;
   virtual ProverResult check_until(int k) override;
   
-  virtual ~APDR(); // for lower cost, we will manage the memory ourselves
+  virtual ~Apdr(); // for lower cost, we will manage the memory ourselves
   // and disallow copy constructor and etc.
-  APDR & operator=(const APDR &) = delete;
-  APDR(const APDR &) = delete;
+  Apdr & operator=(const Apdr &) = delete;
+  Apdr(const Apdr &) = delete;
 
   smt::SmtSolver & solver() override { return solver_; }
   virtual smt::SmtSolver & btor() override { return solver_; }
   virtual smt::SmtSolver & msat() override { return itp_solver_; }
   smt::SmtSolver & itp_solver() override { return itp_solver_; }
-  smt::TermTranslator & to_itp_solver() override { return to_itp_solver_; }
+  // smt::TermTranslator & to_itp_solver() override { return to_itp_solver_; }
   smt::TermTranslator & to_btor() override { return to_btor_; }
 
 protected:
@@ -122,9 +123,15 @@ protected:
   std::unordered_map<unsigned, unsigned> frames_pushed_idxs_map;
   std::unordered_map<unsigned, unsigned> facts_pushed_idxs_map;
 
+
+  const TransitionSystem & ts_msat_;
+  const Property & property_msat_;
+
   // the itp solver
   smt::SmtSolver & itp_solver_;
-  smt::TermTranslator to_itp_solver_;
+  smt::TermTranslator to_itp_solver_; 
+  // should not need this -- 
+  // as itp to msat could result in problem
   smt::TermTranslator to_btor_;
   // no need to cache trans result -- already cached
 
@@ -159,11 +166,12 @@ public:
   virtual void dump_frames(std::ostream & os) const override;
 
   virtual solve_trans_result solveTrans(
-    unsigned prevFidx, const smt::Term & prop_btor, bool remove_prop_in_prev_frame,
+    unsigned prevFidx, const smt::Term & prop_btor, const smt::Term & prop_msat,
+    bool remove_prop_in_prev_frame,
     bool use_init, bool findItp, bool get_post_state, FrameCache * fc ) override;
   
   Model * get_bad_state_from_property_invalid_after_trans (
-    const smt::Term & prop, unsigned idx, bool use_init);
+    const smt::Term & prop, const smt::Term & prop_msat, unsigned idx, bool use_init, bool add_itp);
 
   bool do_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_origin);
   
@@ -178,6 +186,8 @@ public:
 
   void merge_frame_cache(FrameCache & fc);
 
+  void validate_inv();
+
   // --------------- accessor --------------- //
   // --------- delegate to TransitionSystem -------- //
   virtual smt::Term next(const smt::Term &e) const override { return ts_.next(e);}
@@ -187,7 +197,14 @@ public:
   virtual const smt::UnorderedTermSet & states() const override { return ts_.states(); }
   virtual const smt::UnorderedTermSet & next_states() const override { return ts_.next_states(); }
 
-}; // class APDR
+  virtual smt::Term next_msat(const smt::Term &e) const override { return ts_msat_.next(e);}
+  virtual smt::Term curr_msat(const smt::Term &e) const override { return ts_msat_.curr(e);}
+  virtual smt::Term init_msat() const override { return ts_msat_.init(); }
+  virtual smt::Term trans_msat() const override { return ts_msat_.trans(); }
+  virtual const smt::UnorderedTermSet & states_msat() const override { return ts_msat_.states(); }
+  virtual const smt::UnorderedTermSet & next_states_msat() const override { return ts_msat_.next_states(); }
+
+}; // class Apdr
 
 
 }  // namespace cosa

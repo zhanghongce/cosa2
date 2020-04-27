@@ -31,6 +31,7 @@
 #include "frontends/btor2_encoder.h"
 #include "interpolant.h"
 #include "kinduction.h"
+#include "apdr/apdr.h"
 #include "printers/btor2_witness_printer.h"
 #include "printers/vcd_witness_printer.h"
 #include "prop.h"
@@ -101,7 +102,7 @@ const option::Descriptor usage[] = {
     "engine",
     Arg::NonEmpty,
     "  --engine, -e <engine> \tSelect engine from [bmc, bmc-sp, ind, "
-    "interp]." },
+    "interp, apdr]." },
   { BOUND,
     0,
     "k",
@@ -207,6 +208,20 @@ int main(int argc, char ** argv)
                           "Note: MathSAT has a custom license and you must assume all "
                           "responsibility for meeting the license requirements.");
       #endif
+    } else if (engine == APDR) {
+      #ifdef WITH_MSAT
+      // need mathsat for interpolant based model checking
+      s = BoolectorSolverFactory::create();
+      s->set_opt("produce-models", "true");
+      s->set_opt("incremental", "true");
+      second_solver = MsatSolverFactory::create_interpolating_solver();
+      #else
+      throw CosaException("APDR-based model checking requires MathSAT and "
+                          "this version of cosa2 is built without MathSAT.\nPlease "
+                          "setup smt-switch with MathSAT and reconfigure using --with-msat.\n"
+                          "Note: MathSAT has a custom license and you must assume all "
+                          "responsibility for meeting the license requirements.");
+      #endif
     } else {
       // boolector is faster but doesn't support interpolants
       s = BoolectorSolverFactory::create();
@@ -216,6 +231,10 @@ int main(int argc, char ** argv)
 
     FunctionalTransitionSystem fts(s);
     BTOR2Encoder btor_enc(filename, fts);
+
+    FunctionalTransitionSystem * msat_fts;
+    BTOR2Encoder * msat_enc;
+    Property * msat_p;
 
     unsigned int num_bad = btor_enc.badvec().size();
     if (prop_idx >= num_bad) {
@@ -242,11 +261,21 @@ int main(int argc, char ** argv)
     } else if (engine == INTERP) {
       assert(second_solver != NULL);
       prover = std::make_shared<InterpolantMC>(p, s, second_solver);
+    } else if (engine == APDR) {
+      msat_fts = new FunctionalTransitionSystem(second_solver);
+      msat_enc = new BTOR2Encoder(filename, *msat_fts);
+
+      Term bad_btor = msat_enc->badvec()[prop_idx];
+      msat_p = new Property(*msat_fts, second_solver->make_term(PrimOp::Not, bad_btor));
+
+      prover = std::make_shared<Apdr> (p, s, *msat_p, second_solver,
+        std::unordered_set<smt::Term>(), std::unordered_set<smt::Term> () );
     } else {
       throw CosaException("Unimplemented engine.");
     }
 
     ProverResult r = prover->check_until(bound);
+
     if (r == FALSE) {
       cout << "sat" << endl;
       cout << "b" << prop_idx << endl;
@@ -260,14 +289,29 @@ int main(int argc, char ** argv)
           print_witness_btor(btor_enc, cex);
         }
       }
+      if (engine == APDR) { // clean up
+        delete msat_p;
+        delete msat_enc;
+        delete msat_fts;
+      }
       return 1;
     } else if (r == TRUE) {
       cout << "unsat" << endl;
       cout << "b" << prop_idx << endl;
+      if (engine == APDR) { // clean up
+        delete msat_p;
+        delete msat_enc;
+        delete msat_fts;
+      }
       return 0;
     } else {
       cout << "unknown" << endl;
       cout << "b" << prop_idx << endl;
+      if (engine == APDR) { // clean up
+        delete msat_p;
+        delete msat_enc;
+        delete msat_fts;
+      }
       return 2;
     }
   }

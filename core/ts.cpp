@@ -111,6 +111,7 @@ Term TransitionSystem::make_input(const string name, const Sort & sort)
 {
   Term input = solver_->make_symbol(name, sort);
   inputs_.insert(input);
+  symbols_.insert(std::make_pair(name, input));
   return input;
 }
 
@@ -120,6 +121,8 @@ Term TransitionSystem::make_state(const string name, const Sort & sort)
   Term next_state = solver_->make_symbol(name + ".next", sort);
   states_.insert(state);
   next_states_.insert(next_state);
+  symbols_.insert(std::make_pair(name, state));
+  symbols_.insert(std::make_pair(name + ".next", next_state));
   next_map_[state] = next_state;
   curr_map_[next_state] = state;
   return state;

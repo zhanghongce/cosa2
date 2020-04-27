@@ -9,7 +9,7 @@
  ** All rights reserved.  See the file LICENSE in the top-level source
  ** directory for licensing information.\endverbatim
  **
- ** \brief APDR core agorithm
+ ** \brief Apdr core agorithm
  **
  ** 
  **/
@@ -28,39 +28,45 @@
 // some helper functions
 #define TERM_TRUE    (solver_->make_term(true))
 #define NOT(x)       (solver_->make_term(smt::Not, (x)))
-#define EQ(x, y)     (solver_->make_term(smt::BVComp, (x), (y)))
+#define EQ(x, y)     (solver_->make_term(smt::Equal, (x), (y)))
 #define AND(x, y)    (solver_->make_term(smt::And, (x), (y)))
 #define OR(x, y)     (solver_->make_term(smt::Or, (x), (y)))
 #define IMPLY(x, y)  (solver_->make_term(smt::Implies, (x), (y)))
 
 // some helper functions
 #define TERM_TRUE_msat    (itp_solver_->make_term(true))
-#define NOT_msat(x)       (itp_solver_->make_term(smt::Not, (x)))
-#define EQ_msat(x, y)     (itp_solver_->make_term(smt::BVComp, (x), (y)))
-#define AND_msat(x, y)    (itp_solver_->make_term(smt::And, (x), (y)))
-#define OR_msat(x, y)     (itp_solver_->make_term(smt::Or, (x), (y)))
+#define NOT_msat(x)       (itp_solver_->make_term(smt::Not,     (x)))
+// #define EQ_msat(x, y)     (itp_solver_->make_term(smt::Equal, (x), (y)))
+#define AND_msat(x, y)    (itp_solver_->make_term(smt::And,     (x), (y)))
+#define OR_msat(x, y)     (itp_solver_->make_term(smt::Or,      (x), (y)))
 #define IMPLY_msat(x, y)  (itp_solver_->make_term(smt::Implies, (x), (y)))
 
 namespace cosa {
 
 // ---------------------------------------------------------------------
 
-#define DEBUG 1
+#define DEBUG
 #ifdef DEBUG
   #define D(...) logger.log( __VA_ARGS__ )
+  #define MSAT_DEBUG
+  #define DUMP_FRAME
 #else
-  #define D(x) do {} while (0)
+  #define D(...) do {} while (0)
 #endif
 
 // -----------------------------------------------------------------------
-// HERE begins APDR's function definitions
+// HERE begins Apdr's function definitions
 
-APDR::APDR(const Property & p, smt::SmtSolver & s, smt::SmtSolver & itp_solver,
+Apdr::Apdr(const Property & p, smt::SmtSolver & s, 
+    const Property & p_msat, smt::SmtSolver & itp_solver,
     const std::unordered_set<smt::Term> & keep_vars,
     const std::unordered_set<smt::Term> & remove_vars) :
   Prover(p,s), keep_vars_(keep_vars), remove_vars_(remove_vars),
-  partial_model_getter(s), itp_solver_(itp_solver),
-  to_itp_solver_(itp_solver_), to_btor_(solver_)
+  partial_model_getter(s), ts_msat_(p_msat.transition_system()),
+  property_msat_(p_msat),
+  itp_solver_(itp_solver),
+  to_itp_solver_(itp_solver_),
+  to_btor_(solver_)
   // cache the transition and init condition formula -- trans/init
   // no need actually.
   // - itp_solver_trans_term_(to_itp_solver_.transfer_term(ts_.trans())),
@@ -70,9 +76,14 @@ APDR::APDR(const Property & p, smt::SmtSolver & s, smt::SmtSolver & itp_solver,
       keep_vars_nxt_.insert(ts_.next(v));
     for (auto && v : remove_vars_)
       remove_vars_nxt_.insert(ts_.next(v));
+    
+    initialize();
   }
 
-void APDR::initialize() {
+void Apdr::initialize() {
+
+  Prover::initialize();
+
   // cache partial model getter
   partial_model_getter.CacheNode(ts_.init());
   // create the cache of next vars in 
@@ -81,22 +92,24 @@ void APDR::initialize() {
   }
 
   // cache msat expression
-  init_msat_nxt = to_itp_solver_.transfer_term(ts_.next(ts_.init()));
-  T_msat = to_itp_solver_.transfer_term(ts_.trans());
+  init_msat_nxt = bv_to_bool_msat(ts_msat_.next(ts_msat_.init()), itp_solver_);
+    // to_itp_solver_.transfer_term(ts_.next(ts_.init())), itp_solver_);
+  T_msat = bv_to_bool_msat(ts_msat_.trans(), itp_solver_);
+    // bv_to_bool_msat(to_itp_solver_.transfer_term(ts_.trans()), itp_solver_);
 
   // build frames
   frames.push_back(frame_t()); // F0 = [init]
   frames.back().push_back(
     new_lemma(
-      ts_.init(), to_itp_solver_.transfer_term(ts_.init()),
-      NULL, Lemma::ORIGIN_FROM_INIT) );
+      ts_.init(), bv_to_bool_msat( ts_msat_.init() , itp_solver_),
+      NULL, Lemma::LemmaOrigin::ORIGIN_FROM_INIT) );
   frames.push_back(frame_t()); // F1 = []
 }
 
-APDR::~APDR() { }
+Apdr::~Apdr() { }
 
 
-void APDR::cut_vars_cur(std::unordered_set<smt::Term> & v) {
+void Apdr::cut_vars_cur(std::unordered_set<smt::Term> & v) {
   auto pos = v.begin();
   while(pos != v.end()) {
     if ( !ts_.is_curr_var(*pos) ||
@@ -108,7 +121,7 @@ void APDR::cut_vars_cur(std::unordered_set<smt::Term> & v) {
   }
 }
 
-void APDR::put_vars_nxt(const std::unordered_set<smt::Term> & vs, std::unordered_set<smt::Term> & out) {
+void Apdr::put_vars_nxt(const std::unordered_set<smt::Term> & vs, std::unordered_set<smt::Term> & out) {
   for (auto && v: vs ) {
     if ( !ts_.is_next_var(v) ||
          (!keep_vars_nxt_.empty() && !IN(v, keep_vars_nxt_)) ||
@@ -119,7 +132,7 @@ void APDR::put_vars_nxt(const std::unordered_set<smt::Term> & vs, std::unordered
 }
 
 
-bool APDR::is_valid(const smt::Term & e) {
+bool Apdr::is_valid(const smt::Term & e) {
   solver_->push();
   solver_->assert_formula(NOT(e));
   auto result = solver_->check_sat();
@@ -127,7 +140,7 @@ bool APDR::is_valid(const smt::Term & e) {
   return !(result.is_sat());
 }
 
-bool APDR::is_sat(const smt::Term & e)  {
+bool Apdr::is_sat(const smt::Term & e)  {
   solver_->push();
   solver_->assert_formula(NOT(e));
   auto result = solver_->check_sat();
@@ -135,7 +148,7 @@ bool APDR::is_sat(const smt::Term & e)  {
   return !(result.is_sat());
 }
 
-Model * APDR::get_not_valid_model(const smt::Term & e) {
+Model * Apdr::get_not_valid_model(const smt::Term & e) {
   solver_->push();
   solver_->assert_formula(NOT(e));
   auto result = solver_->check_sat();
@@ -151,7 +164,7 @@ Model * APDR::get_not_valid_model(const smt::Term & e) {
 
 // this function is only used in recursive block
 // in checking the same cycle solve
-Model * APDR::solve(const smt::Term & formula) {
+Model * Apdr::solve(const smt::Term & formula) {
   assert(ts_.only_curr(formula)); // TO REMOVE DEBUG
   solver_->push();
   solver_->assert_formula(formula);
@@ -170,7 +183,7 @@ Model * APDR::solve(const smt::Term & formula) {
 
 // ----------- frame handling -------------
 
-smt::Term APDR::frame_prop_btor(unsigned fidx) const {
+smt::Term Apdr::frame_prop_btor(unsigned fidx) const {
   assert(fidx < frames.size());
   auto & lemmas = frames.at(fidx);
   if(lemmas.size() == 0)
@@ -183,7 +196,7 @@ smt::Term APDR::frame_prop_btor(unsigned fidx) const {
   return e;
 } // frame_prop_btor
 
-smt::Term  APDR::frame_prop_btor(unsigned fidx, unsigned not_include_lemmaIdx) const {
+smt::Term  Apdr::frame_prop_btor(unsigned fidx, unsigned not_include_lemmaIdx) const {
   assert(fidx < frames.size());
   auto & lemmas = frames.at(fidx);
   if(lemmas.size() == 0 || (lemmas.size() == 1 && not_include_lemmaIdx == 0) )
@@ -203,42 +216,50 @@ smt::Term  APDR::frame_prop_btor(unsigned fidx, unsigned not_include_lemmaIdx) c
   return e;
 } // frame_prop_btor
 
-smt::Term APDR::frame_prop_msat(unsigned fidx) const {
+smt::Term Apdr::frame_prop_msat(unsigned fidx) const {
   assert(fidx < frames.size());
   auto & lemmas = frames.at(fidx);
   if(lemmas.size() == 0)
     return TERM_TRUE_msat;
   if(lemmas.size() == 1)
-    return lemmas.at(0)->expr_msat();
-  smt::Term e = lemmas.at(0)->expr_msat();
+    return ( lemmas.at(0)->expr_msat() );
+  smt::Term e = (lemmas.at(0)->expr_msat());
   for (auto lp_pos = lemmas.begin() + 1; lp_pos != lemmas.end() ; ++ lp_pos)
-    e = AND_msat(e, (*lp_pos)->expr_msat() );
+    e = AND_msat(e, ((*lp_pos)->expr_msat()) );
   return e;
 }
 
 
-bool APDR::frame_and_fc_implies(unsigned fidx, FrameCache &fc, const smt::Term &prop) {
+bool Apdr::frame_and_fc_implies(unsigned fidx, FrameCache &fc, const smt::Term &prop) {
   return is_valid(IMPLY(AND(frame_prop_btor(fidx), fc.conjoin_frame_for_props_btor(fidx)), prop));
 }
 
-bool APDR::frame_implies(unsigned fidx, const smt::Term &prop) {
+bool Apdr::frame_implies(unsigned fidx, const smt::Term &prop) {
   return is_valid(IMPLY(frame_prop_btor(fidx), prop));
 }
 
-Model * APDR::frame_not_implies_model(unsigned fidx, const smt::Term &prop) {
+Model * Apdr::frame_not_implies_model(unsigned fidx, const smt::Term &prop) {
   return get_not_valid_model(IMPLY(frame_prop_btor(fidx), prop));
 }
 
-bool APDR::frame_compatible_w(unsigned fidx, const smt::Term &prop) {
+bool Apdr::frame_compatible_w(unsigned fidx, const smt::Term &prop) {
   return is_sat(AND(frame_prop_btor(fidx), prop));
 }
 
-smt::Term APDR::get_inv() const {
+smt::Term Apdr::get_inv() const {
   return frame_prop_btor(frames.size() - 1);
 }
 
+
+void Apdr::validate_inv() {
+#ifdef DEBUG
+  smt::Term inv = get_inv();
+  assert (is_safe_inductive_inv(inv));
+#endif
+}
+
 // ----------- frame checks -------------
-bool APDR::is_last_two_frames_inductive() {
+bool Apdr::is_last_two_frames_inductive() {
   auto fn = frames.size();
   if (fn > 1) {
     if (is_valid(IMPLY(frame_prop_btor(fn-1), frame_prop_btor(fn-2))))
@@ -248,7 +269,7 @@ bool APDR::is_last_two_frames_inductive() {
 }
 
 // inv = get_inv()
-bool APDR::is_safe_inductive_inv(const smt::Term & inv) {
+bool Apdr::is_safe_inductive_inv(const smt::Term & inv) {
   assert (ts_.no_next(inv));
   auto inv_prime = ts_.next(inv);
 
@@ -262,7 +283,7 @@ bool APDR::is_safe_inductive_inv(const smt::Term & inv) {
 }
 
 // Fi /\ T => F'i+1
-void APDR::sanity_check_imply() {
+void Apdr::sanity_check_imply() {
   assert (frames.size() > 1);
   smt::Term T = ts_.trans();
   for (size_t fidx = 1; fidx < frames.size(); ++ fidx) {
@@ -274,7 +295,7 @@ void APDR::sanity_check_imply() {
 }
 
 // Fi => Fi+1
-void APDR::sanity_check_frame_monotone() {
+void Apdr::sanity_check_frame_monotone() {
   assert (frames.size() > 1);
   for (size_t fidx = 1; fidx < frames.size(); ++ fidx) {
     assert ( is_valid(
@@ -283,7 +304,7 @@ void APDR::sanity_check_frame_monotone() {
   }
 }
 
-void APDR::dump_frames(std::ostream & os) const {
+void Apdr::dump_frames(std::ostream & os) const {
   os << "---------- Frames DUMP ----------" << std::endl;
   for (size_t fidx = 0; fidx < frames.size() ; ++ fidx) {
     os << "Frame : " << fidx << std::endl;
@@ -317,21 +338,21 @@ void APDR::dump_frames(std::ostream & os) const {
   os << "---------- END Frames DUMP ----------" << std::endl;
 } // dump_frames
 
-void APDR::_add_lemma(Lemma * lemma, unsigned fidx) {
+void Apdr::_add_lemma(Lemma * lemma, unsigned fidx) {
   if (fidx == frames.size())
     frames.push_back(frame_t());
   assert (fidx < frames.size());
   frames.at(fidx).push_back(lemma);
 }
 
-void APDR::_add_pushed_lemma(Lemma * lemma, unsigned start, unsigned end) {
+void Apdr::_add_pushed_lemma(Lemma * lemma, unsigned start, unsigned end) {
   Lemma * l_prev = lemma->copy(*this);
   l_prev->pushed = true;
   for (size_t fidx = start; fidx <= end; ++ fidx)
     _add_lemma(l_prev, fidx);
 }
 
-void APDR::_add_fact(Model * fact, unsigned fidx) {
+void Apdr::_add_fact(Model * fact, unsigned fidx) {
   if (!IN(fidx, unblockable_fact))
     unblockable_fact.insert(std::make_pair(fidx, facts_t()));
 #ifdef DEBUG
@@ -355,9 +376,13 @@ void APDR::_add_fact(Model * fact, unsigned fidx) {
 // 3. init will be by default the init (will need to trans to msat)
 // 
 
-APDR::solve_trans_result APDR::solveTrans(
-  unsigned prevFidx, const smt::Term & prop_btor, bool remove_prop_in_prev_frame,
+Apdr::solve_trans_result Apdr::solveTrans(
+  unsigned prevFidx, const smt::Term & prop_btor, const smt::Term & prop_msat,
+  bool remove_prop_in_prev_frame,
   bool use_init, bool findItp, bool get_post_state, FrameCache * fc ) {
+  
+  if (findItp)
+    assert (use_init); // otherwise the ITP will not include init state!!!
 
   auto prevF_btor = frame_prop_btor(prevFidx);
   if (remove_prop_in_prev_frame)
@@ -392,16 +417,16 @@ APDR::solve_trans_result APDR::solveTrans(
     Model * prev_ex = new_model(varlist);
     Model * post_ex = get_post_state ? new_model(post_varlist) : NULL;
     solver_->pop();
-    return solve_trans_result(prev_ex, post_ex, smt::Term(NULL));
+    return solve_trans_result(prev_ex, post_ex, smt::Term(NULL), smt::Term(NULL));
   } // else unsat
   solver_->pop();
   if (!findItp)
-    return solve_trans_result(NULL, NULL, smt::Term(NULL));
+    return solve_trans_result(NULL, NULL, smt::Term(NULL), smt::Term(NULL));
   // else unsat and findItp
 
   auto prevF_msat = frame_prop_msat(prevFidx);
-  auto prop_msat = to_itp_solver_.transfer_term(prop_btor);
-  auto prop_msat_nxt = to_itp_solver_.transfer_term(ts_.next(prop_btor));
+  // auto prop_msat = ( to_itp_solver_.transfer_term(prop_btor) );
+  auto prop_msat_nxt = ts_msat_.next(prop_msat); // (to_itp_solver_.transfer_term(ts_.next(prop_btor)) );
 
   // auto init_msat_nxt = to_itp_solver_.transfer_term(ts_.next(ts_.init()));
   // auto T_msat = to_itp_solver_.transfer_term(ts_.trans());
@@ -428,39 +453,50 @@ APDR::solve_trans_result APDR::solveTrans(
 
   smt::Term itp_msat;
   itp_solver_->get_interpolant(A_msat,B_msat,itp_msat);
+  itp_msat = bv_to_bool_msat(itp_msat, itp_solver_);
   // translate back to btor and map back msat
-  smt::Term itp_btor = to_btor_.transfer_term(itp_msat);
+  smt::Term itp_btor = to_btor_.transfer_term(itp_msat, ts_.symbols());
+
+  D(3,"      [solveTrans] msat.nxt itp: {}", itp_msat->to_string());
+  D(3,"      [solveTrans] get itp.nxt: {}", itp_btor->to_string());
+
   assert(ts_.only_next(itp_btor));
 
-  D(3,"      [solveTrans] get itp: {}", ts_.curr(itp_btor)->to_string());
-
   // transfer it back to current vars
-  return solve_trans_result(NULL, NULL,ts_.curr(itp_btor));
+  return solve_trans_result(NULL, NULL,ts_.curr(itp_btor), ts_msat_.curr(itp_msat));
 } // solveTrans
 
 
 // used in check_property, check_init_failed
 // not in push_lemma, because we also want the pre-&post-states
-Model * APDR::get_bad_state_from_property_invalid_after_trans (
-  const smt::Term & prop_btor, unsigned idx, bool use_init
+Model * Apdr::get_bad_state_from_property_invalid_after_trans (
+  const smt::Term & prop_btor, const smt::Term & prop_msat, unsigned idx, bool use_init, bool add_itp
 ) {
   assert(idx >= 0);
   D(2, "    [F{} -> prop]", idx);
   auto trans_result = solveTrans(
-    idx, prop_btor,
+    idx, prop_btor, prop_msat,
     /*remove_prop_in_prev*/ false, use_init,
-    /*find itp*/ false, /*post state*/ false, /*fc*/ NULL );
+    /*find itp*/ add_itp, /*post state*/ false, /*fc*/ NULL );
+  if (trans_result.prev_ex == NULL && add_itp && trans_result.itp != NULL) {
+    // only used in the INIT --T-->ITP => P
+    Lemma * l = new_lemma(trans_result.itp, trans_result.itp_msat,
+      NULL, Lemma::LemmaOrigin::ORIGIN_FROM_PROPERTY);    
+    _add_lemma(l, idx + 1);
+    _add_pushed_lemma(l, 1, idx);
+  }
+
   return trans_result.prev_ex;
 }
 
-bool APDR::do_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_origin) {
+bool Apdr::do_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_origin) {
   std::priority_queue<fcex_t, std::vector<fcex_t>, fcex_queue_comparator> priorityQueue;
 
-  smt::Term prop_btor = cube->to_expr(solver_);
+  smt::Term prop_btor = NOT( cube->to_expr_btor(solver_) );
 
   D(2, "      [block] Try @F{} : {}", idx, cube->to_string());
 
-  if (frame_implies(idx, prop_btor)) {
+  if (frame_implies(idx, prop_btor)) { // Fi => not cex
     D(3, "      [block] already blocked by F{}", idx);
     return true; // already blocked
   }
@@ -470,8 +506,8 @@ bool APDR::do_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex
     auto head = priorityQueue.top();
     unsigned fidx = head.first;
     Model * cex = head.second;
-    if (fidx == 0) { // 
-      auto init_model = solve(AND(ts_.init(), cex->to_expr(solver_)));
+    if (fidx == 0) { // init && v = val are compatible
+      auto init_model = solve(AND(ts_.init(), cex->to_expr_btor(solver_)));
       assert (init_model != NULL);
 
       D(3, "      [block] CEX found!");
@@ -479,16 +515,19 @@ bool APDR::do_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex
       return false;
     }
 
-    auto prop_btor_cex = cex->to_expr(solver_);
-    // check at F Fidx-1 -> F idx 
-    auto trans_result = solveTrans(fidx-1, prop_btor_cex, pdr_config::RM_CEX_IN_PREV,
-      true /*use_init*/, true /*itp*/, false /*post state*/, NULL /*no fc*/ );
+    auto prop_btor_cex = NOT(cex->to_expr_btor(solver_));
+    auto prop_msat_cex = NOT_msat(cex->to_expr_msat(itp_solver_, to_itp_solver_, ts_msat_.symbols()));
 
     D(3, "      [block] check at F{} -> F{} : {}", fidx-1, fidx, prop_btor_cex->to_string());
 
+    // check at F Fidx-1 -> F idx 
+    auto trans_result = solveTrans(fidx-1, prop_btor_cex, prop_msat_cex, pdr_config::RM_CEX_IN_PREV,
+      true /*use_init*/, true /*itp*/, false /*post state*/, NULL /*no fc*/ );
+
+
     if (trans_result.prev_ex == NULL) {
       // unsat -- no reachable
-      Lemma * lemma = new_lemma(trans_result.itp, to_itp_solver_.transfer_term(trans_result.itp),
+      Lemma * lemma = new_lemma(trans_result.itp, trans_result.itp_msat, // to_itp_solver_.transfer_term(trans_result.itp),
         cex, cex_origin);
       _add_lemma(lemma, fidx);
       _add_pushed_lemma(lemma, 1, fidx -1 );
@@ -504,14 +543,14 @@ bool APDR::do_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex
 }
 
 // use frame cache & add new lemmas to the frame_cache
-bool APDR::try_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_origin,
+bool Apdr::try_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_origin,
   FrameCache & frame_cache) {
 
   D(2, "      [block-try] Try @F{} : {}", idx, cube->to_string());
 
   std::priority_queue<fcex_t, std::vector<fcex_t>, fcex_queue_comparator> priorityQueue;
 
-  smt::Term prop_btor = cube->to_expr(solver_);
+  smt::Term prop_btor = NOT(cube->to_expr_btor(solver_));
   if (frame_and_fc_implies(idx, frame_cache, prop_btor)) {
     D(3, "      [block-try] already blocked by F{}", idx);
     return true; // already blocked
@@ -522,24 +561,25 @@ bool APDR::try_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin ce
     auto head = priorityQueue.top();
     unsigned fidx = head.first;
     Model * cex = head.second;
-    if (fidx == 0) { // 
-      auto init_model = solve(AND(ts_.init(), cex->to_expr(solver_)));
+    if (fidx == 0) { // init && v = val are compatible
+      auto init_model = solve(AND(ts_.init(), cex->to_expr_btor(solver_)));
       assert (init_model != NULL);
       D(3, "      [block-try] CEX found!");
       // cex found
       return false;
     }
 
-    auto prop_btor_cex = cex->to_expr(solver_);
+    auto prop_btor_cex = NOT(cex->to_expr_btor(solver_));
+    auto prop_msat_cex = NOT_msat(cex->to_expr_msat(itp_solver_, to_itp_solver_, ts_msat_.symbols()));
     // check at F Fidx-1 -> F idx 
-    auto trans_result = solveTrans(fidx-1, prop_btor_cex, pdr_config::RM_CEX_IN_PREV,
+    auto trans_result = solveTrans(fidx-1, prop_btor_cex, prop_msat_cex, pdr_config::RM_CEX_IN_PREV,
       true /*use_init*/, true /*itp*/, false /*post state*/, & frame_cache );
 
     D(3, "      [block-try] check at F{} -> F{} : {}", fidx-1, fidx, prop_btor_cex->to_string());
 
     if (trans_result.prev_ex == NULL) {
       // unsat -- no reachable
-      Lemma * lemma = new_lemma(trans_result.itp, to_itp_solver_.transfer_term(trans_result.itp),
+      Lemma * lemma = new_lemma(trans_result.itp, trans_result.itp_msat,
         cex, cex_origin);
       frame_cache._add_lemma(lemma, fidx);
       frame_cache._add_pushed_lemma(lemma, 1, fidx -1 );
@@ -552,18 +592,21 @@ bool APDR::try_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin ce
   // block succeeded
   D(2, "      [block-try] succeed, return.");
   return true;
-} // APDR::try_recursive_block
+} // Apdr::try_recursive_block
 
 
 // ----------- PROCEDURES -------------------
-bool APDR::check_init_failed() { // will use the prop specified by property
+bool Apdr::check_init_failed() { // will use the prop specified by property
   Model * failed_m = frame_not_implies_model(0, property_.prop());
   if (failed_m) {
     D(1, "Property failed at init.");
     return true; // failed
   }
   failed_m = 
-    get_bad_state_from_property_invalid_after_trans(property_.prop(), 0 /*idx*/, true /*use_init*/ );
+    get_bad_state_from_property_invalid_after_trans(
+      property_.prop(), property_msat_.prop(), 
+      0 /*idx*/, true /*use_init*/, true /*itp add*/ );
+    // because we want interpolant, so we make use_init:= true
   if (failed_m) {
     D(1, "Property failed at init--T-->P'.");
     return true;
@@ -571,7 +614,7 @@ bool APDR::check_init_failed() { // will use the prop specified by property
   return false;
 }
 
-ProverResult APDR::check_until(int k) {
+ProverResult Apdr::check_until(int k) {
   assert (k>=0);
 
   if (check_init_failed())
@@ -585,7 +628,8 @@ ProverResult APDR::check_until(int k) {
     #endif
     D(1, "Total Frames: {}, L {} ", frames.size(), frames.back().size());
     Model * cube = get_bad_state_from_property_invalid_after_trans(
-      property_.prop(), frames.size() -1  /*idx*/ , false /*use_init*/ );
+      property_.prop(), property_msat_.prop(),
+      frames.size() -1  /*idx*/ , false /*use_init*/ , false /*itp add*/);
     D(1, "[Checking property] Get cube: {} @F{}", cube ? cube->to_string() : "None", frames.size() -1);
     if (cube) {
       if (! do_recursive_block(cube, frames.size() -1 , Lemma::LemmaOrigin::ORIGIN_FROM_PROPERTY)) {
@@ -597,6 +641,7 @@ ProverResult APDR::check_until(int k) {
     } else {
       if (is_last_two_frames_inductive()) {
         D(1, "[Checking property] The system is safe, frame : {}", frames.size());
+        validate_inv();
         return ProverResult(TRUE);
       } else {
         D(1, "[Checking property] Adding frame {} ...", frames.size());
@@ -604,6 +649,7 @@ ProverResult APDR::check_until(int k) {
         push_lemma_from_the_lowest_frame();
         if (is_last_two_frames_inductive()) { // if we are lucky to have pushed all
           D(1, "[Checking property] The system is safe, frame : {}", frames.size());
+          validate_inv();
           return ProverResult(TRUE);
         }
       } // adding a frame
@@ -612,7 +658,7 @@ ProverResult APDR::check_until(int k) {
   return ProverResult(UNKNOWN);
 }
 
-void APDR::push_lemma_from_the_lowest_frame() {
+void Apdr::push_lemma_from_the_lowest_frame() {
   unsigned start_frame = 1;
   D(1, "[pushes] F{} --- F{}", start_frame, frames.size() -2);
   for (unsigned fidx = start_frame; fidx < frames.size() -1 ; ++ fidx) {
@@ -620,7 +666,7 @@ void APDR::push_lemma_from_the_lowest_frame() {
   }
 }
 
-void APDR::push_lemma_from_frame(unsigned fidx) {
+void Apdr::push_lemma_from_frame(unsigned fidx) {
   assert (frames.size() > fidx + 1);
   assert (frames.at(fidx).size() > 0 );
 
@@ -640,7 +686,7 @@ void APDR::push_lemma_from_frame(unsigned fidx) {
 
   // 2. push lemmas
   unsigned start_lemma_idx = get_with_default(frames_pushed_idxs_map, fidx, 0);
-  unsigned end_lemma_idx   = frames.size();
+  unsigned end_lemma_idx   = frames.at(fidx).size();
 
   //                      lemmaIdx, Lemma, prev_ex, post_ex
   std::vector<std::tuple<unsigned, Lemma *, Model *, Model *>> unpushed_lemmas;
@@ -651,14 +697,14 @@ void APDR::push_lemma_from_frame(unsigned fidx) {
       continue;
     D(2, "  [push_lemma F{}] Try pushing lemma l{} to F{}: {}",
       fidx, lemmaIdx, fidx+1, lemma->to_string());
-    auto result = solveTrans(fidx, lemma->expr(), 
+    auto result = solveTrans(fidx, lemma->expr(), lemma->expr_msat(),
       false /*rm prop in prev frame*/, false /*use_init*/, false /*itp*/,
       true /*post state*/, NULL /*frame cache*/);
     if (result.prev_ex == NULL) {
       assert (result.post_ex == NULL);
       D(2, "  [push_lemma F{}] Succeed in pushing l{}",
         fidx, lemmaIdx);
-      _add_lemma(lemma->direct_push(), fidx+1);
+      _add_lemma(lemma->direct_push(*this), fidx+1);
     } else {
       unpushed_lemmas.push_back(std::make_tuple(
         lemmaIdx, lemma, result.prev_ex, result.post_ex
@@ -672,13 +718,13 @@ void APDR::push_lemma_from_frame(unsigned fidx) {
     Lemma * lemma;
     Model * prev_ex, * post_ex;
     std::tie(lemmaIdx, lemma, prev_ex, post_ex) = unpushed_lemma; // unpack
-    if (lemma->cex == NULL) {
+    if (lemma->cex() == NULL) {
       D(2, "  [push_lemma F{}] will give up on lemma as it blocks None, l{} : {}",
         fidx, lemmaIdx, lemma->to_string());
       continue; 
     }
     // 3.1 if subsume, then we don't need to worry about
-    if (lemma->subsume_by_frame(fidx + 1))
+    if (lemma->subsume_by_frame(fidx + 1, *this))
       continue;
     // 3.2 try itp repair to see if the cex is pushable or not
     //     - if it is pushable, we will use the pushed one the last
@@ -686,18 +732,18 @@ void APDR::push_lemma_from_frame(unsigned fidx) {
     //     - if it is not pushable, we don't need to try anymore
     //       just give up
     FrameCache itp_fc(solver_, itp_solver_, *this);
-    Model * cex_failed; Lemma * itp;
-    std::tie(cex_failed, itp) = lemma->try_itp_push(itp_fc, fidx);
+    bool cex_failed; Lemma * itp;
+    std::tie(cex_failed, itp) = lemma->try_itp_push(itp_fc, fidx, *this);
     if (cex_failed) {
       assert (itp == NULL);
-      D(2, "  [push_lemma F{}] skip r-block l{} : {} , as its cex cannot be pushed.",
+      D(2, "  [push_lemma F{}] skip pushing l{} : {} , as its cex cannot be push blocked.",
         fidx, lemmaIdx, lemma->to_string());
       continue;
     }
 
     Lemma * sygus_hint = NULL;
     if (pdr_config::USE_SYGUS_REPAIR)  {
-      sygus_hint = lemma->try_sygus_repair(fidx, lemmaIdx, post_ex, itp);
+      sygus_hint = lemma->try_sygus_repair(fidx, lemmaIdx, post_ex, itp, *this, *this);
       // can still result in sygus_hint == NULL
     }
     if (sygus_hint) {
@@ -714,7 +760,7 @@ void APDR::push_lemma_from_frame(unsigned fidx) {
     bool prop_succ, all_succ; int rmBnd; Model * unblockable_cube;
     std::tie(prop_succ, all_succ, rmBnd, unblockable_cube) = 
       lemma->try_strengthen(strengthen_fc, pdr_config::STRENGTHEN_EFFORT_FOR_PROP,
-        fidx, prev_ex);
+        fidx, prev_ex, *this, *this);
     // all possible cases: full/prop itself/bad_state
     if (all_succ || prop_succ) {
       D(2, "  [push_lemma F{}] strengthened l{} : {} with extra lemma {}",
@@ -739,7 +785,7 @@ void APDR::push_lemma_from_frame(unsigned fidx) {
   frames_pushed_idxs_map[fidx] = end_lemma_idx;
 } // push_lemma_from_frame
 
-void APDR::merge_frame_cache(FrameCache & fc) {
+void Apdr::merge_frame_cache(FrameCache & fc) {
   for (auto && fidx_lemmas_pair : fc.get_frames()) {
     for (Lemma * l : fidx_lemmas_pair.second)
       _add_lemma(l, fidx_lemmas_pair.first);

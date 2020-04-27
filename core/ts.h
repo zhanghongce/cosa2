@@ -170,6 +170,12 @@ class TransitionSystem
    */
   virtual bool is_functional() const = 0;
 
+
+  /* Returns reference to the the known symbols for look up
+   * @return a reference of map from name to term
+   */
+  const std::unordered_map<std::string, smt::Term> & symbols() const { return symbols_; }
+
  protected:
   // solver
   smt::SmtSolver & solver_;
@@ -199,7 +205,10 @@ class TransitionSystem
 
   // mapping from names to terms
   std::unordered_map<std::string, smt::Term> named_terms_;
+  // stores all the next state variables
   smt::UnorderedTermSet next_states_;
+  // all the symbols (state + next_state + input)
+  std::unordered_map<std::string, smt::Term> symbols_;
   // maps next back to curr
   smt::UnorderedTermMap curr_map_;
 
@@ -228,6 +237,7 @@ public:
 
   /* Returns true iff all the symbols in the formula are known */
   virtual bool known_symbols(const smt::Term & term) const;
+
 };
 
 }  // namespace cosa

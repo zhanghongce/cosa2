@@ -28,9 +28,23 @@ struct Model {
   std::string to_string() const;
   smt::Term to_expr(smt::SmtSolver & solver_);
   static smt::Term to_expr(const cube_t & c, smt::SmtSolver & solver_);
-  Model() {}
+  static smt::Term to_expr_translate(
+      const cube_t & c, smt::SmtSolver & solver_,
+      smt::TermTranslator & to_msat, const std::unordered_map<std::string, smt::Term> & symbols);
+
+  // the following two use cache
+  smt::Term to_expr_btor(smt::SmtSolver & btor_solver_);
+  smt::Term to_expr_msat(smt::SmtSolver & msat_solver_, smt::TermTranslator & to_msat, const std::unordered_map<std::string, smt::Term> & symbols );
+
+  // constructors
+  Model() : expr_btor_(NULL), expr_msat_(NULL) {}
   // from get value from a solver
   Model(smt::SmtSolver & solver_, const std::unordered_set<smt::Term> & varset);
+
+protected:
+  // cache expr result
+  smt::Term expr_btor_;
+  smt::Term expr_msat_;
 };
 
 typedef std::shared_ptr<Model> ModelPtr;

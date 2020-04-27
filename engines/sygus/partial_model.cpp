@@ -57,7 +57,7 @@ Model::Model(smt::SmtSolver & solver_, const std::unordered_set<smt::Term> & var
 }
 
 #define NOT(x)    (solver_->make_term(smt::Not, (x)))
-#define EQ(x, y)  (solver_->make_term(smt::BVComp, (x), (y)))
+#define EQ(x, y)  (solver_->make_term(smt::Equal, (x), (y)))
 #define AND(x, y) (solver_->make_term(smt::And, (x), (y)))
 #define OR(x, y)  (solver_->make_term(smt::Or, (x), (y)))
 
@@ -72,9 +72,36 @@ smt::Term Model::to_expr(const cube_t & c, smt::SmtSolver & solver_) {
   return ret;
 }
 
+smt::Term Model::to_expr_translate(
+    const cube_t & c, smt::SmtSolver & solver_,
+    smt::TermTranslator & to_msat, const std::unordered_map<std::string, smt::Term> & symbols) {
+
+  smt::Term ret = nullptr;
+  for (auto && v_val : c ) {
+    if (ret == nullptr)
+      ret = EQ(to_msat.transfer_term(v_val.first, symbols), to_msat.transfer_term(v_val.second, symbols));
+    else
+      ret = AND(ret, EQ(to_msat.transfer_term(v_val.first, symbols), to_msat.transfer_term(v_val.second, symbols)));
+  }
+  return ret;
+}
+
 smt::Term Model::to_expr(smt::SmtSolver & solver_) {
   return to_expr(this->cube, solver_);
 }
+
+smt::Term Model::to_expr_btor(smt::SmtSolver & btor_solver_) {
+  if ( expr_btor_ == nullptr )
+    expr_btor_ = to_expr(btor_solver_);
+  return expr_btor_;
+}
+
+smt::Term Model::to_expr_msat(smt::SmtSolver & msat_solver_, smt::TermTranslator & to_msat, const std::unordered_map<std::string, smt::Term> & symbols ) {
+  if (expr_msat_ == nullptr)
+    expr_msat_ = to_expr_translate(this->cube, msat_solver_, to_msat, symbols);
+  return expr_msat_;
+}
+
 
 // ------------------------------- // 
 //

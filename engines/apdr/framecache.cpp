@@ -23,19 +23,19 @@
 
 // some helper functions
 #define TERM_TRUE    (btor_->make_term(true))
-#define NOT(x)       (btor_->make_term(smt::Not, (x)))
-#define EQ(x, y)     (btor_->make_term(smt::BVComp, (x), (y)))
+// #define NOT(x)       (btor_->make_term(smt::Not, (x)))
+// #define EQ(x, y)     (btor_->make_term(smt::Equal, (x), (y)))
 #define AND(x, y)    (btor_->make_term(smt::And, (x), (y)))
-#define OR(x, y)     (btor_->make_term(smt::Or, (x), (y)))
-#define IMPLY(x, y)  (btor_->make_term(smt::Implies, (x), (y)))
+// #define OR(x, y)     (btor_->make_term(smt::Or, (x), (y)))
+// #define IMPLY(x, y)  (btor_->make_term(smt::Implies, (x), (y)))
 
 // some helper functions
 #define TERM_TRUE_msat    (msat_->make_term(true))
-#define NOT_msat(x)       (msat_->make_term(smt::Not, (x)))
-#define EQ_msat(x, y)     (msat_->make_term(smt::BVComp, (x), (y)))
-#define AND_msat(x, y)    (msat_->make_term(smt::And, (x), (y)))
-#define OR_msat(x, y)     (msat_->make_term(smt::Or, (x), (y)))
-#define IMPLY_msat(x, y)  (msat_->make_term(smt::Implies, (x), (y)))
+// #define NOT_msat(x)       (msat_->make_term(smt::Not, (x)))
+// #define EQ_msat(x, y)     (msat_->make_term(smt::Equal, (x), (y)))
+#define AND_msat(x, y)    (msat_->make_term(smt::And, bv_to_bool_msat(x, msat_), bv_to_bool_msat(y, msat_)))
+// #define OR_msat(x, y)     (msat_->make_term(smt::Or, (x), (y)))
+// #define IMPLY_msat(x, y)  (msat_->make_term(smt::Implies, (x), (y)))
 
  
 namespace cosa {

@@ -26,14 +26,21 @@ class Lemma;
 class ModelLemmaManager;
 class FrameCache;
 
+
+ // for msat as it is not happy with bvcomp as bool
+smt::Term bv_to_bool_msat(const smt::Term & t, const smt::SmtSolver & itp_solver_ );
+
+
 class LemmaPDRInterface {
 public:
+  enum LemmaOrigin {ORIGIN_FROM_PROPERTY, ORIGIN_FROM_PUSH, ORIGIN_FROM_INIT};
   struct solve_trans_result {
     Model * prev_ex;
     Model * post_ex;
     smt::Term itp;
-    solve_trans_result (Model * pre, Model * post, const smt::Term & itp_):
-      prev_ex(pre), post_ex (post), itp(itp_) {}
+    smt::Term itp_msat;
+    solve_trans_result (Model * pre, Model * post, const smt::Term & itp_, const smt::Term & itp_msat_):
+      prev_ex(pre), post_ex (post), itp(itp_), itp_msat(itp_msat_) {}
   };
 public:
   virtual bool is_valid(const smt::Term &) = 0;
@@ -43,20 +50,28 @@ public:
   virtual smt::SmtSolver & btor() = 0;
   virtual smt::SmtSolver & msat() = 0;
   virtual solve_trans_result solveTrans(
-    unsigned prevFidx, const smt::Term & prop_btor, bool remove_prop_in_prev_frame,
+    unsigned prevFidx, const smt::Term & prop_btor,  const smt::Term & prop_msat,
+    bool remove_prop_in_prev_frame,
     bool use_init, bool findItp, bool get_post_state, FrameCache * fc ) = 0;
   virtual bool try_recursive_block(
-    Model * cube, unsigned idx, Lemma::LemmaOrigin cex_origin,
+    Model * cube, unsigned idx, LemmaOrigin cex_origin,
     FrameCache & frame_cache) = 0;
   
   virtual smt::Term next(const smt::Term &) const = 0;
   virtual smt::Term curr(const smt::Term &) const = 0;
   virtual smt::Term init() const = 0;
   virtual smt::Term trans() const = 0;
-  virtual void dump_frames(std::ostream & os) const = 0;
-
   virtual const smt::UnorderedTermSet & states() const = 0;
   virtual const smt::UnorderedTermSet & next_states() const = 0;
+
+  virtual smt::Term next_msat(const smt::Term &) const = 0;
+  virtual smt::Term curr_msat(const smt::Term &) const = 0;
+  virtual smt::Term init_msat() const = 0;
+  virtual smt::Term trans_msat() const = 0;
+  virtual const smt::UnorderedTermSet & states_msat() const = 0;
+  virtual const smt::UnorderedTermSet & next_states_msat() const = 0;
+
+  virtual void dump_frames(std::ostream & os) const = 0;
 
 };  // class LemmaPDRInterface
 
@@ -64,7 +79,7 @@ public:
 // the lemma on a frame
 class Lemma {
 public:
-  enum LemmaOrigin {ORIGIN_FROM_PROPERTY, ORIGIN_FROM_PUSH, ORIGIN_FROM_INIT};
+  using LemmaOrigin = LemmaPDRInterface::LemmaOrigin;
   
   Lemma(const smt::Term & expr, const smt::Term & expr_msat, Model * cex, LemmaOrigin origin);
   
@@ -127,7 +142,7 @@ public:
   
   virtual smt::SmtSolver & solver() = 0;
   virtual smt::SmtSolver & itp_solver() = 0;
-  virtual smt::TermTranslator & to_itp_solver() = 0;
+  // virtual smt::TermTranslator & to_itp_solver() = 0;
   virtual smt::TermTranslator & to_btor() = 0;
 
 protected:

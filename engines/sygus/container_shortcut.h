@@ -42,7 +42,7 @@ namespace cosa {
 
 #define S_IN(sub, s) ((s).find(sub) != (s).npos)
 
-#define FIND_IN(e,s) ((std::find((s).begin(), (s).end(), (e))) == (s).end())
+#define FIND_IN(e,s) ((std::find((s).begin(), (s).end(), (e))) != (s).end())
 
 template<typename MAP>
 const typename MAP::mapped_type& get_with_default(const MAP& m, 

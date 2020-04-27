@@ -28,14 +28,16 @@ enum Engine
   BMC = 0,
   BMC_SP,
   KIND,
-  INTERP
+  INTERP,
+  APDR
 };
 
 static const std::unordered_map<std::string, Engine> str2engine(
     { { "bmc", BMC },
       { "bmc-sp", BMC_SP },
       { "ind", KIND },
-      { "interp", INTERP } });
+      { "interp", INTERP },
+      { "apdr", APDR } });
 
 const Engine to_engine(std::string s)
 {
@@ -48,10 +50,10 @@ const Engine to_engine(std::string s)
 
 /************************************ Default Values
  * *********************************/
-static const Engine default_engine = BMC;
+static const Engine default_engine = APDR;
 static const unsigned int default_prop_idx = 0;
-static const unsigned int default_bound = 10;
-static const unsigned int default_verbosity = 0;
+static const unsigned int default_bound = 100;
+static const unsigned int default_verbosity = 3;
 /********************************* End Default Values
  * ********************************/
 }  // namespace cosa
