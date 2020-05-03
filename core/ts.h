@@ -29,7 +29,8 @@ class TransitionSystem
 {
  public:
   TransitionSystem(smt::SmtSolver & s)
-      : solver_(s), init_(s->make_term(true)), trans_(s->make_term(true))
+      : solver_(s), init_(s->make_term(true)), trans_(s->make_term(true)),
+        constraint_(s->make_term(true))
   {
   }
 
@@ -164,6 +165,11 @@ class TransitionSystem
    */
   smt::Term trans() const { return trans_; };
 
+  /* Returns the constraints
+   * @return a boolean term representing the constraints
+   */
+  smt::Term constraint() const { return constraint_; };
+
   /** Whether the transition system is functional
    *  NOTE: This does *not* actually analyze the transition relation
    *  it only returns true if it's a FunctionalTransitionSystem object
@@ -185,6 +191,9 @@ class TransitionSystem
 
   // transition relation (functional in this class)
   smt::Term trans_;
+
+  // constraints only
+  smt::Term constraint_;
 
   // next state update function
   smt::UnorderedTermMap state_updates_; // state -> update function

@@ -177,6 +177,11 @@ void print_btor_vals_at_time(const std::map<uint64_t, smt::Term> m,
 void print_witness_btor(const BTOR2Encoder & btor_enc,
                         const std::vector<smt::UnorderedTermMap> & cex)
 {
+  if (cex.empty()) {
+    logger.log(0, "No trace is given.");
+    return;
+  }
+
   const smt::TermVec inputs = btor_enc.inputsvec();
   const smt::TermVec states = btor_enc.statesvec();
   const std::map<uint64_t, smt::Term> no_next_states =

@@ -87,6 +87,7 @@ public:
   inline smt::Term  expr_msat() const { return expr_msat_; }
   inline Model *  cex() const { return cex_; }
   inline std::string to_string() const { return expr()->to_string(); }
+  inline LemmaOrigin origin() const { return origin_; }
 
   Lemma * copy(ModelLemmaManager & mfm);
   

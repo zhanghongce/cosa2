@@ -70,6 +70,9 @@ void TransitionSystem::add_invar(const Term & constraint)
     // add the next-state version
     trans_ = solver_->make_term(
         And, trans_, solver_->substitute(constraint, next_map_));
+    
+    constraint_ = solver_->make_term(And, constraint_, constraint);
+    constraint_ = solver_->make_term(And, constraint_, solver_->substitute(constraint, next_map_));
   } else {
     throw CosaException("Invariants should be over current states only.");
   }
@@ -79,6 +82,7 @@ void TransitionSystem::constrain_inputs(const Term & constraint)
 {
   if (no_next(constraint)) {
     trans_ = solver_->make_term(And, trans_, constraint);
+    constraint_ = solver_->make_term(And, constraint_, constraint);
   } else {
     throw CosaException("Cannot have next-states in an input constraint.");
   }
@@ -92,8 +96,12 @@ void TransitionSystem::add_constraint(const Term & constraint)
     // add over next states
     trans_ = solver_->make_term(
         And, trans_, solver_->substitute(constraint, next_map_));
+
+    constraint_ = solver_->make_term(And, constraint_, constraint);
+    constraint_ = solver_->make_term(And, constraint_, solver_->substitute(constraint, next_map_));
   } else if (no_next(constraint)) {
     trans_ = solver_->make_term(And, trans_, constraint);
+    constraint_ = solver_->make_term(And, constraint_, constraint);
   } else {
     throw CosaException("Constraint cannot have next states");
   }

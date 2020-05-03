@@ -16,7 +16,6 @@
 
 
 #include "apdr.h"
-#include "config.h"
 
 #include "../sygus/container_shortcut.h"
 
@@ -43,6 +42,8 @@
 
 namespace cosa {
 
+APdrConfig GlobalAPdrConfig;
+
 // ---------------------------------------------------------------------
 
 #define DEBUG
@@ -50,8 +51,10 @@ namespace cosa {
   #define D(...) logger.log( __VA_ARGS__ )
   #define MSAT_DEBUG
   #define DUMP_FRAME
+  #define INFO(...) D(0, __VA_ARGS__)
 #else
   #define D(...) do {} while (0)
+  #define INFO(...) logger.log(1, __VA_ARGS__)
 #endif
 
 // -----------------------------------------------------------------------
@@ -253,7 +256,9 @@ smt::Term Apdr::get_inv() const {
 
 void Apdr::validate_inv() {
 #ifdef DEBUG
+  dump_frames(std::cerr);
   smt::Term inv = get_inv();
+  D(1, "INV: {}", inv->to_string());
   assert (is_safe_inductive_inv(inv));
 #endif
 }
@@ -273,12 +278,18 @@ bool Apdr::is_safe_inductive_inv(const smt::Term & inv) {
   assert (ts_.no_next(inv));
   auto inv_prime = ts_.next(inv);
 
-  if(! is_valid( IMPLY(ts_.init(), inv) ))
+  if(! is_valid( IMPLY(ts_.init(), inv) )) {
+    logger.log(0, "Failed: INIT => inv");
     return false;
-  if(! is_valid( IMPLY(AND(inv, ts_.trans()), inv_prime) ))
+  }
+  if(! is_valid( IMPLY(AND(inv, ts_.trans()), inv_prime) )) {
+    logger.log(0, "Failed: inv /\\ T => inv'");
     return false;
-  if(! is_valid( IMPLY(inv, property_.prop())))
+  }
+  if(! is_valid( IMPLY(inv, property_.prop()))) {
+    logger.log(0, "Failed: inv => p");
     return false;
+  }
   return true;
 }
 
@@ -392,7 +403,10 @@ Apdr::solve_trans_result Apdr::solveTrans(
   }
 
   auto prop_no_nxt_btor = ts_.next_to_expr( ts_.next( prop_btor ) ); // to get rid of next vars
-  auto F_to_check = AND(prevF_btor, NOT(prop_no_nxt_btor));
+  // constraints
+  auto constraints_btor = ts_.next_to_expr( ts_.constraint() );
+
+  auto F_to_check = AND(AND(prevF_btor,constraints_btor), NOT(prop_no_nxt_btor));
   if (use_init) {
     F_to_check = OR(F_to_check,
       // INIT(V) /\ not(P(V))
@@ -452,7 +466,25 @@ Apdr::solve_trans_result Apdr::solveTrans(
 
 
   smt::Term itp_msat;
-  itp_solver_->get_interpolant(A_msat,B_msat,itp_msat);
+  bool get_itp = itp_solver_->get_interpolant(A_msat,B_msat,itp_msat);
+#ifdef DEBUG
+  assert (get_itp);
+#else
+  if (!get_itp) {
+    // should we confirm that it is sat?
+    itp_solver_->reset_assertions();
+    itp_solver_->assert_formula(A_msat);
+    itp_solver_->assert_formula(B_msat);
+    auto sanity_check_sat = itp_solver_->check_sat();
+    // in this case btor thinks unsat, but msat thinks sat
+    assert (!sanity_check_sat.is_sat()); // it is obviously wrong
+    logger.log(0, "msat failed to get itp, use prop instead.");
+    // otherwise, 
+    // if we are not able to get interpolant then the best we can do is this
+    return solve_trans_result(NULL, NULL, prop_btor, prop_msat);
+  }
+#endif
+
   itp_msat = bv_to_bool_msat(itp_msat, itp_solver_);
   // translate back to btor and map back msat
   smt::Term itp_btor = to_btor_.transfer_term(itp_msat, ts_.symbols());
@@ -489,7 +521,7 @@ Model * Apdr::get_bad_state_from_property_invalid_after_trans (
   return trans_result.prev_ex;
 }
 
-bool Apdr::do_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_origin) {
+bool Apdr::do_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_origin, bool check_reach) {
   std::priority_queue<fcex_t, std::vector<fcex_t>, fcex_queue_comparator> priorityQueue;
 
   smt::Term prop_btor = NOT( cube->to_expr_btor(solver_) );
@@ -511,7 +543,47 @@ bool Apdr::do_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex
       assert (init_model != NULL);
 
       D(3, "      [block] CEX found!");
+      D(3, "      [block] init model: {}", init_model->to_string() );
       // cex found
+
+      #ifdef DEBUG
+        if (check_reach) {
+          
+          auto head = priorityQueue.top();
+          unsigned prev_fidx = head.first;
+          Model * prev_cex = head.second;
+          auto prev_res = sanity_check_property_at_length_k(prev_cex->to_expr_btor(solver_), prev_fidx);
+          D(1, "      [block-check] SAT: {} @ {} , cex : {}", prev_res.is_sat() ? "True" : "False", prev_fidx, prev_cex->to_string());
+          priorityQueue.pop();
+
+          while (!priorityQueue.empty()) {
+            auto head = priorityQueue.top();
+            unsigned fidx = head.first;
+            Model * cex = head.second;
+            auto res = sanity_check_property_at_length_k(cex->to_expr_btor(solver_), fidx);
+            D(1, "      [block-check] SAT: {} @ {} , cex : {}", res.is_sat() ? "True" : "False", fidx, cex->to_string());
+
+            if (!res.is_sat() && prev_res.is_sat() && prev_fidx == fidx - 1) {
+              // V=prev_cex /\ T(V, V') /\ V'=cex is sat or not
+              solver_->push();
+              solver_->assert_formula(prev_cex->to_expr(solver_));
+              solver_->assert_formula(ts_.trans());
+              solver_->assert_formula(ts_.next(cex->to_expr(solver_)));
+              auto result = solver_->check_sat();
+              solver_->pop();
+
+              D(1, "      [block-check] V{} /\\ T(V{}, V{}) /\\ V{} SAT?= {}", prev_fidx,prev_fidx, fidx, fidx, 
+                result.is_sat() ? "True" : "False" );
+            }
+            prev_fidx = fidx;
+            prev_cex = cex;
+            prev_res = res;
+
+            priorityQueue.pop();
+          }
+        }
+      #endif
+
       return false;
     }
 
@@ -521,7 +593,7 @@ bool Apdr::do_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex
     D(3, "      [block] check at F{} -> F{} : {}", fidx-1, fidx, prop_btor_cex->to_string());
 
     // check at F Fidx-1 -> F idx 
-    auto trans_result = solveTrans(fidx-1, prop_btor_cex, prop_msat_cex, pdr_config::RM_CEX_IN_PREV,
+    auto trans_result = solveTrans(fidx-1, prop_btor_cex, prop_msat_cex, GlobalAPdrConfig.RM_CEX_IN_PREV,
       true /*use_init*/, true /*itp*/, false /*post state*/, NULL /*no fc*/ );
 
 
@@ -572,7 +644,7 @@ bool Apdr::try_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin ce
     auto prop_btor_cex = NOT(cex->to_expr_btor(solver_));
     auto prop_msat_cex = NOT_msat(cex->to_expr_msat(itp_solver_, to_itp_solver_, ts_msat_.symbols()));
     // check at F Fidx-1 -> F idx 
-    auto trans_result = solveTrans(fidx-1, prop_btor_cex, prop_msat_cex, pdr_config::RM_CEX_IN_PREV,
+    auto trans_result = solveTrans(fidx-1, prop_btor_cex, prop_msat_cex, GlobalAPdrConfig.RM_CEX_IN_PREV,
       true /*use_init*/, true /*itp*/, false /*post state*/, & frame_cache );
 
     D(3, "      [block-try] check at F{} -> F{} : {}", fidx-1, fidx, prop_btor_cex->to_string());
@@ -620,20 +692,36 @@ ProverResult Apdr::check_until(int k) {
   if (check_init_failed())
     return ProverResult(FALSE);
 
-  for (unsigned step = 0; step < k; ++step) {
+  while (frames.size() < k) {
     // removable checks
     #ifdef DEBUG
       sanity_check_frame_monotone();
       sanity_check_imply();
     #endif
-    D(1, "Total Frames: {}, L {} ", frames.size(), frames.back().size());
+
     Model * cube = get_bad_state_from_property_invalid_after_trans(
       property_.prop(), property_msat_.prop(),
       frames.size() -1  /*idx*/ , false /*use_init*/ , false /*itp add*/);
     D(1, "[Checking property] Get cube: {} @F{}", cube ? cube->to_string() : "None", frames.size() -1);
     if (cube) {
+      INFO("Total Frames: {}, L {} , cube-block...", frames.size(), frames.back().size());
       if (! do_recursive_block(cube, frames.size() -1 , Lemma::LemmaOrigin::ORIGIN_FROM_PROPERTY)) {
         D(1, "[Checking property] Bug found at step {}", frames.size());
+
+        // check cube is truly reachable at frames.size() - 1
+        #ifdef DEBUG
+          auto cube_bmc_reachable = sanity_check_property_at_length_k(cube->to_expr_btor(solver_), frames.size() -1);
+          D(1, "[Checking property] BMC result sat: {} ", cube_bmc_reachable.is_sat() ? "True" : "False");
+          if (! cube_bmc_reachable.is_sat()) {
+            dump_frames(std::cerr);
+            do_recursive_block(cube, frames.size() -1 , Lemma::LemmaOrigin::ORIGIN_FROM_PROPERTY, true);
+          }
+
+          sanity_check_frame_monotone();
+          sanity_check_imply();
+          assert ( cube_bmc_reachable.is_sat());
+        #endif
+
         return ProverResult(FALSE);
       } else {
         D(1, "[Checking property] Cube blocked : {}", cube->to_string());
@@ -644,6 +732,8 @@ ProverResult Apdr::check_until(int k) {
         validate_inv();
         return ProverResult(TRUE);
       } else {
+
+        INFO("Total Frames: {}, L {} , push...", frames.size(), frames.back().size());
         D(1, "[Checking property] Adding frame {} ...", frames.size());
         frames.push_back(frame_t());
         push_lemma_from_the_lowest_frame();
@@ -655,6 +745,7 @@ ProverResult Apdr::check_until(int k) {
       } // adding a frame
     } // no bad state found at this point
   } // step k
+  D(1, "[Checking property] bound {} reached, result : unknown", k);
   return ProverResult(UNKNOWN);
 }
 
@@ -668,6 +759,10 @@ void Apdr::push_lemma_from_the_lowest_frame() {
 
 void Apdr::push_lemma_from_frame(unsigned fidx) {
   assert (frames.size() > fidx + 1);
+#ifdef DEBUG
+  if (frames.at(fidx).empty())
+    dump_frames(std::cerr);
+#endif
   assert (frames.at(fidx).size() > 0 );
 
   // 1. push facts
@@ -711,8 +806,12 @@ void Apdr::push_lemma_from_frame(unsigned fidx) {
       ));
     }
   } // try plain pushing
+  INFO("F{}({}-{})->F{}: {}/{} yet to try.", fidx , start_lemma_idx, end_lemma_idx, fidx+1, 
+    unpushed_lemmas.size(), end_lemma_idx - start_lemma_idx);
 
   // 3. handle unpushed lemmas
+  std::string push_status;
+
   for (auto && unpushed_lemma : unpushed_lemmas) {
     unsigned lemmaIdx;
     Lemma * lemma;
@@ -721,11 +820,14 @@ void Apdr::push_lemma_from_frame(unsigned fidx) {
     if (lemma->cex() == NULL) {
       D(2, "  [push_lemma F{}] will give up on lemma as it blocks None, l{} : {}",
         fidx, lemmaIdx, lemma->to_string());
+      push_status += '.';
       continue; 
     }
     // 3.1 if subsume, then we don't need to worry about
-    if (lemma->subsume_by_frame(fidx + 1, *this))
+    if (lemma->subsume_by_frame(fidx + 1, *this)) {
+      push_status += '.';
       continue;
+    }
     // 3.2 try itp repair to see if the cex is pushable or not
     //     - if it is pushable, we will use the pushed one the last
     //       but the others the first
@@ -738,12 +840,16 @@ void Apdr::push_lemma_from_frame(unsigned fidx) {
       assert (itp == NULL);
       D(2, "  [push_lemma F{}] skip pushing l{} : {} , as its cex cannot be push blocked.",
         fidx, lemmaIdx, lemma->to_string());
+      push_status += 'x';
       continue;
     }
 
     Lemma * sygus_hint = NULL;
-    if (pdr_config::USE_SYGUS_REPAIR)  {
-      sygus_hint = lemma->try_sygus_repair(fidx, lemmaIdx, post_ex, itp, *this, *this);
+    if (GlobalAPdrConfig.USE_SYGUS_REPAIR)  {
+      // if not the case : (is a push lemma and we don't repair push lemma)
+      if (! (  lemma->origin() == Lemma::LemmaOrigin::ORIGIN_FROM_PUSH && 
+               ! GlobalAPdrConfig.USE_SYGUS_REPAIR_LEMMA_MAY_BLOCK) )
+        sygus_hint = lemma->try_sygus_repair(fidx, lemmaIdx, post_ex, itp, *this, *this);
       // can still result in sygus_hint == NULL
     }
     if (sygus_hint) {
@@ -751,37 +857,43 @@ void Apdr::push_lemma_from_frame(unsigned fidx) {
       _add_pushed_lemma(sygus_hint, 1, fidx);
       D(2, "  [push_lemma F{}] repair l{} : {}", fidx, lemmaIdx, lemma->to_string());
       D(2, "  [push_lemma F{}] get l{} : {}",    fidx, lemmaIdx, sygus_hint->to_string());
+      push_status += 'S';
       continue;
     }
 
-    D(2, "  [push_lemma F{}] try strengthening l{}", fidx, lemmaIdx, lemma->to_string());
-    FrameCache strengthen_fc(solver_, itp_solver_, *this);
+    if (GlobalAPdrConfig.BLOCK_CTG) {
+      D(2, "  [push_lemma F{}] try strengthening l{}", fidx, lemmaIdx, lemma->to_string());
+      FrameCache strengthen_fc(solver_, itp_solver_, *this);
 
-    bool prop_succ, all_succ; int rmBnd; Model * unblockable_cube;
-    std::tie(prop_succ, all_succ, rmBnd, unblockable_cube) = 
-      lemma->try_strengthen(strengthen_fc, pdr_config::STRENGTHEN_EFFORT_FOR_PROP,
-        fidx, prev_ex, *this, *this);
-    // all possible cases: full/prop itself/bad_state
-    if (all_succ || prop_succ) {
-      D(2, "  [push_lemma F{}] strengthened l{} : {} with extra lemma {}",
-        fidx, lemmaIdx, lemma->to_string(), all_succ ? 'A' :'P');
-      merge_frame_cache(strengthen_fc);
-      continue;
+      bool prop_succ, all_succ; int rmBnd; Model * unblockable_cube;
+      std::tie(prop_succ, all_succ, rmBnd, unblockable_cube) = 
+        lemma->try_strengthen(strengthen_fc, 
+          (lemma->origin() == Lemma::LemmaOrigin::ORIGIN_FROM_PROPERTY ?  /* strength effort determination */
+            GlobalAPdrConfig.STRENGTHEN_EFFORT_FOR_MUST_BLOCK : GlobalAPdrConfig.STRENGTHEN_EFFORT_FOR_MAY_BLOCK),
+          fidx, prev_ex, *this, *this);
+      // all possible cases: full/prop itself/bad_state
+      if (all_succ || prop_succ) {
+        D(2, "  [push_lemma F{}] strengthened l{} : {} with extra lemma {}",
+          fidx, lemmaIdx, lemma->to_string(), all_succ ? 'A' :'P');
+        merge_frame_cache(strengthen_fc);
+        push_status += all_succ ? 'A' :'P';
+        continue;
+      }
+
+      if (unblockable_cube && rmBnd >= 0)  // true unblockable fact
+        _add_fact(unblockable_cube, fidx);
+      else
+        assert (rmBnd < 0); // bound limit reached
     }
-
-    if (unblockable_cube && rmBnd >= 0)  // true unblockable fact
-      _add_fact(unblockable_cube, fidx);
-    else
-      assert (rmBnd < 0); // bound limit reached
-    
     // try strengthen, but unable to even strengthen the main prop 
     // in the given bound
     D(2, "  [push_lemma F{}] unable to push l{} : {}", fidx, lemmaIdx, lemma->to_string());
     D(2, "  [push_lemma F{}] use new itp l{}: {}", fidx, lemmaIdx, itp->to_string());
 
     merge_frame_cache(itp_fc);
+    push_status += 'C';
   } // for each unpushe lemma
-
+  INFO("F{}->F{}: {} ",fidx,fidx+1, push_status);
   frames_pushed_idxs_map[fidx] = end_lemma_idx;
 } // push_lemma_from_frame
 
@@ -793,6 +905,28 @@ void Apdr::merge_frame_cache(FrameCache & fc) {
 }
 
 
+
+
+smt::Result Apdr::sanity_check_property_at_length_k(const smt::Term & btor_p, unsigned k) {
+  solver_->push();
+  solver_->assert_formula(unroller_.at_time(ts_.init(), 0));
+  for (unsigned i = 0; i<=k; ++i) {
+    bool res = true;
+    if (i > 0)
+      solver_->assert_formula(unroller_.at_time(ts_.trans(), i - 1));
+
+    {
+      auto r = solver_->check_sat();
+      if (!r.is_sat()) {
+        logger.log(0, "Transition dead-end at bound: {}, constraint may be too tight.", i);
+      }
+    }
+  } // unroll to frame i
+  solver_->assert_formula(unroller_.at_time(btor_p, k));
+  auto r = solver_->check_sat();
+  solver_->pop();
+  return r;
+} // sanity_check_property_at_length_k
 
 
 } // namespace cosa

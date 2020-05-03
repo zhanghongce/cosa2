@@ -52,7 +52,13 @@ enum optionIndex
   BOUND,
   PROP,
   VERBOSITY,
-  VCDNAME
+  VCDNAME,
+  // for detail config
+  PDR_ITP_MODE,
+  SYGUS_LEMMA_REPAIR_ON,
+  SYGUS_LEMMA_GEN_ON,
+  STRENGTHEN_OFF
+  
 };
 
 struct Arg : public option::Arg
@@ -127,6 +133,31 @@ const option::Descriptor usage[] = {
     "vcd",
     Arg::NonEmpty,
     "  --vcd \tName of Value Change Dump (VCD) if witness exists." },
+  // pdr configurations
+  { PDR_ITP_MODE,
+    0,
+    "",
+    "itpmode",
+    Arg::Numeric,
+    "  --itpmode \tInterpolant mode : 0 for normal, 3 for bit-level interpolant" },
+  { SYGUS_LEMMA_REPAIR_ON,
+    0,
+    "",
+    "sygus-repair",
+    Arg::None,
+    "  --sygus-repair \tEnable SyGuS for lemma repairing" },
+  { SYGUS_LEMMA_GEN_ON,
+    0,
+    "",
+    "sygus-summary",
+    Arg::None,
+    "  --sygus-summary \tEnable SyGuS for lemma summary" },
+  { STRENGTHEN_OFF,
+    0,
+    "",
+    "strengthen-off",
+    Arg::None,
+    "  --strengthen-off \tDo not try to block CTG (counterexample-to-generalization)" },
   { 0, 0, 0, 0, 0, 0 }
 };
 /*********************************** end Option Handling setup
@@ -170,6 +201,10 @@ int main(int argc, char ** argv)
   unsigned int bound = default_bound;
   unsigned int verbosity = default_verbosity;
   std::string vcd_name;
+  unsigned int itp_mode = 0;
+  bool strengthen_off = options[STRENGTHEN_OFF] != NULL;
+  bool sygus_repair_on = options[SYGUS_LEMMA_REPAIR_ON] != NULL;
+  bool sygus_lemma_gen_on = options[SYGUS_LEMMA_GEN_ON] != NULL;
 
   for (int i = 0; i < parse.optionsCount(); ++i) {
     option::Option & opt = buffer[i];
@@ -181,6 +216,7 @@ int main(int argc, char ** argv)
       case PROP: prop_idx = atoi(opt.arg); break;
       case VERBOSITY: verbosity = atoi(opt.arg); break;
       case VCDNAME: vcd_name = opt.arg; break;
+      case PDR_ITP_MODE: itp_mode = atoi(opt.arg); break;
       case UNKNOWN_OPTION:
         // not possible because Arg::Unknown returns ARG_ILLEGAL
         // which aborts the parse with an error
@@ -214,7 +250,9 @@ int main(int argc, char ** argv)
       s = BoolectorSolverFactory::create();
       s->set_opt("produce-models", "true");
       s->set_opt("incremental", "true");
-      second_solver = MsatSolverFactory::create_interpolating_solver();
+      Configurations::MsatInterpolatorConfiguration cfg;
+      cfg.interpolation_mode = std::to_string( std::min(itp_mode,4U) );
+      second_solver = MsatSolverFactory::create_interpolating_solver(cfg);
       #else
       throw CosaException("APDR-based model checking requires MathSAT and "
                           "this version of cosa2 is built without MathSAT.\nPlease "
@@ -265,9 +303,12 @@ int main(int argc, char ** argv)
       msat_fts = new FunctionalTransitionSystem(second_solver);
       msat_enc = new BTOR2Encoder(filename, *msat_fts);
 
-      Term bad_btor = msat_enc->badvec()[prop_idx];
-      msat_p = new Property(*msat_fts, second_solver->make_term(PrimOp::Not, bad_btor));
+      Term bad_msat = msat_enc->badvec()[prop_idx];
+      msat_p = new Property(*msat_fts, second_solver->make_term(PrimOp::Not, bad_msat));
 
+      GlobalAPdrConfig.USE_SYGUS_REPAIR = sygus_repair_on;
+      GlobalAPdrConfig.USE_SYGUS_LEMMA_GEN = sygus_lemma_gen_on;
+      GlobalAPdrConfig.BLOCK_CTG = !strengthen_off;
       prover = std::make_shared<Apdr> (p, s, *msat_p, second_solver,
         std::unordered_set<smt::Term>(), std::unordered_set<smt::Term> () );
     } else {

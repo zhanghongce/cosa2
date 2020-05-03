@@ -18,21 +18,40 @@
 
 namespace cosa {
 
-namespace pdr_config {
-  const unsigned MAX_FRAME   = 10000000;
-  const bool     USE_ITP_IN_PUSHING = false;
-  const bool     DEBUG = true;
-  const bool     DEBUG_PRINT = true;
-  const bool     USE_SYGUS_REPAIR = false;
-  const bool     USE_SYGUS_LEMMA_GEN = false;
-  const bool     RM_CEX_IN_PREV = true;
-  const bool     USE_FACT_IN_SYGUS = false;
-  const unsigned ENHANCE_GIVEUP_THRESHOLD_FAILED = 2;
-  const unsigned ENHANCE_GIVEUP_THRESHOLD_TRIALS = 3;        // 2/3
-  const unsigned CEX_INVALID_ITP_GUESS_THRESHOLD_FAILED = 4; // 4/5
-  const unsigned CEX_INVALID_ITP_GUESS_THRESHOLD_TRIALS = 5;
-  const unsigned long long STRENGTHEN_EFFORT_FOR_PROP = 10000;
-}; // namespace pdr_config
+  struct APdrConfig {
+    unsigned MAX_FRAME   = 10000000;
 
+    // SyGuS related
+    bool     USE_SYGUS_REPAIR = false;
+    bool     USE_SYGUS_REPAIR_LEMMA_MAY_BLOCK = true;
+    bool     USE_FACT_IN_SYGUS_REPAIR = false;
+    bool     USE_SYGUS_LEMMA_GEN = false;
+
+    // later we may introduce the possiblity to avoid
+    // msat's interpolant, but not now
+    const bool USE_ITP = true; 
+
+    // SAT(p? /\ T /\ not p'), or
+    // SAT(      T /\ not p')
+    const bool RM_CEX_IN_PREV = true;
+
+    // lemma pushing in general
+    unsigned ENHANCE_GIVEUP_THRESHOLD_FAILED = 2;
+    unsigned ENHANCE_GIVEUP_THRESHOLD_TRIALS = 3;        // 2/3
+    unsigned CEX_INVALID_ITP_GUESS_THRESHOLD_FAILED = 4; // 4/5
+    unsigned CEX_INVALID_ITP_GUESS_THRESHOLD_TRIALS = 5;
+
+    bool BLOCK_CTG = true;
+    bool BLOCK_CTG_MAY_BLOCK_LEMMA = true;
+    // lemma strengthening method: CTG blocking (may blocking)
+    unsigned STRENGTHEN_EFFORT_FOR_MUST_BLOCK = 50; //10000;
+
+    // 
+    unsigned STRENGTHEN_EFFORT_FOR_MAY_BLOCK = 10; //1000; // has no use
+    const bool  TRY_STRENGTHEN_LEMMA_MAY_BLOCK = true; // if the above is false -- this should be true
+      // otherwise, the cex is blockable and you do nothing? -- not right
+  };
+
+  extern APdrConfig GlobalAPdrConfig;
 
 }; // namespace cosa

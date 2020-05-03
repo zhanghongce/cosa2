@@ -212,16 +212,18 @@ std::string Lemma::origin_to_string(LemmaOrigin o) {
 
 std::string Lemma::dump_expr() const {
   return ( pushed ? "P" : " " ) + 
-    ("|" + expr_->to_string() ) + 
-    ("|" + origin_to_string(origin_) ) + 
-    ("| (" + std::to_string(n_itp_push_failure) + "," + std::to_string(n_itp_push_trial)+ "),("
+    (" | " + expr_->to_string() ) + 
+    (" | " + origin_to_string(origin_) ) + 
+    (" | (" + std::to_string(n_itp_push_failure) + "," + std::to_string(n_itp_push_trial)+ "),("
            + std::to_string(n_itp_enhance_failure) + "," + std::to_string(n_itp_enhance_trial)+ ")" );
 }
 std::string Lemma::dump_cex() const {
+  if (cex_ == NULL)
+    return "None";
   return ( pushed ? "P" : " " ) + 
-    ("|" + cex_->to_string() ) + 
-    ("|" + origin_to_string(origin_) ) + 
-    ("| (" + std::to_string(n_itp_push_failure) + "," + std::to_string(n_itp_push_trial)+ "),("
+    (" | " + cex_->to_string() ) + 
+    (" | " + origin_to_string(origin_) ) + 
+    (" | (" + std::to_string(n_itp_push_failure) + "," + std::to_string(n_itp_push_trial)+ "),("
            + std::to_string(n_itp_enhance_failure) + "," + std::to_string(n_itp_enhance_trial)+ ")" );
 }
 

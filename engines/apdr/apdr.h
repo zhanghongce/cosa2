@@ -19,6 +19,7 @@
 #include "../sygus/partial_model.h"
 #include "../prover.h"
 
+#include "config.h"
 #include "lemma.h"
 
 namespace cosa {
@@ -163,6 +164,7 @@ public:
   bool is_safe_inductive_inv(const smt::Term & inv);
   void sanity_check_imply();
   void sanity_check_frame_monotone();
+  smt::Result sanity_check_property_at_length_k(const smt::Term & btor_p, unsigned k);
   virtual void dump_frames(std::ostream & os) const override;
 
   virtual solve_trans_result solveTrans(
@@ -173,7 +175,7 @@ public:
   Model * get_bad_state_from_property_invalid_after_trans (
     const smt::Term & prop, const smt::Term & prop_msat, unsigned idx, bool use_init, bool add_itp);
 
-  bool do_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_origin);
+  bool do_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_origin, bool check_reach = false);
   
   virtual bool try_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_origin,
     FrameCache & frame_cache) override;
