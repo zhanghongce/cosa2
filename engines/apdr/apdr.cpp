@@ -673,7 +673,7 @@ bool Apdr::check_init_failed() { // will use the prop specified by property
   if (failed_m) {
     D(1, "Property failed at init.");
     return true; // failed
-  }
+  }  
   failed_m = 
     get_bad_state_from_property_invalid_after_trans(
       property_.prop(), property_msat_.prop(), 
@@ -699,9 +699,8 @@ ProverResult Apdr::check_until(int k) {
       sanity_check_imply();
     #endif
 
-    Model * cube = get_bad_state_from_property_invalid_after_trans(
-      property_.prop(), property_msat_.prop(),
-      frames.size() -1  /*idx*/ , false /*use_init*/ , false /*itp add*/);
+    Model * cube = frame_not_implies_model(frames.size() -1, property_.prop());
+
     D(1, "[Checking property] Get cube: {} @F{}", cube ? cube->to_string() : "None", frames.size() -1);
     if (cube) {
       INFO("Total Frames: {}, L {} , cube-block...", frames.size(), frames.back().size());
