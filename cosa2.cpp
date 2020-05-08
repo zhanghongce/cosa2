@@ -25,6 +25,7 @@
 #endif
 
 #include "bmc.h"
+#include "apdr/apdr.h"
 #include "bmc_simplepath.h"
 #include "core/fts.h"
 #include "defaults.h"
