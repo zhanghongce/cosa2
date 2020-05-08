@@ -40,6 +40,7 @@ class BTOR2Encoder
   BTOR2Encoder(std::string filename, TransitionSystem & ts)
       : ts_(ts), solver_(ts.solver())
   {
+    preprocess(filename);
     parse(filename);
   };
 

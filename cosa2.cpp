@@ -31,7 +31,6 @@
 #include "frontends/btor2_encoder.h"
 #include "interpolant.h"
 #include "kinduction.h"
-#include "apdr/apdr.h"
 #include "printers/btor2_witness_printer.h"
 #include "printers/vcd_witness_printer.h"
 #include "prop.h"
@@ -216,7 +215,6 @@ int main(int argc, char ** argv)
       case PROP: prop_idx = atoi(opt.arg); break;
       case VERBOSITY: verbosity = atoi(opt.arg); break;
       case VCDNAME: vcd_name = opt.arg; break;
-      case PDR_ITP_MODE: itp_mode = atoi(opt.arg); break;
       case UNKNOWN_OPTION:
         // not possible because Arg::Unknown returns ARG_ILLEGAL
         // which aborts the parse with an error
@@ -316,18 +314,15 @@ int main(int argc, char ** argv)
     }
 
     ProverResult r = prover->check_until(bound);
-
     if (r == FALSE) {
       cout << "sat" << endl;
       cout << "b" << prop_idx << endl;
       vector<UnorderedTermMap> cex;
-      if (prover->witness(cex, !vcd_name.empty())) {
+      if (prover->witness(cex)) {
+        print_witness_btor(btor_enc, cex);
         if (!vcd_name.empty()) {
           VCDWitnessPrinter vcdprinter(btor_enc, fts, cex);
-          vcdprinter.DebugDump();
           vcdprinter.DumpTraceToFile(vcd_name);
-        } else {
-          print_witness_btor(btor_enc, cex);
         }
       }
       if (engine == APDR) { // clean up
