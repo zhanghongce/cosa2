@@ -41,7 +41,7 @@ void Prover::initialize()
 
 ProverResult Prover::prove() { return check_until(INT_MAX); }
 
-bool Prover::witness(std::vector<UnorderedTermMap> & out, bool include_internal_wires)
+bool Prover::witness(std::vector<UnorderedTermMap> & out)
 {
   // TODO: make sure the solver state is SAT
 
@@ -61,16 +61,13 @@ bool Prover::witness(std::vector<UnorderedTermMap> & out, bool include_internal_
       map[v] = r;
     }
 
-    if (include_internal_wires)
-      for (auto && name_term_pair : ts_.named_terms()) {
-        Term vi = unroller_.at_time(name_term_pair.second, i);
-        Term r = solver_->get_value(vi);
-        map[name_term_pair.second] = r;
-      }
+    for (auto elem : ts_.named_terms()) {
+      Term ti = unroller_.at_time(elem.second, i);
+      map[elem.second] = solver_->get_value(ti);
+    }
   }
 
   return true;
 }
-
 
 }  // namespace cosa

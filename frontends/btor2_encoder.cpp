@@ -17,8 +17,10 @@
 
 #include "btor2_encoder.h"
 #include "term_analysis.h"
+#include "utils/logger.h"
 
 #include <iostream>
+#include "assert.h"
 
 using namespace smt;
 using namespace std;
@@ -316,6 +318,7 @@ void BTOR2Encoder::parse(const std::string& filename)
         symbol_ = "output" + to_string(l_->id);
       }
       ts_.name_term(symbol_, termargs_[0]);
+      terms_[l_->id] = termargs_[0];
     } else if (l_->tag == BTOR2_TAG_sort) {
       switch (l_->sort.tag) {
         case BTOR2_TAG_SORT_bitvec: {
@@ -336,7 +339,9 @@ void BTOR2Encoder::parse(const std::string& filename)
           throw CosaException("Unknown sort tag");
       }
     } else if (l_->tag == BTOR2_TAG_constraint) {
-      ts_.add_constraint(bv_to_bool(termargs_[0]));
+      Term constraint = bv_to_bool(termargs_[0]);
+      ts_.add_constraint(constraint);
+      terms_[l_->id] = constraint;
     } else if (l_->tag == BTOR2_TAG_init) {
       if (termargs_.size() != 2) {
         throw CosaException("Expecting two term arguments to init");
@@ -345,22 +350,25 @@ void BTOR2Encoder::parse(const std::string& filename)
             "Expecting to init sort to match first argument's sort");
       }
 
+      Term init_eq;
+
       if (linesort_->get_sort_kind() == BV) {
-        ts_.constrain_init(solver_->make_term(Equal, termargs_));
+        init_eq = solver_->make_term(Equal, termargs_);
       } else if (linesort_->get_sort_kind() == ARRAY) {
         if (termargs_[1]->get_sort()->get_sort_kind() == BV) {
-          ts_.constrain_init(
-              solver_->make_term(Equal,
-                                 termargs_[0],
-                                 solver_->make_term(termargs_[1], linesort_)));
+          init_eq = solver_->make_term(
+              Equal, termargs_[0], solver_->make_term(termargs_[1], linesort_));
         } else {
-          ts_.constrain_init(
-              solver_->make_term(Equal, termargs_[0], termargs_[1]));
+          init_eq = solver_->make_term(Equal, termargs_[0], termargs_[1]);
         }
       } else {
         throw CosaException("Unhandled sort: "
                             + termargs_[0]->get_sort()->to_string());
       }
+
+      ts_.constrain_init(init_eq);
+      terms_[l_->id] = init_eq;
+
     } else if (l_->tag == BTOR2_TAG_next) {
       if (termargs_.size() != 2) {
         throw CosaException("Expecting two arguments to next");
@@ -375,10 +383,12 @@ void BTOR2Encoder::parse(const std::string& filename)
 
       if (s0 == s1) {
         ts_.assign_next(t0, t1);
+        terms_[l_->id] = t1;
       } else if (((sk0 == BV) && (sk1 == BOOL))
                  || ((sk0 == BOOL) && (sk1 == BV))) {
         // need to cast
         ts_.assign_next(bool_to_bv(t0), bool_to_bv(t1));
+        terms_[l_->id] = bool_to_bv(t1);
       } else {
         throw CosaException("Got two different sorts in next update.");
       }
@@ -402,16 +412,21 @@ void BTOR2Encoder::parse(const std::string& filename)
                            solver_->make_sort(BV, 1));
         ts_.constrain_init(solver_->make_term(Not, bv_to_bool(witness)));
         ts_.assign_next(witness, bool_to_bv(bad));
-        badvec_.push_back(bv_to_bool(witness));
+        propvec_.push_back(bv_to_bool(witness));
+        terms_[l_->id] = witness;
       } else {
-        badvec_.push_back(bad);
+	Term prop = solver_->make_term(Not, bad);
+        propvec_.push_back(bad);
+        terms_[l_->id] = prop;
       }
     } else if (l_->tag == BTOR2_TAG_justice) {
       std::cout << "Warning: ignoring justice term" << std::endl;
       justicevec_.push_back(termargs_[0]);
+      terms_[l_->id] = termargs_[0];
     } else if (l_->tag == BTOR2_TAG_fair) {
       std::cout << "Warning: ignoring fair term" << std::endl;
       fairvec_.push_back(termargs_[0]);
+      terms_[l_->id] = termargs_[0];
     } else if (l_->constant) {
       terms_[l_->id] =
           solver_->make_term(l_->constant, linesort_, basemap.at(l_->tag));
@@ -700,9 +715,17 @@ void BTOR2Encoder::parse(const std::string& filename)
     // use the symbol to name the term (if applicable)
     // input, output, and state already named
     if (l_->symbol && l_->tag != BTOR2_TAG_input && l_->tag != BTOR2_TAG_output
-        && l_->tag != BTOR2_TAG_state) {
-      ts_.name_term(l_->symbol, terms_[l_->id]);
+        && l_->tag != BTOR2_TAG_state && terms_.find(l_->id) != terms_.end()) {
+      try {
+        ts_.name_term(l_->symbol, terms_.at(l_->id));
+      }
+      catch (CosaException & e) {
+        logger.log(1, "BTOR2Encoder Warning: {}", e.what());
+      }
     }
+
+    // sort tag should be the only one that doesn't populate terms_
+    assert(l_->tag == BTOR2_TAG_sort || terms_.find(l_->id) != terms_.end());
   }
 
   fclose(input_file);
