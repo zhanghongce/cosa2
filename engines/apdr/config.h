@@ -50,6 +50,9 @@ namespace cosa {
     unsigned STRENGTHEN_EFFORT_FOR_MAY_BLOCK = 10; //1000; // has no use
     const bool  TRY_STRENGTHEN_LEMMA_MAY_BLOCK = true; // if the above is false -- this should be true
       // otherwise, the cex is blockable and you do nothing? -- not right
+
+    bool COI_CACHING_ENABLE = true;
+    bool MSAT_INTERPOLANT_ENABLE = true;
   };
 
   extern APdrConfig GlobalAPdrConfig;

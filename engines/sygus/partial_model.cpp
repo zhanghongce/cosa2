@@ -72,16 +72,58 @@ smt::Term Model::to_expr(const cube_t & c, smt::SmtSolver & solver_) {
   return ret;
 }
 
+
+smt::Term Model::bool_to_bv(const smt::Term & t, smt::SmtSolver & solver_)
+{
+  if (t->get_sort()->get_sort_kind() == smt::BOOL) {
+    smt::Sort bv1sort = solver_->make_sort(smt::BV, 1);
+    return solver_->make_term(
+        smt::Ite, t, solver_->make_term(1, bv1sort), solver_->make_term(0, bv1sort));
+  } else {
+    return t;
+  }
+}
+
+smt::Term Model::bv_to_bool(const smt::Term & t, smt::SmtSolver & solver_)
+{
+  smt::Sort sort = t->get_sort();
+  if (sort->get_sort_kind() == smt::BV) {
+    if (sort->get_width() != 1) {
+      throw CosaException("Can't convert non-width 1 bitvector to bool.");
+    }
+    return solver_->make_term(
+        smt::Equal, t, solver_->make_term(1, solver_->make_sort(smt::BV, 1)));
+  } else {
+    return t;
+  }
+}
+
 smt::Term Model::to_expr_translate(
     const cube_t & c, smt::SmtSolver & solver_,
     smt::TermTranslator & to_msat, const std::unordered_map<std::string, smt::Term> & symbols) {
 
   smt::Term ret = nullptr;
   for (auto && v_val : c ) {
+    auto var_msat = to_msat.transfer_term(v_val.first, symbols);
+    auto val_msat = to_msat.transfer_term(v_val.second, symbols);
+    if ( var_msat->get_sort()->get_sort_kind() != 
+         val_msat->get_sort()->get_sort_kind()) {
+      if (var_msat->get_sort()->get_sort_kind() == smt::BV) {
+        assert(var_msat->get_sort()->get_width() == 1);
+        assert(val_msat->get_sort()->get_sort_kind() == smt::BOOL);
+        val_msat = bool_to_bv(val_msat, solver_);
+      } else if ( var_msat->get_sort()->get_sort_kind() == smt::BOOL ) {
+        assert(val_msat->get_sort()->get_sort_kind() == smt::BV);
+        assert(val_msat->get_sort()->get_width() == 1);
+        val_msat = bv_to_bool(val_msat, solver_);
+      } else
+        assert(false); // we cannot handle this case
+    }
+
     if (ret == nullptr)
-      ret = EQ(to_msat.transfer_term(v_val.first, symbols), to_msat.transfer_term(v_val.second, symbols));
+      ret = EQ(var_msat, val_msat);
     else
-      ret = AND(ret, EQ(to_msat.transfer_term(v_val.first, symbols), to_msat.transfer_term(v_val.second, symbols)));
+      ret = AND(ret, EQ(var_msat, val_msat));
   }
   return ret;
 }

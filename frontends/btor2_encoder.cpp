@@ -398,11 +398,11 @@ void BTOR2Encoder::parse(const std::string& filename)
 
       if (need_witness) {
         Term witness =
-            ts_.make_state("witness_" + std::to_string(witness_id_++),
-                           solver_->make_sort(BOOL));
-        ts_.constrain_init(solver_->make_term(Not, witness));
-        ts_.assign_next(witness, bad);
-        badvec_.push_back(witness);
+              ts_.make_state("witness_" + std::to_string(witness_id_++),
+                           solver_->make_sort(BV, 1));
+        ts_.constrain_init(solver_->make_term(Not, bv_to_bool(witness)));
+        ts_.assign_next(witness, bool_to_bv(bad));
+        badvec_.push_back(bv_to_bool(witness));
       } else {
         badvec_.push_back(bad);
       }

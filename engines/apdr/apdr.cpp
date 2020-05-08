@@ -46,7 +46,7 @@ APdrConfig GlobalAPdrConfig;
 
 // ---------------------------------------------------------------------
 
-#define DEBUG
+//#define DEBUG
 #ifdef DEBUG
   #define D(...) logger.log( __VA_ARGS__ )
   #define MSAT_DEBUG
@@ -106,7 +106,7 @@ void Apdr::initialize() {
     new_lemma(
       ts_.init(), bv_to_bool_msat( ts_msat_.init() , itp_solver_),
       NULL, Lemma::LemmaOrigin::ORIGIN_FROM_INIT) );
-  frames.push_back(frame_t()); // F1 = []
+  // frames.push_back(frame_t()); // F1 = []
 }
 
 Apdr::~Apdr() { }
@@ -168,7 +168,9 @@ Model * Apdr::get_not_valid_model(const smt::Term & e) {
 // this function is only used in recursive block
 // in checking the same cycle solve
 Model * Apdr::solve(const smt::Term & formula) {
-  assert(ts_.only_curr(formula)); // TO REMOVE DEBUG
+#ifdef DEBUG
+  assert(ts_.only_curr(formula)); // TO REMOVE when not DEBUG
+#endif
   solver_->push();
   solver_->assert_formula(formula);
   auto result = solver_->check_sat();
@@ -295,7 +297,9 @@ bool Apdr::is_safe_inductive_inv(const smt::Term & inv) {
 
 // Fi /\ T => F'i+1
 void Apdr::sanity_check_imply() {
-  assert (frames.size() > 1);
+  if (frames.size() <= 1)
+    return;
+  // assert (frames.size() > 1);
   smt::Term T = ts_.trans();
   for (size_t fidx = 1; fidx < frames.size(); ++ fidx) {
     auto next_frame = ts_.next( frame_prop_btor(fidx) );
@@ -307,7 +311,9 @@ void Apdr::sanity_check_imply() {
 
 // Fi => Fi+1
 void Apdr::sanity_check_frame_monotone() {
-  assert (frames.size() > 1);
+  if (frames.size() <= 1)
+    return;
+  // assert (frames.size() > 1);
   for (size_t fidx = 1; fidx < frames.size(); ++ fidx) {
     assert ( is_valid(
       IMPLY(frame_prop_btor(fidx-1), frame_prop_btor(fidx))
@@ -333,7 +339,7 @@ void Apdr::dump_frames(std::ostream & os) const {
     os << "  CEX blocked :" << std::endl;
     for ( lidx = 0; lidx < frame.size() ; ++ lidx) {
       char ptr = (push_pos == lidx) ? '*' : ' ';
-      os << "  " << ptr << " l" << lidx <<  " : " << (frame.at(lidx)->dump_cex()) << std::endl;
+      os << "  " << ptr << " c" << lidx <<  " : " << (frame.at(lidx)->dump_cex()) << std::endl;
     }
     if (lidx == push_pos)
       os << "    all tried to push" << std::endl;
@@ -502,7 +508,8 @@ Apdr::solve_trans_result Apdr::solveTrans(
 // used in check_property, check_init_failed
 // not in push_lemma, because we also want the pre-&post-states
 Model * Apdr::get_bad_state_from_property_invalid_after_trans (
-  const smt::Term & prop_btor, const smt::Term & prop_msat, unsigned idx, bool use_init, bool add_itp
+  const smt::Term & prop_btor, const smt::Term & prop_msat, unsigned idx, bool use_init, bool add_itp,
+  Model * cube
 ) {
   assert(idx >= 0);
   D(2, "    [F{} -> prop]", idx);
@@ -513,7 +520,7 @@ Model * Apdr::get_bad_state_from_property_invalid_after_trans (
   if (trans_result.prev_ex == NULL && add_itp && trans_result.itp != NULL) {
     // only used in the INIT --T-->ITP => P
     Lemma * l = new_lemma(trans_result.itp, trans_result.itp_msat,
-      NULL, Lemma::LemmaOrigin::ORIGIN_FROM_PROPERTY);    
+      cube, Lemma::LemmaOrigin::ORIGIN_FROM_PROPERTY);    
     _add_lemma(l, idx + 1);
     _add_pushed_lemma(l, 1, idx);
   }
@@ -674,24 +681,18 @@ bool Apdr::check_init_failed() { // will use the prop specified by property
     D(1, "Property failed at init.");
     return true; // failed
   }  
-  failed_m = 
-    get_bad_state_from_property_invalid_after_trans(
-      property_.prop(), property_msat_.prop(), 
-      0 /*idx*/, true /*use_init*/, true /*itp add*/ );
-    // because we want interpolant, so we make use_init:= true
-  if (failed_m) {
-    D(1, "Property failed at init--T-->P'.");
-    return true;
-  }
   return false;
 }
+
 
 ProverResult Apdr::check_until(int k) {
   assert (k>=0);
 
+  D(1, "[Checking property] start");
   if (check_init_failed())
     return ProverResult(FALSE);
 
+  D(1, "[Checking property] init passed");
   while (frames.size() < k) {
     // removable checks
     #ifdef DEBUG
@@ -700,38 +701,42 @@ ProverResult Apdr::check_until(int k) {
     #endif
 
     Model * cube = frame_not_implies_model(frames.size() -1, property_.prop());
-
-    D(1, "[Checking property] Get cube: {} @F{}", cube ? cube->to_string() : "None", frames.size() -1);
     if (cube) {
-      INFO("Total Frames: {}, L {} , cube-block...", frames.size(), frames.back().size());
-      if (! do_recursive_block(cube, frames.size() -1 , Lemma::LemmaOrigin::ORIGIN_FROM_PROPERTY)) {
-        D(1, "[Checking property] Bug found at step {}", frames.size());
+      while(true) {
+        Model * unblocked_model = 
+          get_bad_state_from_property_invalid_after_trans(
+            property_.prop(), property_msat_.prop(), frames.size() -2,
+                true /*use_init*/, true /*add_itp*/, cube); // give the cube
+        if (unblocked_model) {
+          if(! do_recursive_block(unblocked_model, frames.size() -2 , Lemma::LemmaOrigin::ORIGIN_FROM_PROPERTY) ) {
+            // cex found
+            D(1, "[Checking property] Bug found at step {}", frames.size()-1);
 
-        // check cube is truly reachable at frames.size() - 1
-        #ifdef DEBUG
-          auto cube_bmc_reachable = sanity_check_property_at_length_k(cube->to_expr_btor(solver_), frames.size() -1);
-          D(1, "[Checking property] BMC result sat: {} ", cube_bmc_reachable.is_sat() ? "True" : "False");
-          if (! cube_bmc_reachable.is_sat()) {
-            dump_frames(std::cerr);
-            do_recursive_block(cube, frames.size() -1 , Lemma::LemmaOrigin::ORIGIN_FROM_PROPERTY, true);
+            // check cube is truly reachable at frames.size() - 1
+            #ifdef DEBUG
+              auto cube_bmc_reachable = sanity_check_property_at_length_k(NOT(property_.prop()), frames.size() -1);
+              D(1, "[Checking property] BMC result sat: {} ", cube_bmc_reachable.is_sat() ? "True" : "False");
+              sanity_check_frame_monotone();
+              sanity_check_imply();
+              assert ( cube_bmc_reachable.is_sat());
+            #endif
+
+            return ProverResult(FALSE);
+          } else {
+            INFO("Total Frames: {}, L {} , blocking...", frames.size(), frames.back().size());
+            D(1, "[Checking property] Cube block at F{}", frames.size()-2);
+            continue;
           }
-
-          sanity_check_frame_monotone();
-          sanity_check_imply();
-          assert ( cube_bmc_reachable.is_sat());
-        #endif
-
-        return ProverResult(FALSE);
-      } else {
-        D(1, "[Checking property] Cube blocked : {}", cube->to_string());
+        } else
+          break;
       }
+      // unblocked_model == NULL
     } else {
       if (is_last_two_frames_inductive()) {
         D(1, "[Checking property] The system is safe, frame : {}", frames.size());
         validate_inv();
         return ProverResult(TRUE);
       } else {
-
         INFO("Total Frames: {}, L {} , push...", frames.size(), frames.back().size());
         D(1, "[Checking property] Adding frame {} ...", frames.size());
         frames.push_back(frame_t());
@@ -742,7 +747,7 @@ ProverResult Apdr::check_until(int k) {
           return ProverResult(TRUE);
         }
       } // adding a frame
-    } // no bad state found at this point
+    }
   } // step k
   D(1, "[Checking property] bound {} reached, result : unknown", k);
   return ProverResult(UNKNOWN);

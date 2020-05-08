@@ -22,16 +22,16 @@
 namespace cosa {
 
 class Walker {
-
-public:
-  void WalkDFS(const smt::Term & ast);
-  void WalkBFS(const smt::Term & ast);
+protected:
   // if you want to buffer and avoid further walk
   // Skip is your chance to do that, return true
   // if already buffered
   virtual bool Skip(const smt::Term & ast) = 0;
   virtual void PreChild(const smt::Term & ast) = 0;
   virtual void PostChild(const smt::Term & ast) = 0;
+public:
+  void WalkDFS(const smt::Term & ast);
+  void WalkBFS(const smt::Term & ast);
 }; // OpWalker
 
 

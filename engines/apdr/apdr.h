@@ -173,7 +173,8 @@ public:
     bool use_init, bool findItp, bool get_post_state, FrameCache * fc ) override;
   
   Model * get_bad_state_from_property_invalid_after_trans (
-    const smt::Term & prop, const smt::Term & prop_msat, unsigned idx, bool use_init, bool add_itp);
+    const smt::Term & prop, const smt::Term & prop_msat, unsigned idx, bool use_init, bool add_itp,
+    Model * cube);
 
   bool do_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_origin, bool check_reach = false);
   
