@@ -16,6 +16,10 @@
  
 #pragma once
 
+#include "sig_apdr_if.h"
+
+#include <vector>
+
 namespace cosa {
 
   struct APdrConfig {
@@ -53,6 +57,42 @@ namespace cosa {
 
     bool COI_CACHING_ENABLE = true;
     bool MSAT_INTERPOLANT_ENABLE = true;
+
+    // ------------- SyGuS Configuration ---------------------------------
+
+    bool SYGUS_EXPAND_VALUES = false;
+    bool SYGUS_USE_TRANS = true;
+    bool SYGUS_USE_INIT = true;
+    bool SYGUS_USE_FACT = true;
+
+    // ------------- STATISTICS tracking ---------------------------------
+    bool STAT_ITP_STRICTLY_STRONG_CHECK = true;
+    uint64_t STAT_ITP_CHECK_COUNT = 0;
+    uint64_t STAT_ITP_STRONG_COUNT = 0;
+
+    // ------------- STATUS tracking ---------------------------------
+    enum APDR_WORKING_STATE_T { 
+      IDLE = 0,
+      INITCACHE, 
+      CHECK_UNTIL,
+      GETTING_BAD_FOR_PROP, 
+      BLOCKING_BAD_FOR_PROP, 
+      PUSHING_ALL,
+      PUSH_A_FRAME,
+      PUSH_FIRST_TRY_ALL, PUSH_TRY_CEX, PUSH_TRY_SYGUS,
+      PUSH_TRY_BLOCK_CTG,
+      SOLVE_TRANS,
+      RECURSIVE_BLOCK_TRY,
+      RECURSIVE_BLOCK_DO };
+    
+    typedef std::pair<APDR_WORKING_STATE_T, unsigned> APDR_STACK_STATE_T;
+    APDR_STACK_STATE_T APDR_WORKING_STATE;
+
+    std::vector<APDR_STACK_STATE_T> APDR_WORKING_STATE_STACK = {{IDLE,0}};
+
+    // ------------- STATUS tracking ---------------------------------
+    SignalPDRInterface * ApdrInterface = NULL;
+
   };
 
   extern APdrConfig GlobalAPdrConfig;

@@ -194,6 +194,7 @@ bool InterpolantMC::check_overapprox()
       solver_->make_term(And, Rpi, solver_->make_term(Not, Rp)));
   Result r = solver_->check_sat();
   if (r.is_unsat()) {
+    logger.log(1, "Interpolant: {}", Rpi->to_string());
     return true;
   } else {
     return false;

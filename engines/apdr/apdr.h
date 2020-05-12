@@ -105,6 +105,8 @@ public:
   // smt::TermTranslator & to_itp_solver() override { return to_itp_solver_; }
   smt::TermTranslator & to_btor() override { return to_btor_; }
 
+  void print_frame_stat(const std::string & extra_info) const;
+
 protected:
   const std::unordered_set<smt::Term> keep_vars_;
   const std::unordered_set<smt::Term> remove_vars_;
@@ -195,6 +197,7 @@ public:
   // --------- delegate to TransitionSystem -------- //
   virtual smt::Term next(const smt::Term &e) const override { return ts_.next(e);}
   virtual smt::Term curr(const smt::Term &e) const override { return ts_.curr(e);}
+  virtual bool is_curr_var(const smt::Term &e) const { return ts_.is_curr_var(e); }
   virtual smt::Term init() const override { return ts_.init(); }
   virtual smt::Term trans() const override { return ts_.trans(); }
   virtual const smt::UnorderedTermSet & states() const override { return ts_.states(); }

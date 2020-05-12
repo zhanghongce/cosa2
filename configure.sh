@@ -36,6 +36,7 @@ with_cvc4=default
 debug=default
 lib_type=SHARED
 static_exec=NO
+signal_dump=NO
 
 buildtype=Release
 
@@ -65,6 +66,7 @@ do
             ;;
         --with-msat) with_msat=ON;;
         --with-cvc4) with_cvc4=ON;;
+        --signal-dump) signal_dump=ON;;
         --debug)
             debug=yes;
             buildtype=Debug
@@ -91,6 +93,9 @@ cmake_opts="-DCMAKE_BUILD_TYPE=$buildtype -DCOSA2_LIB_TYPE=${lib_type} -DCOSA2_S
 
 [ $with_cvc4 != default ] \
     && cmake_opts="$cmake_opts -DWITH_CVC4=$with_cvc4"
+
+[ $signal_dump != NO ] \
+    && cmake_opts="$cmake_opts -DSIGNAL_DUMP=1"
 
 root_dir=$(pwd)
 

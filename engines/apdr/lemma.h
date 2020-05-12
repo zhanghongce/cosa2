@@ -19,6 +19,7 @@
 
 #include "../sygus/partial_model.h"
 #include "../prover.h"
+#include "sig_apdr_if.h"
 
 namespace cosa {
 
@@ -31,7 +32,7 @@ class FrameCache;
 smt::Term bv_to_bool_msat(const smt::Term & t, const smt::SmtSolver & itp_solver_ );
 
 
-class LemmaPDRInterface {
+class LemmaPDRInterface : public SignalPDRInterface {
 public:
   enum LemmaOrigin {ORIGIN_FROM_PROPERTY, ORIGIN_FROM_PUSH, ORIGIN_FROM_INIT};
   struct solve_trans_result {
@@ -59,6 +60,7 @@ public:
   
   virtual smt::Term next(const smt::Term &) const = 0;
   virtual smt::Term curr(const smt::Term &) const = 0;
+  virtual bool is_curr_var(const smt::Term &) const = 0;
   virtual smt::Term init() const = 0;
   virtual smt::Term trans() const = 0;
   virtual const smt::UnorderedTermSet & states() const = 0;

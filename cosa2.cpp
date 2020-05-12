@@ -36,6 +36,7 @@
 #include "printers/vcd_witness_printer.h"
 #include "prop.h"
 #include "utils/logger.h"
+#include "utils/signal_handler.h"
 
 using namespace cosa;
 using namespace smt;
@@ -218,8 +219,10 @@ ProverResult check_prop(Engine engine,
   } else if (engine == APDR) {
     if(! apdr_env.msat_p) 
       throw CosaException("APDR on SMV is not implemented.");
-    prover = std::make_shared<Apdr> (p, s, *apdr_env.msat_p, second_solver,
-      std::unordered_set<smt::Term>(), std::unordered_set<smt::Term> () );
+    Apdr * ptr = new Apdr(p, s, *apdr_env.msat_p, second_solver,
+      std::unordered_set<smt::Term>(), std::unordered_set<smt::Term> ());
+    GlobalAPdrConfig.ApdrInterface = ptr;    
+    prover = std::shared_ptr<Apdr> ( ptr );
   }
     else {
     throw CosaException("Unimplemented engine.");
@@ -229,6 +232,9 @@ ProverResult check_prop(Engine engine,
   if (r == FALSE) {
     prover->witness(cex);
   }
+
+  GlobalAPdrConfig.ApdrInterface = NULL;
+
   return r;
 }
 
@@ -363,11 +369,18 @@ int main(int argc, char ** argv)
       Property p(fts, prop);
       vector<UnorderedTermMap> cex;
 
+      if (engine == APDR) {
+        RegisterApdrSigHandler();
+      }
+      
       apdr_msat_environment apdr_env = 
         engine == APDR ? apdr_msat_environment(second_solver, filename, prop_idx) : 
                          apdr_msat_environment();
 
       r = check_prop(engine, bound, p, s, second_solver, cex, apdr_env);
+
+      if (engine == APDR)
+        UnregisterApdrSigHandler();
 
       // print btor output
       if (r == FALSE) {
