@@ -22,6 +22,9 @@ namespace cosa {
 
 namespace sygus {
 
+  std::string name_sanitize(const std::string &); 
+  std::string name_desanitize(const std::string &s);
+
   struct concat_t  {
     uint64_t width1; uint64_t width2;
     concat_t(uint64_t w1, uint64_t w2) :
@@ -67,7 +70,7 @@ namespace sygus {
   bool operator==(const extend_t & a,  const extend_t & b);
 
   struct BvConstructs {
-    std::unordered_map<std::string, smt::Term> symbol_names;
+    std::unordered_set<std::string> symbol_names;
     // let's use to_string to fill it? so we hope we don't need to add | ourselves
     std::unordered_set<std::string> constants; // let's convert it to string
     std::unordered_set<smt::PrimOp> op_unary;  // unary operators: (_ bv x) -> (_ bv x)

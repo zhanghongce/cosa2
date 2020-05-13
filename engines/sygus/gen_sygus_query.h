@@ -30,7 +30,6 @@ namespace sygus {
 // cex vars with that or fewer variables
 // fact vars with that or more variables (the extra ones will be dropped)
 
-std::string name_sanitize(const std::string &); 
 
 // the buffer class for T, INIT and etc.
 class SyGuSTransBuffer {
@@ -50,7 +49,7 @@ protected:
 
 public:
   // you also need to know this to generate the right arg lists
-  const TransitionSystem & ts_;
+  const TransitionSystem & ts_; // could be the btor one
   const smt::UnorderedTermSet & states_;
   const smt::UnorderedTermSet & next_states_;
   const smt::UnorderedTermSet & inputs_;
@@ -72,6 +71,10 @@ public:
   std::string_view GetInitUse()  const { return init_use_; } // (Init ... ... ...)
 }; // class SyGuSTransBuffer
  
+
+// --------------------------------------------
+
+
 class SyGusQueryGen {
 
   typedef uint64_t width_t;
@@ -80,30 +83,35 @@ public:
   typedef std::vector<Model *> cexs_t;
 
   SyGusQueryGen(
+    const SyntaxStructureT & syntax,
+    const std::unordered_set<std::string> & keep_vars_name,
+    const std::unordered_set<std::string> & remove_vars_name
+  );
+  
+  void GenToFile(
     const smt::Term & prevF,
     const facts_t & facts_all, // internal filters
     const cexs_t  & cex_to_block,
+    const smt::Term & prop_to_imply,
     const SyGuSTransBuffer & sygus_ts_buf,
-    const SyntaxStructureT & syntax,
-    const std::unordered_set<smt::Term> keep_vars,
-    const std::unordered_set<smt::Term> remove_vars
-  );
-  
-  void GenToFile(const std::string & fname);
+    const std::string & fname);
 
 protected:
-  smt::Term prev_;
-  const facts_t & facts_;
-  const cexs_t  & cexs_;
-  const SyGuSTransBuffer & sygus_ts_buf_;
+  // -- get on demand
+  // smt::Term prev_;
+  // const facts_t & facts_;
+  // const cexs_t  & cexs_;
+  // const SyGuSTransBuffer & sygus_ts_buf_;
   const SyntaxStructureT & syntax_;
-  std::unordered_map<uint64_t, std::unordered_set<smt::Term>> 
+  std::unordered_map<uint64_t, std::unordered_set<std::string>> 
     new_variable_set_;
 
   std::string inv_def_var_list;
   std::string inv_use_var_list;
+  std::string inv_use;
 
-  std::vector<smt::Term> ordered_vars;
+  std::vector<std::string> ordered_vars;
+  std::unordered_set<std::string> vars_kept;
 
   // generate the synth-fun part
   // use : new_variable_set_, syntax_, inv_def_var_list
@@ -114,6 +122,24 @@ protected:
   std::unordered_set<width_t> reachable_width;
   void remove_unused_width();
   
+  bool contains_extra_var(Model * m) const;
+  // no need for contains fewer var because
+  // we can iterate through the vars
+
+  bool dump_cex_block(
+    const cexs_t  & cex_to_block, 
+    const SyGuSTransBuffer & sygus_ts_buf,
+    std::ostream & os);
+  
+  bool dump_fact_allow(
+    const facts_t  & facts_all, 
+    const SyGuSTransBuffer & sygus_ts_buf,
+    std::ostream & os);
+  
+  void dump_inv_imply_prop(
+    const smt::Term & prop, 
+    const SyGuSTransBuffer & sygus_ts_buf,
+    std::ostream & os) ;
 
 };  // class SyGusQueryGen
  

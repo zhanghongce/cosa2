@@ -24,6 +24,35 @@ namespace cosa {
 
 namespace sygus{ 
 
+
+std::string name_sanitize(const std::string &s) {
+  if (s.length() > 2 && s.front() == '|' && s.back() == '|')
+    return s; // already | |
+  bool need_separator = false;
+  for (auto c : s) {
+    if (isalnum(c))
+      continue;
+    if (c == '.')
+      continue;
+    // else
+    need_separator = true;
+    break;
+  }
+  if (need_separator)
+    return "|" + s + "|";
+  return s;
+}
+
+std::string name_desanitize(const std::string &s) {
+  if (s.length() > 2 && s.front() == '|' && s.back() == '|')
+    return s.substr(1,s.length()-2); // already | |
+  return s;
+}
+
+
+// ------------------------------------------------------
+
+
 bool operator==(const concat_t & a, const concat_t & b) {
   return ( (a.width1 == b.width1) && (a.width2 == b.width2) );
 }
@@ -34,7 +63,7 @@ bool operator==(const rotate_t & a, const rotate_t & b) {
   return ( (a.op == b.op) && (a.param == b.param) );
 }
 bool operator==(const extend_t & a, const extend_t & b) {
-  return ( (a.input_width == b.input_width) && (a.op == b.op) && (a.totalwidth == b.totalwidth) );
+  return ( (a.input_width == b.input_width) && (a.op == b.op) && (a.extw == b.extw) );
 }
 
 template <class T>
@@ -62,7 +91,7 @@ size_t rotate_hash::operator() (const rotate_t & t) const {
 
 size_t extend_hash::operator() (const extend_t & t) const {
   std::hash<uint64_t> hasher;
-  return hash_combine(hash_combine(hasher(t.input_width), t.totalwidth), t.op);
+  return hash_combine(hash_combine(hasher(t.input_width), t.extw), t.op);
 }
 
 
@@ -104,7 +133,7 @@ void OpExtractor::PreChild(const smt::Term & ast) {
 
   if(ast->is_symbolic_const()) {
     // use ast->to_string()
-    cnstr.symbol_names.insert(std::make_pair(ast->to_string(), ast));
+    cnstr.symbol_names.insert( sygus::name_sanitize ( ast->to_string()));
   } else if (ast->is_value()) {
     // use ast->to_string()
     cnstr.constants.insert(ast->to_string());
