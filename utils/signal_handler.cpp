@@ -57,10 +57,14 @@ std::string_view inline enum2str(APdrConfig::APDR_WORKING_STATE_T s) {
    return state_names.at(idx);
 }
 
-void dumping_apdr_states() {
-  unsigned idx = 0;
+void dumping_apdr_frames() {
   if (GlobalAPdrConfig.ApdrInterface)
     GlobalAPdrConfig.ApdrInterface->dump_frames(std::cerr);
+  std::cerr.flush();
+}
+
+void dumping_apdr_states() {
+  unsigned idx = 0;
   std::cerr << "\n----------------------" <<std::endl;
   for (auto && s : GlobalAPdrConfig.APDR_WORKING_STATE_STACK) {
     std::cerr << idx ++ << "\t:\t" << enum2str(s.first) << " (" << s.second <<")" << std::endl;
@@ -72,12 +76,21 @@ void dumping_apdr_states() {
             << GlobalAPdrConfig.STAT_ITP_STRONG_COUNT 
             << "/" << GlobalAPdrConfig.STAT_ITP_CHECK_COUNT
             << std::endl;
+  std::cerr.flush();
 }
 
 void SIGQUIT_handler(int sig) {
   signal(sig, SIG_IGN);
   dumping_apdr_states();
   signal(sig, SIGQUIT_handler);
+}
+
+void SIGALARM_handler(int sig) {
+  signal(sig, SIG_IGN);
+  dumping_apdr_states();
+  dumping_apdr_frames();
+  dumping_apdr_states();
+  signal(sig, SIGALARM_handler);
 }
 
 void SIGINT_handler(int sig) {
@@ -87,7 +100,7 @@ void SIGINT_handler(int sig) {
 
 void RegisterApdrSigHandler() {
   old_SIGQUIT_handler = signal(SIGQUIT, SIGQUIT_handler);
-  old_SIGALARM_handler = signal(SIGALRM, SIGQUIT_handler);
+  old_SIGALARM_handler = signal(SIGALRM, SIGALARM_handler);
   alarm(0);
   alarm(3200);
 }
