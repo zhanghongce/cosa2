@@ -33,4 +33,5 @@
 
 # Build Directory
 build/*
+deps/*
 
