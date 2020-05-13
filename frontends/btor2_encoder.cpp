@@ -410,13 +410,13 @@ void BTOR2Encoder::parse(const std::string& filename)
         Term witness =
               ts_.make_state("witness_" + std::to_string(witness_id_++),
                            solver_->make_sort(BV, 1));
-        ts_.constrain_init(solver_->make_term(Not, bv_to_bool(witness)));
-        ts_.assign_next(witness, bool_to_bv(bad));
+        ts_.constrain_init(bv_to_bool(witness));
+        ts_.assign_next(witness, solver_->make_term(BVNot,bool_to_bv(bad)));
         propvec_.push_back(bv_to_bool(witness));
         terms_[l_->id] = witness;
       } else {
-	Term prop = solver_->make_term(Not, bad);
-        propvec_.push_back(bad);
+	      Term prop = solver_->make_term(Not, bad);
+        propvec_.push_back(prop);
         terms_[l_->id] = prop;
       }
     } else if (l_->tag == BTOR2_TAG_justice) {
