@@ -34,9 +34,13 @@ class Smtlib2Parser;
 class Smtlib2Parser {
 
 public:
+  typedef size_t TermPtrT;
+  typedef size_t SortPtrT;
   typedef std::unordered_map<std::string, smt::Term> symbol_table_t;
-  typedef std::vector<symbol_table_t> symbols_stack_t;
-  typedef std::unordered_map<std::string, smt::Sort> sort_table_t;
+  typedef std::unordered_map<std::string, TermPtrT> symbol_pointer_table_t;
+  typedef std::vector<symbol_pointer_table_t> symbols_stack_t;
+  typedef std::vector<std::string> sort_name_table_t;
+  typedef std::unordered_map<std::string, std::pair<smt::Sort, size_t> > sort_table_t;
 
 protected:
   const symbol_table_t& symbol_table_;
@@ -47,10 +51,15 @@ protected:
 
   // quantifier term stack
   symbols_stack_t quantifier_def_stack;
+  sort_name_table_t sort_names;
   sort_table_t sort_table;
   std::vector<smt::Term> term_allocation_table;
 
-  smt::Term * parse_result_term;
+  TermPtrT parse_result_term;
+  std::string error_msg_;
+
+  smt::Sort get_sort(SortPtrT);
+  smt::Term get_term(TermPtrT);
 
 public:
   Smtlib2Parser(
@@ -64,40 +73,42 @@ public:
   Smtlib2Parser& operator=(const Smtlib2Parser&) = delete;
   
   // if unsat --> add the (assert ...)
-  smt::Term ParseInvResultFromFile(const std::string& fname);
+  smt::Term ParseSmtFromFile(const std::string& fname);
   // parse from a string: assume we have the (assert ...) there
-  smt::Term ParseSmtResultFromString(const std::string& text);
+  smt::Term ParseSmtFromString(const std::string& text);
 
+  std::string GetParserErrorMessage() const { return error_msg_; }
 
   // ------------------------------------------------------------------------
   
   // we probably don't need to make sort
-  smt::Sort * make_bv_sort(uint64_t w);
-  smt::Sort * make_sort(const std::string& name, const std::vector<int>& idx);
-  void declare_quantified_variable(const std::string& name, smt::Sort * sort);
+  SortPtrT make_bv_sort(uint64_t w);
+  SortPtrT make_sort(const std::string& name, const std::vector<int>& idx);
+  void declare_quantified_variable(const std::string& name, SortPtrT sort);
 
   void * push_quantifier_scope();
   void * pop_quantifier_scope();
   
-  /*internal use*/ smt::Term * search_quantified_var_stack_and_symbol_table(const std::string& name) const;
+  smt::Term search_symbol_table(const std::string& name) const;
+  TermPtrT search_quantified_var_stack(const std::string& name) const;
 
-  smt::Term * make_function(const std::string& name, smt::Sort *sort,
-    const std::vector<int>& idx, const std::vector<smt::Term *>& args );
+  TermPtrT make_function(const std::string& name, SortPtrT sort,
+    const std::vector<int>& idx, const std::vector<TermPtrT>& args );
   
-  smt::Term * make_number(const std::string& rep, int width, int base);
+  TermPtrT make_number(const std::string& rep, int width, int base);
 
   /// this function receives the final assert result
-  void assert_formula(smt::Term * term);
+  void assert_formula(TermPtrT term);
   /// this function receives the final result
   void define_function(const std::string& func_name,
-                       const std::vector<smt::Term *> & args,
-                       smt::Sort * ret_type, smt::Term * func_body);
+                       const std::vector<TermPtrT> & args,
+                       SortPtrT ret_type, TermPtrT func_body);
 
 
 #define DECLARE_OPERATOR(name)                                                 \
-  smt::Term * mk_##name(const std::string& symbol, smt::Sort* sort,       \
+  TermPtrT mk_##name(const std::string& symbol, SortPtrT sort,       \
                         const std::vector<int> & idx,                     \
-                        const std::vector<smt::Term *> & args)
+                        const std::vector<TermPtrT> & args)
 
 
   // I hope it will expand lexically

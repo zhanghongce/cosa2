@@ -13,14 +13,19 @@
  **
  ** 
  **/
- 
+
+#include "str_util.h" 
+
+#include <assert.h>
+#include <sstream>
+
 namespace cosa {
 
 namespace sygus {
 
 // it is of course possible to update it with arbitrary base
 std::string IntToStrCustomBase(uint64_t value, unsigned base, bool uppercase) {
-  ILA_ASSERT(base > 1 && base <= 36) << "unsupported base : " << base;
+  assert(base > 1 && base <= 36);
   if (value == 0)
     return "0";
   std::string ret;

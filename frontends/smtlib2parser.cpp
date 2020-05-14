@@ -19,6 +19,7 @@
 #include "smtlib2parser_callback_fn.h"
 
 #include "utils/exceptions.h"
+#include "utils/logger.h"
 #include "engines/sygus/container_shortcut.h"
 
 #include <fstream>
@@ -35,7 +36,7 @@ Smtlib2Parser::Smtlib2Parser(
   const std::unordered_map<std::string, smt::Term>& symbol_table) : 
     symbol_table_(symbol_table),
     parser_wrapper(new smtlib2_abstract_parser()),
-    solver_(solver), parse_result_term(NULL)
+    solver_(solver)
 {
   if (!parser_wrapper)
     throw CosaException("Memory allocation failed");
@@ -143,156 +144,203 @@ Smtlib2Parser::Smtlib2Parser(
   smtlib2_term_parser_set_handler(tp, "sign_extend", smt_mk_sign_extend);
   smtlib2_term_parser_set_handler(tp, "rotate_left", smt_mk_rotate_left);
   smtlib2_term_parser_set_handler(tp, "rotate_right",smt_mk_rotate_right);
+
+
+  term_allocation_table.push_back(nullptr);
 } // 
 
 Smtlib2Parser::~Smtlib2Parser() {
-  if (parser_wrapper)
+  if (parser_wrapper) {
+    smtlib2_abstract_parser_deinit(parser_wrapper);
     delete parser_wrapper;
+  }
 }
 
-smt::Sort * Smtlib2Parser::make_bv_sort(uint64_t w) {
+Smtlib2Parser::SortPtrT Smtlib2Parser::make_bv_sort(uint64_t w) {
   std::string sortIdxName = "BV" + std::to_string(w);
   auto bv_pos = sort_table.find(sortIdxName);
   if (bv_pos == sort_table.end()) {
-    sort_table.insert(std::make_pair(sortIdxName, solver_->make_sort(smt::BV, w)));
-    return &(sort_table[sortIdxName]);      
+    sort_names.push_back(sortIdxName);
+    size_t ptr = sort_names.size()-1;
+    sort_table.insert(std::make_pair(sortIdxName, 
+      std::make_pair(solver_->make_sort(smt::BV, w), ptr)));
+    return ptr;      
   }
-  return &(bv_pos->second);
+  return (bv_pos->second.second);
 }
 
-smt::Sort * Smtlib2Parser::make_sort(const std::string& name, const std::vector<int>& idx) {
+Smtlib2Parser::SortPtrT Smtlib2Parser::make_sort(const std::string& name, const std::vector<int>& idx) {
   if (name == "Bool") {
     auto bool_pos = sort_table.find("Bool");
     if (bool_pos == sort_table.end()) {
-      sort_table.insert(std::make_pair("Bool", solver_->make_sort(smt::BOOL)));
-      return &(sort_table["Bool"]);
+      sort_names.push_back("Bool");
+      size_t ptr = sort_names.size()-1;
+      sort_table.insert(std::make_pair("Bool", 
+        std::make_pair(solver_->make_sort(smt::BOOL),ptr)));
+      return ptr;
     } else 
-      return &(bool_pos->second);
+      return (bool_pos->second.second);
   } else if (name == "BitVec") {
     assert (idx.size() == 1);
     assert (idx[0] > 0);
     return make_bv_sort(idx[0]);
   }
   throw CosaException("Sort : " + name + " is unknown");
-  return NULL;
+  return 0;
 }
 
-void Smtlib2Parser::declare_quantified_variable(const std::string& name, smt::Sort * sort) {
+smt::Sort Smtlib2Parser::get_sort(SortPtrT sortptr) {
+  assert (sortptr < sort_names.size());
+  const auto & sort_name = sort_names.at(sortptr);
+  auto sort_pos = sort_table.find(sort_name);
+  assert (sort_pos != sort_table.end());
+  assert (sort_pos->second.second == sortptr);
+  return sort_pos->second.first;
+}
+
+smt::Term Smtlib2Parser::get_term(TermPtrT termptr) {
+  assert (termptr < term_allocation_table.size());
+  return term_allocation_table.at(termptr);
+}
+
+void Smtlib2Parser::declare_quantified_variable(const std::string& name, SortPtrT sort) {
   assert (!quantifier_def_stack.empty());
-  auto var = solver_->make_symbol(name, *sort);
-  quantifier_def_stack.back().insert(std::make_pair(name, var));
+  
+  // TermPtrT local_def = search_quantified_var_stack(name);
+  // we expect we are not using the same name
+  // assert (local_def == term_allocation_table.size()); 
+  smt::Term t = search_symbol_table(name);
+
+  if (t) {
+    assert(t->get_sort() == get_sort(sort));
+  } else {
+    t = solver_->make_symbol(name, get_sort(sort));
+    logger.log(1, "New var " + name + " outside symbol table is defined.");
+  }
+  // now insert it to the local table
+
+  term_allocation_table.push_back(t);
+  quantifier_def_stack.back().insert(std::make_pair(name, term_allocation_table.size()-1));
+
+  // we should not define new vars
+  // auto var = solver_->make_symbol(name, *sort);
+  // quantifier_def_stack.back().insert(std::make_pair(name, var));
 }
 
 void * Smtlib2Parser::push_quantifier_scope() {
-  quantifier_def_stack.push_back(symbol_table_t());
+  quantifier_def_stack.push_back(symbol_pointer_table_t());
+  //throw CosaException("forall/exists not supported.");
   return NULL;
 }
 void * Smtlib2Parser::pop_quantifier_scope() {
   quantifier_def_stack.pop_back();
+  // throw CosaException("forall/exists not supported.");
   return NULL;
 }
 
-/*internal use*/ 
-smt::Term * Smtlib2Parser::search_quantified_var_stack_and_symbol_table(const std::string& name) const {
-  for (auto mp_pos = quantifier_def_stack.rbegin();
-       mp_pos != quantifier_def_stack.rend();
-       ++mp_pos) { // search from the closest binding
-    const symbol_table_t & symbols = *mp_pos;
-    auto term_pos = symbols.find(name);
-    if (term_pos != symbols.end())
-      return const_cast<smt::Term *>( &(term_pos->second) );
-  }
+smt::Term Smtlib2Parser::search_symbol_table(const std::string& name) const {
+  // de-sanitize
   std::string name_no_bar = 
     name.length() > 2 && name.front() == '|' && name.back() == '|' ?
     name.substr(1,name.length()-2) : name;
   auto term_pos = symbol_table_.find(name_no_bar);
   if (term_pos != symbol_table_.end())
-    return const_cast<smt::Term *>( &(term_pos->second) );
-  return NULL;
-} // search_quantified_var_stack_and_symbol_table
-
-smt::Term * Smtlib2Parser::make_function(const std::string& name, smt::Sort *sort,
-  const std::vector<int>& idx, const std::vector<smt::Term *>& args ) {
-  
-  if (args.empty() && idx.empty()) {
-    smt::Term * var = search_quantified_var_stack_and_symbol_table(name);
-    if (var)
-      return var;
-    throw CosaException("variable : " + name + " is unknown");
-    return NULL;
-  }
-  throw CosaException("Function : " + name + " is undefined");
+    return (term_pos->second);
   return NULL;
 }
 
-smt::Term * Smtlib2Parser::make_number(const std::string& rep, int width, int base) {
+Smtlib2Parser::TermPtrT Smtlib2Parser::search_quantified_var_stack(const std::string& name) const {
+  for (auto mp_pos = quantifier_def_stack.rbegin();
+       mp_pos != quantifier_def_stack.rend();
+       ++mp_pos) { // search from the closest binding
+    const symbol_pointer_table_t & symbols = *mp_pos;
+    auto term_pos = symbols.find(name);
+    if (term_pos != symbols.end())
+      return term_pos->second;
+  }
+  return term_allocation_table.size();
+}
+
+Smtlib2Parser::TermPtrT Smtlib2Parser::make_function(const std::string& name, SortPtrT sort,
+  const std::vector<int>& idx, const std::vector<TermPtrT>& args ) {
+  
+  if (args.empty() && idx.empty()) {
+    TermPtrT varptr = search_quantified_var_stack(name);
+    if (varptr != term_allocation_table.size())
+      return varptr;
+    throw CosaException("variable : " + name + " is unknown");
+    return 0;
+  }
+  throw CosaException("Function : " + name + " is undefined");
+  return 0;
+}
+
+Smtlib2Parser::TermPtrT Smtlib2Parser::make_number(const std::string& rep, int width, int base) {
   // it is definitely a bitvector
-  smt::Sort * sort = make_bv_sort(width);
-  assert (sort);
-  term_allocation_table.push_back(solver_->make_term(rep, *sort, (uint64_t)base));
-  return &(term_allocation_table.back());
+  SortPtrT sort = make_bv_sort(width);
+  assert (sort != sort_names.size());
+  term_allocation_table.push_back(solver_->make_term(rep, get_sort(sort), (uint64_t)base));
+  return term_allocation_table.size()-1;
 }
 
 /// this function receives the final assert result
-void Smtlib2Parser::assert_formula(smt::Term * term) {
+void Smtlib2Parser::assert_formula(TermPtrT term) {
   throw CosaException("(assert ...) is not implemented");
 }
 
 /// this function receives the final result
 void Smtlib2Parser::define_function(const std::string& func_name,
-                      const std::vector<smt::Term *> & args,
-                      smt::Sort * ret_type, smt::Term * func_body) {
+                      const std::vector<TermPtrT> & args,
+                      SortPtrT ret_type, TermPtrT func_body) {
   // this should be the place we get
   assert(func_name == "INV");
-  assert((*ret_type)->get_sort_kind() == smt::BOOL); // bool functions
+  assert(get_sort(ret_type)->get_sort_kind() == smt::BOOL); // bool functions
   parse_result_term = func_body;
 }
 
 // if unsat --> add the (assert ...)
-smt::Term Smtlib2Parser::ParseInvResultFromFile(const std::string& fname) {
-  std::ifstream fin(fname);
-  if (!fin.is_open()) {
+smt::Term Smtlib2Parser::ParseSmtFromFile(const std::string& fname) {
+  FILE * fp = fopen(fname.c_str(),"r");
+  if (fp == NULL)
     return NULL;
-  }
 
-  std::string result;
-  if (!std::getline(fin, result) || result != std::string("unsat")) {
+
+  smtlib2_abstract_parser_parse(parser_wrapper, fp);
+
+  if (parser_wrapper->errmsg_)
+    error_msg_ =  parser_wrapper->errmsg_;
+  if (parse_result_term >= term_allocation_table.size() )
     return NULL;
-  }
 
-  std::stringstream sbuf;
-  sbuf << fin.rdbuf();
-  std::string raw_string = sbuf.str();
-  return ParseSmtResultFromString(raw_string);
+  return (get_term(parse_result_term));
 }
 
 // parse from a string: assume we have the (assert ...) there
-smt::Term Smtlib2Parser::ParseSmtResultFromString(const std::string& text) {
+smt::Term Smtlib2Parser::ParseSmtFromString(const std::string& text) {
   auto len = text.size() + 1;
   char* buffer = new char[len];
   strncpy(buffer, text.c_str(), len);
   buffer[len - 1] = '\0'; // to make static analysis happy
-  std::FILE* fp = fmemopen((void*)buffer, len * sizeof(char), "r");
 
-  //ILA_NOT_NULL(fp);
   smtlib2_abstract_parser_parse_string(parser_wrapper, buffer);
-  //smtlib2_abstract_parser_parse(&(parser_wrapper->parser), fp);
 
-  //fclose(fp);
   delete[] buffer;
 
-  if (!parse_result_term)
+  if (parser_wrapper->errmsg_)
+    error_msg_ =  parser_wrapper->errmsg_;
+  if (parse_result_term >= term_allocation_table.size() )
     return NULL;
-  return (*parse_result_term);
+
+  return (get_term(parse_result_term));
 }
 
 
 #define DEFINE_OPERATOR(name)                                                  \
-  smt::Term * Smtlib2Parser::mk_##name(                          \
-      const std::string& symbol, smt::Sort * sort, const std::vector<int>& idx,  \
-      const std::vector<smt::Term *>& args)
+  Smtlib2Parser::TermPtrT Smtlib2Parser::mk_##name(                          \
+      const std::string& symbol, SortPtrT sort, const std::vector<int>& idx,  \
+      const std::vector<TermPtrT>& args)
 
-#define SORT(x)   ( (*(x))->get_sort() )
+#define SORT(x)   ( (get_term(x))->get_sort() )
 #define ISBOOL(x) ( SORT(x)->get_sort_kind() == smt::BOOL )
 #define ISBV(x)   ( SORT(x)->get_sort_kind() == smt::BV )
 
@@ -337,7 +385,7 @@ smt::Term Smtlib2Parser::ParseSmtResultFromString(const std::string& text) {
   assert(ISBV(args[0]));                                                   \
   assert(ISBV(args[1]));                      
 
-#define MAKE_RESULT(x) do {  term_allocation_table.push_back(x) ; return &(term_allocation_table.back()); } while(0)
+#define MAKE_RESULT(x) do {  term_allocation_table.push_back(x) ;  return (term_allocation_table.size()-1); } while(0)
 
 DEFINE_OPERATOR(true) {
   CHECK_EMPTY_PARAM(idx, args);
@@ -352,10 +400,10 @@ DEFINE_OPERATOR(false) {
 DEFINE_OPERATOR(and) {
   CHECK_BOOL_MULTI_ARG(idx, args);
   smt::TermVec argterm;
+  
   for(auto termptr : args) {
     assert (ISBOOL(termptr));
-    argterm.push_back(*termptr);
-    argterm.back();
+    argterm.push_back(get_term(termptr));
   }
   MAKE_RESULT(solver_->make_term(smt::And, argterm));
 }
@@ -365,28 +413,27 @@ DEFINE_OPERATOR(or) {
   smt::TermVec argterm;
   for(auto termptr : args) {
     assert (ISBOOL(termptr));
-    argterm.push_back(*termptr);
-    argterm.back();
+    argterm.push_back(get_term(termptr));
   }
   MAKE_RESULT(solver_->make_term(smt::Or, argterm));
 }
 
 DEFINE_OPERATOR(not) {
   CHECK_BOOL_ONE_ARG(idx, args);
-  MAKE_RESULT(solver_->make_term(smt::Not, * (args[0]) ));
+  MAKE_RESULT(solver_->make_term(smt::Not, get_term(args[0]) ));
 }
 
 DEFINE_OPERATOR(implies) {
   CHECK_BOOL_TWO_ARG(idx, args);
-  MAKE_RESULT(solver_->make_term(smt::Implies, * (args[0]) , * (args[1]) ));
+  MAKE_RESULT(solver_->make_term(smt::Implies, get_term(args[0]) , get_term(args[1]) ));
 }
 
 DEFINE_OPERATOR(eq) {
   assert(idx.empty());
   assert(args.size() == 2); // we don't require they are bv
   assert(SORT(args[0]) == SORT(args[1]));
-
-  MAKE_RESULT(solver_->make_term(smt::Equal, * (args[0]) , * (args[1]) ));
+  
+  MAKE_RESULT(solver_->make_term(smt::Equal, get_term (args[0]) , get_term (args[1]) ));
 }
 
 DEFINE_OPERATOR(ite)  {
@@ -395,12 +442,12 @@ DEFINE_OPERATOR(ite)  {
   assert(ISBOOL(args[0]));
   assert(SORT(args[1]) == SORT(args[2]));
 
-  MAKE_RESULT(solver_->make_term(smt::Ite, * (args[0]) , * (args[1]), * (args[2]) ));
+  MAKE_RESULT(solver_->make_term(smt::Ite, get_term (args[0]) , get_term (args[1]), get_term (args[2]) ));
 }
 
 DEFINE_OPERATOR(xor) {
   CHECK_BOOL_TWO_ARG(idx, args);
-  MAKE_RESULT(solver_->make_term(smt::Xor, * (args[0]) , * (args[1]) ));
+  MAKE_RESULT(solver_->make_term(smt::Xor, get_term (args[0]) , get_term (args[1]) ));
 }
 
 DEFINE_OPERATOR(nand) {
@@ -408,8 +455,7 @@ DEFINE_OPERATOR(nand) {
   smt::TermVec argterm;
   for(auto termptr : args) {
     assert (ISBOOL(termptr));
-    argterm.push_back(*termptr);
-    argterm.back();
+    argterm.push_back(get_term(termptr));
   }
   MAKE_RESULT(solver_->make_term(smt::Not, solver_->make_term(smt::And, argterm)));
 }
@@ -419,21 +465,21 @@ DEFINE_OPERATOR(concat) {
   assert(args.size() >= 2);
 
   assert(ISBV(args[0]));
-  smt::Term prev = *(args[0]);
+  smt::Term prev = get_term(args[0]);
   for (auto pos = args.begin()+1; pos != args.end(); ++pos) {
     assert(ISBV(*pos));
-    prev = solver_->make_term(smt::Concat, prev, **pos);
+    prev = solver_->make_term(smt::Concat, prev, get_term(*pos));
   }
   MAKE_RESULT(prev);
 }
 
 DEFINE_OPERATOR(bvnot) {
   CHECK_BV_ONE_ARG(idx, args);
-  MAKE_RESULT(solver_->make_term(smt::BVNot, *args[0]));
+  MAKE_RESULT(solver_->make_term(smt::BVNot, get_term(args[0])));
 }
 DEFINE_OPERATOR(bvneg) {
   CHECK_BV_ONE_ARG(idx, args);
-  MAKE_RESULT(solver_->make_term(smt::BVNeg, *args[0]));
+  MAKE_RESULT(solver_->make_term(smt::BVNeg, get_term(args[0])));
 }
 
 DEFINE_OPERATOR(bvand) {
@@ -441,8 +487,7 @@ DEFINE_OPERATOR(bvand) {
   smt::TermVec argterm;
   for(auto termptr : args) {
     assert (ISBV(termptr));
-    argterm.push_back(*termptr);
-    argterm.back();
+    argterm.push_back(get_term(termptr));
   }
   MAKE_RESULT(solver_->make_term(smt::BVAnd, argterm));
 }
@@ -452,8 +497,7 @@ DEFINE_OPERATOR(bvnand) {
   smt::TermVec argterm;
   for(auto termptr : args) {
     assert (ISBV(termptr));
-    argterm.push_back(*termptr);
-    argterm.back();
+    argterm.push_back(get_term(termptr));
   }
   MAKE_RESULT(solver_->make_term(smt::BVNand, argterm));
 }
@@ -463,8 +507,7 @@ DEFINE_OPERATOR(bvor) {
   smt::TermVec argterm;
   for(auto termptr : args) {
     assert (ISBV(termptr));
-    argterm.push_back(*termptr);
-    argterm.back();
+    argterm.push_back(get_term(termptr));
   }
   MAKE_RESULT(solver_->make_term(smt::BVOr, argterm));
 }
@@ -474,69 +517,68 @@ DEFINE_OPERATOR(bvnor) {
   smt::TermVec argterm;
   for(auto termptr : args) {
     assert (ISBV(termptr));
-    argterm.push_back(*termptr);
-    argterm.back();
+    argterm.push_back(get_term(termptr));
   }
   MAKE_RESULT(solver_->make_term(smt::BVNor, argterm));
 }
 
 DEFINE_OPERATOR(bvxor) {
   CHECK_BV_TWO_ARG(idx, args);
-  MAKE_RESULT(solver_->make_term(smt::BVXor, * (args[0]) , * (args[1]) ));
+  MAKE_RESULT(solver_->make_term(smt::BVXor, get_term (args[0]) , get_term (args[1]) ));
 }
 
 DEFINE_OPERATOR(bvxnor) {
   CHECK_BV_TWO_ARG(idx, args);
-  MAKE_RESULT(solver_->make_term(smt::BVXnor, * (args[0]) , * (args[1]) ));
+  MAKE_RESULT(solver_->make_term(smt::BVXnor, get_term (args[0]) , get_term (args[1]) ));
 }
 
 DEFINE_OPERATOR(bvult) {
   CHECK_BV_COMPARE(idx, args);
-  MAKE_RESULT(solver_->make_term(smt::BVUlt, * (args[0]) , * (args[1]) ));
+  MAKE_RESULT(solver_->make_term(smt::BVUlt, get_term(args[0]) , get_term(args[1]) ));
 }
 
 DEFINE_OPERATOR(bvslt) {
   CHECK_BV_COMPARE(idx, args);
-  MAKE_RESULT(solver_->make_term(smt::BVSlt, * (args[0]) , * (args[1]) ));
+  MAKE_RESULT(solver_->make_term(smt::BVSlt,get_term(args[0]) , get_term(args[1]) ));
 }
 
 
 DEFINE_OPERATOR(bvule) {
   CHECK_BV_COMPARE(idx, args);
-  MAKE_RESULT(solver_->make_term(smt::BVUle, * (args[0]) , * (args[1]) ));
+  MAKE_RESULT(solver_->make_term(smt::BVUle, get_term(args[0]) , get_term(args[1]) ));
 }
 
 DEFINE_OPERATOR(bvsle) {
   CHECK_BV_COMPARE(idx, args);
-  MAKE_RESULT(solver_->make_term(smt::BVSle, * (args[0]) , * (args[1]) ));
+  MAKE_RESULT(solver_->make_term(smt::BVSle, get_term(args[0]) , get_term(args[1]) ));
 }
 
 
 DEFINE_OPERATOR(bvugt) {
   CHECK_BV_COMPARE(idx, args);
-  MAKE_RESULT(solver_->make_term(smt::BVUgt, * (args[0]) , * (args[1]) ));
+  MAKE_RESULT(solver_->make_term(smt::BVUgt, get_term(args[0]) , get_term(args[1]) ));
 }
 
 DEFINE_OPERATOR(bvsgt) {
   CHECK_BV_COMPARE(idx, args);
-  MAKE_RESULT(solver_->make_term(smt::BVSgt, * (args[0]) , * (args[1]) ));
+  MAKE_RESULT(solver_->make_term(smt::BVSgt, get_term(args[0]) , get_term(args[1]) ));
 }
 
 
 DEFINE_OPERATOR(bvuge) {
   CHECK_BV_COMPARE(idx, args);
-  MAKE_RESULT(solver_->make_term(smt::BVUge, * (args[0]) , * (args[1]) ));
+  MAKE_RESULT(solver_->make_term(smt::BVUge, get_term(args[0]) , get_term(args[1]) ));
 }
 
 DEFINE_OPERATOR(bvsge) {
   CHECK_BV_COMPARE(idx, args);
-  MAKE_RESULT(solver_->make_term(smt::BVSge, * (args[0]) , * (args[1]) ));
+  MAKE_RESULT(solver_->make_term(smt::BVSge, get_term(args[0]) , get_term(args[1]) ));
 }
 
 
 DEFINE_OPERATOR(bvcomp) {
   CHECK_BV_COMPARE(idx, args);
-  MAKE_RESULT(solver_->make_term(smt::BVComp, * (args[0]) , * (args[1]) ));
+  MAKE_RESULT(solver_->make_term(smt::BVComp, get_term(args[0]) , get_term(args[1]) ));
 }
 
 DEFINE_OPERATOR(bvadd) {
@@ -544,8 +586,7 @@ DEFINE_OPERATOR(bvadd) {
   smt::TermVec argterm;
   for(auto termptr : args) {
     assert (ISBV(termptr));
-    argterm.push_back(*termptr);
-    argterm.back();
+    argterm.push_back(get_term(termptr));
   }
   MAKE_RESULT(solver_->make_term(smt::BVAdd, argterm));
 }
@@ -555,55 +596,54 @@ DEFINE_OPERATOR(bvmul) {
   smt::TermVec argterm;
   for(auto termptr : args) {
     assert (ISBV(termptr));
-    argterm.push_back(*termptr);
-    argterm.back();
+    argterm.push_back(get_term(termptr));
   }
   MAKE_RESULT(solver_->make_term(smt::BVMul, argterm));
 }
 
 DEFINE_OPERATOR(bvsub) {
   CHECK_BV_TWO_ARG(idx, args);
-  MAKE_RESULT(solver_->make_term(smt::BVSub, * (args[0]) , * (args[1]) ));
+  MAKE_RESULT(solver_->make_term(smt::BVSub, get_term(args[0]) , get_term(args[1]) ));
 }
 
 DEFINE_OPERATOR(bvudiv) {
   CHECK_BV_TWO_ARG(idx, args);
-  MAKE_RESULT(solver_->make_term(smt::BVUdiv, * (args[0]) , * (args[1]) ));
+  MAKE_RESULT(solver_->make_term(smt::BVUdiv, get_term(args[0]) , get_term(args[1]) ));
 }
 
 DEFINE_OPERATOR(bvsdiv) {
   CHECK_BV_TWO_ARG(idx, args);
-  MAKE_RESULT(solver_->make_term(smt::BVSdiv, * (args[0]) , * (args[1]) ));
+  MAKE_RESULT(solver_->make_term(smt::BVSdiv, get_term(args[0]) , get_term(args[1]) ));
 }
 
 DEFINE_OPERATOR(bvsmod) {
   CHECK_BV_TWO_ARG(idx, args);
-  MAKE_RESULT(solver_->make_term(smt::BVSmod, * (args[0]) , * (args[1]) ));
+  MAKE_RESULT(solver_->make_term(smt::BVSmod, get_term(args[0]) , get_term(args[1]) ));
 }
 
 DEFINE_OPERATOR(bvurem) {
   CHECK_BV_TWO_ARG(idx, args);
-  MAKE_RESULT(solver_->make_term(smt::BVUrem, * (args[0]) , * (args[1]) ));
+  MAKE_RESULT(solver_->make_term(smt::BVUrem, get_term(args[0]) , get_term(args[1]) ));
 }
 
 DEFINE_OPERATOR(bvsrem) {
   CHECK_BV_TWO_ARG(idx, args);
-  MAKE_RESULT(solver_->make_term(smt::BVSrem, * (args[0]) , * (args[1]) ));
+  MAKE_RESULT(solver_->make_term(smt::BVSrem, get_term(args[0]) , get_term(args[1]) ));
 }
 
 DEFINE_OPERATOR(bvshl) {
   CHECK_BV_TWO_ARG(idx, args);
-  MAKE_RESULT(solver_->make_term(smt::BVShl, * (args[0]) , * (args[1]) ));
+  MAKE_RESULT(solver_->make_term(smt::BVShl, get_term(args[0]) , get_term(args[1]) ));
 }
 
 DEFINE_OPERATOR(bvlshr) {
   CHECK_BV_TWO_ARG(idx, args);
-  MAKE_RESULT(solver_->make_term(smt::BVLshr, * (args[0]) , * (args[1]) ));
+  MAKE_RESULT(solver_->make_term(smt::BVLshr, get_term(args[0]) , get_term(args[1]) ));
 }
 
 DEFINE_OPERATOR(bvashr) {
   CHECK_BV_TWO_ARG(idx, args);
-  MAKE_RESULT(solver_->make_term(smt::BVAshr, * (args[0]) , * (args[1]) ));
+  MAKE_RESULT(solver_->make_term(smt::BVAshr, get_term(args[0]) , get_term(args[1]) ));
 }
 
 DEFINE_OPERATOR(extract) {
@@ -617,7 +657,7 @@ DEFINE_OPERATOR(extract) {
   assert (left < width);
   assert (right < width);
 
-  MAKE_RESULT(solver_->make_term(smt::Op(smt::Extract,left, right), * (args[0])  ));
+  MAKE_RESULT(solver_->make_term(smt::Op(smt::Extract,left, right), get_term(args[0])  ));
 }
 
 DEFINE_OPERATOR(bit2bool)  {
@@ -628,7 +668,7 @@ DEFINE_OPERATOR(bit2bool)  {
   auto width = SORT(args[0])->get_width();
   uint64_t sel = idx[0];
   assert (sel < width);
-  MAKE_RESULT(solver_->make_term(smt::Op(smt::Extract, sel, sel), * (args[0])  ));
+  MAKE_RESULT(solver_->make_term(smt::Op(smt::Extract, sel, sel), get_term(args[0])  ));
 }
 
 DEFINE_OPERATOR(repeat) {
@@ -637,7 +677,7 @@ DEFINE_OPERATOR(repeat) {
   assert(ISBV(args[0]));  
   assert(idx[0] >= 0);
 
-  MAKE_RESULT(solver_->make_term(smt::Op(smt::Repeat, idx[0]), * (args[0])  ));
+  MAKE_RESULT(solver_->make_term(smt::Op(smt::Repeat, idx[0]), get_term(args[0])  ));
 }
 
 
@@ -647,7 +687,7 @@ DEFINE_OPERATOR(zero_extend) {
   assert(ISBV(args[0]));  
   assert(idx[0] >= 0);
 
-  MAKE_RESULT(solver_->make_term(smt::Op(smt::Zero_Extend, idx[0]), * (args[0])  ));
+  MAKE_RESULT(solver_->make_term(smt::Op(smt::Zero_Extend, idx[0]), get_term(args[0])  ));
 }
 
 DEFINE_OPERATOR(sign_extend) {
@@ -656,7 +696,7 @@ DEFINE_OPERATOR(sign_extend) {
   assert(ISBV(args[0]));  
   assert(idx[0] >= 0);
 
-  MAKE_RESULT(solver_->make_term(smt::Op(smt::Sign_Extend, idx[0]), * (args[0])  ));
+  MAKE_RESULT(solver_->make_term(smt::Op(smt::Sign_Extend, idx[0]), get_term(args[0])  ));
 }
 
 DEFINE_OPERATOR(rotate_left) {
@@ -665,7 +705,7 @@ DEFINE_OPERATOR(rotate_left) {
   assert(ISBV(args[0]));  
   assert(idx[0] >= 0);
 
-  MAKE_RESULT(solver_->make_term(smt::Op(smt::Rotate_Left, idx[0]), * (args[0])  ));
+  MAKE_RESULT(solver_->make_term(smt::Op(smt::Rotate_Left, idx[0]), get_term(args[0])  ));
 }
 
 DEFINE_OPERATOR(rotate_right) {
@@ -674,7 +714,7 @@ DEFINE_OPERATOR(rotate_right) {
   assert(ISBV(args[0]));  
   assert(idx[0] >= 0);
 
-  MAKE_RESULT(solver_->make_term(smt::Op(smt::Rotate_Right, idx[0]), * (args[0])  ));
+  MAKE_RESULT(solver_->make_term(smt::Op(smt::Rotate_Right, idx[0]), get_term(args[0])  ));
 }
 
 #undef DEFINE_OPERATOR

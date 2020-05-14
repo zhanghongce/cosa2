@@ -11,6 +11,10 @@ if (WITH_MSAT)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DWITH_MSAT")
 endif()
 
+if (SIGNAL_DUMP)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DSIGNAL_DUMP")
+endif()
+
 include_directories("${PROJECT_SOURCE_DIR}")
 include_directories("${PROJECT_SOURCE_DIR}/core")
 include_directories("${PROJECT_SOURCE_DIR}/engines")
@@ -59,6 +63,11 @@ if (NOT EXISTS "${PROJECT_SOURCE_DIR}/deps/btor2tools/src")
   message(FATAL_ERROR "Missing btor2tools -- try running ./contrib/setup-btor2tools.sh")
 endif()
 
+
+if (NOT EXISTS "${PROJECT_SOURCE_DIR}/deps/smtlib2parser/build/src/libsmtparser.a")
+  message(FATAL_ERROR "Missing smtlib2parser library -- try running ./contrib/setup-smtlib2parser.sh")
+endif()
+
 # Generate the SMV parser using Flex/Bison
 BISON_TARGET(SMVParser ${PROJECT_SOURCE_DIR}/frontends/smvparser.y
   ${CMAKE_CURRENT_BINARY_DIR}/smvparser.cpp
@@ -86,13 +95,17 @@ add_library(cosa2 "${COSA2_LIB_TYPE}"
   "${PROJECT_SOURCE_DIR}/utils/term_analysis.cpp"
   "${PROJECT_SOURCE_DIR}/frontends/btor2_encoder.cpp"
   "${PROJECT_SOURCE_DIR}/frontends/smv_encoder.cpp"
+  "${PROJECT_SOURCE_DIR}/frontends/smtlib2parser.cpp"
+  "${PROJECT_SOURCE_DIR}/frontends/smtlib2parser_callback_fn.cpp"
   "${PROJECT_SOURCE_DIR}/printers/vcd_witness_printer.cpp"
   "${BISON_SMVParser_OUTPUTS}"
   "${FLEX_SMVScanner_OUTPUTS}"
   "${PROJECT_SOURCE_DIR}/engines/sygus/evalcond.cpp"
   "${PROJECT_SOURCE_DIR}/engines/sygus/walker.cpp"
   "${PROJECT_SOURCE_DIR}/engines/sygus/opextract.cpp"
+  "${PROJECT_SOURCE_DIR}/engines/sygus/gen_sygus_query.cpp"
   "${PROJECT_SOURCE_DIR}/engines/sygus/partial_model.cpp"
+  "${PROJECT_SOURCE_DIR}/engines/sygus/str_util.cpp"
   "${PROJECT_SOURCE_DIR}/engines/apdr/apdr.cpp"
   "${PROJECT_SOURCE_DIR}/engines/apdr/framecache.cpp"
   "${PROJECT_SOURCE_DIR}/engines/apdr/lemma.cpp"
@@ -105,6 +118,7 @@ target_include_directories(cosa2 PUBLIC
   "${PROJECT_SOURCE_DIR}/contrib/optionparser-1.7/src"
   "${PROJECT_SOURCE_DIR}/deps/btor2tools/src"
   "${PROJECT_SOURCE_DIR}/deps/smt-switch/local/include"
+  "${PROJECT_SOURCE_DIR}/deps/smtlib2parser/include/smtparser"
   # generated Bison headers go in build directory
   "${CMAKE_CURRENT_BINARY_DIR}"
   )
@@ -118,6 +132,7 @@ if (WITH_CVC4)
 endif()
 target_link_libraries(cosa2 PUBLIC "${PROJECT_SOURCE_DIR}/deps/smt-switch/local/lib/libsmt-switch.a")
 target_link_libraries(cosa2 PUBLIC "${PROJECT_SOURCE_DIR}/deps/btor2tools/build/lib/libbtor2parser.a")
+target_link_libraries(cosa2 PUBLIC "${PROJECT_SOURCE_DIR}/deps/smtlib2parser/build/src/libsmtparser.a")
 target_link_libraries(cosa2 PUBLIC gmp)
 target_link_libraries(cosa2 PUBLIC pthread)
 target_link_libraries(cosa2 PUBLIC y)

@@ -29,10 +29,13 @@ std::string name_sanitize(const std::string &s) {
   if (s.length() > 2 && s.front() == '|' && s.back() == '|')
     return s; // already | |
   bool need_separator = false;
-  for (auto c : s) {
+  for (auto pos = s.begin(); pos != s.end(); ++pos) {
+    char c = *pos;
     if (isalnum(c))
       continue;
-    if (c == '.')
+    if (c == '.' || c == '-' )
+      continue;
+    if (c == '_' && pos != s.begin())
       continue;
     // else
     need_separator = true;

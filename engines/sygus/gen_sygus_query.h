@@ -94,7 +94,7 @@ public:
     const cexs_t  & cex_to_block,
     const smt::Term & prop_to_imply,
     const SyGuSTransBuffer & sygus_ts_buf,
-    const std::string & fname);
+    std::ostream &fout);
 
 protected:
   // -- get on demand

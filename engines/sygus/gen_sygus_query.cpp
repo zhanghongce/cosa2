@@ -17,6 +17,9 @@
 #include "str_util.h"
 #include "container_shortcut.h"
 #include "gen_sygus_query.h"
+#include "utils/logger.h"
+
+#define FMT_HEADER_ONLY
 
 #include <fmt/format.h>
 #include <fstream>
@@ -26,6 +29,13 @@ namespace cosa {
 
 namespace sygus {
 
+static std::string body_paranthesis_auto(const std::string & in) {
+  std::string body(in);
+  StrTrim(body);
+  if (! ( body.front() == '(' && body.back() == ')' ) )
+    body = "(" + body + ")";
+  return body;
+}
 
 SyGuSTransBuffer::SyGuSTransBuffer (const TransitionSystem & ts):
 ts_(ts), states_(ts.states()), next_states_(ts.next_states()), inputs_(ts.inputs()) {
@@ -37,7 +47,7 @@ ts_(ts), states_(ts.states()), next_states_(ts.next_states()), inputs_(ts.inputs
   for (const auto &s : states_) {
     auto name = name_sanitize(s->to_string());
     auto sort = s->get_sort()->to_string();
-    primal_var_def_ += "(declare-var " + name + " () " + sort + ")\n";
+    primal_var_def_ += "(declare-var " + name + " " + sort + ")\n";
     arg_lists_init_.push_back("("+name + " " + sort+")");
     arg_lists_trans_.push_back("("+name + " " + sort+")");
     arg_lists_call_init_.push_back(name);
@@ -46,20 +56,20 @@ ts_(ts), states_(ts.states()), next_states_(ts.next_states()), inputs_(ts.inputs
   for (const auto &s : next_states_) {
     auto name = name_sanitize(s->to_string());
     auto sort = s->get_sort()->to_string();
-    prime_var_def_ += "(declare-var " + name + " () " + sort + ")\n";
+    prime_var_def_ += "(declare-var " + name + " " + sort + ")\n";
     arg_lists_trans_.push_back("("+name + " " + sort+")");
     arg_lists_call_trans_.push_back(name);
   }
   for (const auto &s : inputs_) {
     auto name = name_sanitize(s->to_string());
     auto sort = s->get_sort()->to_string();
-    prime_var_def_ += "(declare-var " + name + " () " + sort + ")\n";
+    prime_var_def_ += "(declare-var " + name + " " + sort + ")\n";
     arg_lists_trans_.push_back("("+name + " " + sort+")");
     arg_lists_call_trans_.push_back(name);
   }
 
-  trans_def_ = "(define-fun Trans (" + Join(arg_lists_trans_, " ") +") Bool ("
-    + ts_.trans()->to_string() + "))";
+  trans_def_ = "(define-fun Trans (" + Join(arg_lists_trans_, " ") +") Bool "
+    + body_paranthesis_auto(ts_.trans()->to_string()) + ")";
   trans_use_ = "(Trans " + Join(arg_lists_call_trans_, " ") + ")";
 
   // (define-fun Fprev (state_arg_def_) Bool (...))
@@ -67,15 +77,15 @@ ts_(ts), states_(ts.states()), next_states_(ts.next_states()), inputs_(ts.inputs
   state_arg_def_ = Join(arg_lists_init_, " ");
   state_arg_use_ = Join(arg_lists_call_init_, " ");
 
-  init_def_ = "(define-fun Init (" + state_arg_def_ +") Bool ("
-    + ts_.init()->to_string() + "))";
+  init_def_ = "(define-fun Init (" + state_arg_def_ +") Bool "
+    + body_paranthesis_auto(ts_.init()->to_string()) + ")";
   init_use_ = "(Init " + state_arg_use_ + ")";
 
 }
 
 std::string SyGuSTransBuffer::GetFprevDef(const smt::Term & Fprev) const {
-  return ("(define-fun Fprev (" +state_arg_def_+") Bool ("
-    + Fprev->to_string() + "))");
+  return ("(define-fun Fprev (" +state_arg_def_+") Bool "
+    + body_paranthesis_auto(Fprev->to_string()) + ")");
 }
 std::string SyGuSTransBuffer::GetFprevUse() const {
   return ("(Fprev " + state_arg_use_ + ")");
@@ -208,9 +218,13 @@ SyGusQueryGen::SyGusQueryGen(
     auto width = w_cnstr.first;
     const auto & cnstr = w_cnstr.second;
     for (const auto & name : cnstr.symbol_names) {
-      if (!keep_vars_name.empty() && !IN(name ,keep_vars_name ))
+      if (!keep_vars_name.empty() && !IN(name ,keep_vars_name ) &&
+          !IN(name_sanitize(name) ,keep_vars_name ) && 
+          !IN(name_desanitize(name) ,keep_vars_name ) )
         continue;
-      if (IN(name, remove_vars_name))
+      if (IN(name, remove_vars_name) || 
+          IN(name_sanitize(name),remove_vars_name) ||
+          IN(name_desanitize(name),remove_vars_name) )
         continue;
       new_variable_set_[width].insert(name);
       inv_def_vars.push_back("("+ name + " " + width_to_type(width) + ")" );
@@ -239,7 +253,8 @@ void SyGusQueryGen::generate_syntax_cnstr_string() {
     if (!IN(width, syntax_))
       continue;
     const auto & syn = syntax_.at(width);
-    const auto & var = new_variable_set_.at(width);
+    std::unordered_set<std::string> empty_vars;
+    const auto & var = IN(width, new_variable_set_) ? new_variable_set_.at(width) : empty_vars ;
 
     comps_list.push_back( fmt::format("(= E{0} E{0})", width) );
     for (auto primop : syn.op_comp ) {
@@ -302,9 +317,9 @@ void SyGusQueryGen::generate_syntax_cnstr_string() {
       evcs += "(C"+std::to_string(width)+" " + tp +" (";
       for (auto pos = syn.constants.begin() ; pos != syn.constants.end(); ++ pos) {
         if (pos == syn.constants.begin())
-          evcs += name_sanitize( (*pos) );
+          evcs += (*pos);
         else
-          evcs += " "  + name_sanitize( (*pos) );
+          evcs += " "  + (*pos);
       }
       evcs += "))\n";
     }
@@ -496,8 +511,8 @@ void SyGusQueryGen::dump_inv_imply_prop(
   std::ostream & os) {
   if (prop == nullptr)
     return;
-  os << "(constraint (=> " << inv_use << " ("
-     << prop->to_string() <<")))\n";
+  os << "(constraint (=> " << inv_use << " "
+     << body_paranthesis_auto(prop->to_string()) <<"))\n";
 }
 
 
@@ -507,33 +522,40 @@ void SyGusQueryGen::GenToFile(
     const cexs_t  & cex_to_block,
     const smt::Term & prop_to_imply,
     const SyGuSTransBuffer & sygus_ts_buf,
-    const std::string & fname) {
-
-  std::ofstream fout(fname);
-
-  if (!fout.is_open())
-    throw CosaException("SyGuS query file : " + fname + " cannot be created");
+    std::ostream &fout) {
 
   fout << "(set-logic BV)\n";
   fout << syntax_constraints << std::endl;
   fout << sygus_ts_buf.GetInitDef() << std::endl;
+  fout << std::endl;
   fout << sygus_ts_buf.GetTransDef() << std::endl;
+  fout << std::endl;
   fout << sygus_ts_buf.GetFprevDef(prevF) << std::endl;
+  fout << std::endl;
   fout << sygus_ts_buf.GetPrimalVarDef() << std::endl;
+  fout << std::endl;
   fout << sygus_ts_buf.GetPrimeVarDef() << std::endl;
+  fout << std::endl;
   fout << sygus_ts_buf.GetInputVarDef() << std::endl;
   
   // facts  -- filter needed with more vars
+  fout << std::endl;
   dump_cex_block(cex_to_block, sygus_ts_buf, fout);
+  fout << std::endl;
   dump_fact_allow(facts_all, sygus_ts_buf, fout);
+  fout << std::endl;
   dump_inv_imply_prop(prop_to_imply, sygus_ts_buf, fout);
+  fout << std::endl;
 
   // imply  // '(constraint (=> (and (Fminus2 {argV}) (Tr {argV} {argP})) (INV {argInvP})))'
   fout << "(constraint (=> (and " << sygus_ts_buf.GetFprevUse() << " " << sygus_ts_buf.GetTransUse()  << ") " << inv_use << "))" << std::endl;
   // init_imply // '(constraint (=> (Init {argV}) (INV {argInvV})))'
-  fout << "(constraint (=> " << sygus_ts_buf.GetInitUse() << " " << inv_use + "))";
+  fout << std::endl;
+  fout << "(constraint (=> " << sygus_ts_buf.GetInitUse() << " " << inv_use + "))" << std::endl;
+  fout << std::endl;
+  fout << "(check-synth)\n";
+  fout << std::endl;
 
-  fout.close();
 } // SyGusQueryGen::GenToFile
 
 
