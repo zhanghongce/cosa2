@@ -81,6 +81,7 @@ void dumping_apdr_states() {
 
 void SIGQUIT_handler(int sig) {
   signal(sig, SIG_IGN);
+  dumping_apdr_frames();
   dumping_apdr_states();
   signal(sig, SIGQUIT_handler);
 }
