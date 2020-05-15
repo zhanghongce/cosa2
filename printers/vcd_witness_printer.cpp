@@ -228,11 +228,32 @@ std::string VCDWitnessPrinter::new_hash_id() {
   return "v" + std::to_string(hash_id_cnt_++);
 }
 
+bool static is_bad_state_pattern(const std::string & n) {
+  auto dot_pos = n.find(':');
+  for (auto pos = dot_pos + 1; pos < n.length(); ++pos) {
+    char ch = n.at(pos);
+    if (isdigit(ch) || ch == '.' || ch == '-')
+      continue;
+    return false;
+  }
+  return true;
+}
+
 void VCDWitnessPrinter::check_insert_scope(std::string full_name,
                                            bool is_reg,
                                            const smt::Term & ast)
 {
-  // vcd doesn't like colons in name
+  // yosys use $... for internal (unnamed nodes),
+  // which maybe we don't want at all
+  if (full_name.front() == '$')
+    return;
+  if (is_bad_state_pattern(full_name))
+    full_name = "assert(property)";
+  // yosys use " ; " as the separator for comment
+  auto pos = full_name.find(" ; ");
+  if(pos != full_name.npos)
+    full_name = full_name.substr(0,pos);
+  // gtkwave doesn't like colons in name
   std::replace(full_name.begin(), full_name.end(), ':', '_');
   auto scopes = split(full_name, ".");
   VCDScope * root = & root_scope_;
