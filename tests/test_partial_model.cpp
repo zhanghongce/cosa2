@@ -5,7 +5,6 @@
 
 #include "available_solvers.h"
 #include "core/fts.h"
-#include "engines/sygus/container_shortcut.h"
 #include "engines/sygus/partial_model.h"
 #include "engines/sygus/opextract.h"
 #include "core/unroller.h"
@@ -13,6 +12,7 @@
 #include "smt-switch/boolector_factory.h"
 #include "smt-switch/smt.h"
 #include "utils/exceptions.h"
+#include "utils/container_shortcut.h"
 #include "frontends/btor2_encoder.h"
 #include "frontends/smtlib2parser.h"
 #include "sygus/gen_sygus_query.h"
@@ -297,11 +297,11 @@ TEST (SygusGen, SygusGen)  {
       state_name.insert(s->to_string());
     }
 
-    sygus::SyGusQueryGen sygus_query_gen(lang_constructs, state_name , {});
+    sygus::SyGusQueryGen sygus_query_gen(lang_constructs, sygus_buf, state_name , {});
     
     {
       std::ofstream fout(sygus_file);
-      sygus_query_gen.GenToFile(fts.init(), {} , {} , fts.init(), sygus_buf, fout);
+      sygus_query_gen.GenToFile(fts.init(), {} , {} , fts.init(), true, fout);
     }
 
     {

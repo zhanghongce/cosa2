@@ -60,10 +60,27 @@ namespace cosa {
 
     // ------------- SyGuS Configuration ---------------------------------
 
-    bool SYGUS_EXPAND_VALUES = false;
-    bool SYGUS_USE_TRANS = true;
-    bool SYGUS_USE_INIT = true;
-    bool SYGUS_USE_FACT = true;
+    const bool SYGUS_EXPAND_VALUES = false;
+    const bool SYGUS_USE_TRANS = true;
+    const bool SYGUS_USE_INIT = true;
+    const bool SYGUS_USE_FACT = true;
+
+    enum LEMMA_GEN_MODE_T {
+      ITP_ONLY = 0,
+      ITP_VAR_EXTRACT = 1,
+      ITP_SYNTAX_EXTRACT = 2,
+      ITP_VAR_AND_SYNTAX_EXTRACT = 3, 
+      SYGUS_ONLY = 4
+    } LEMMA_GEN_MODE;
+
+    std::string CVC4PATH = "/home/hongce/cvc-installs/latest/bin/";
+    std::string CVC4QUERY_OUT1 = "sygus-q.sl";
+    std::string CVC4QUERY_BACK1 = "sygus-a.smt2";
+    std::string CVC4QUERY_OUT2 = "sygus-enum-q.sl";
+    std::string CVC4QUERY_BACK2 = "sygus-enum-a.smt2";
+    bool SYGUS_ASSERT_LEMMA_IN_PREV_FRAME = true; // same as RM_CEX_IN_PREV
+    unsigned SYGUS_PBE_TIME_LIMIT = 30;
+    unsigned SYGUS_NO_PBE_TIME_LIMIT = 30;
 
     // ------------- STATISTICS tracking ---------------------------------
     bool STAT_ITP_STRICTLY_STRONG_CHECK = true;

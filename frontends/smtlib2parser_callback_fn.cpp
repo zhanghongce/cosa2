@@ -116,6 +116,15 @@ smtlib2_sort proxy_make_sort(smtlib2_parser_interface* p, const char* sortname,
   // free the content?
 }
 
+smtlib2_sort proxy_make_parametric_sort(smtlib2_parser_interface *p,
+                                      const char *sortname, smtlib2_vector *tps) {
+
+  auto tpargs = make_vector<SortPtrT>(tps);
+  smtlib2_sort ret =
+      (smtlib2_sort)(PARSER(p)->make_parametric_sort(sortname, tpargs));
+  return ret;
+}
+
 void proxy_declare_variable(smtlib2_parser_interface* p, const char* name,
                             smtlib2_sort sort) {
   PARSER(p)->declare_quantified_variable(name, (SortPtrT)sort);

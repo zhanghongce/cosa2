@@ -106,6 +106,10 @@ public:
   
   void RemoveUnusedWidth();
 
+  bool new_constructs;
+
+  OpExtractor() : new_constructs(false) {}
+
 protected:
   std::unordered_set<smt::Term> walked_nodes_;
   std::unordered_set<smt::Term> all_symbols_;

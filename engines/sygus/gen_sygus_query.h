@@ -47,14 +47,17 @@ protected:
   std::string state_arg_def_;
   std::string state_arg_use_;
 
+  std::unordered_map<std::string, std::string> state_to_next_map_;
+
 public:
   // you also need to know this to generate the right arg lists
-  const TransitionSystem & ts_; // could be the btor one
+  const TransitionSystem & ts_msat_; // could be the btor one
+  const TransitionSystem & ts_btor_; // could be the btor one
   const smt::UnorderedTermSet & states_;
   const smt::UnorderedTermSet & next_states_;
   const smt::UnorderedTermSet & inputs_;
   
-  SyGuSTransBuffer (const TransitionSystem & ts);
+  SyGuSTransBuffer (const TransitionSystem & ts_msat, const TransitionSystem & ts_btor);
 
   std::string_view GetPrimalVarDef() const{ return primal_var_def_; }
   std::string_view GetPrimeVarDef() const { return prime_var_def_; }
@@ -69,6 +72,8 @@ public:
   std::string_view GetTransUse() const { return trans_use_; } // (Trans ... ... ...)
   std::string_view GetInitDef()  const { return init_def_; } // (define-fun Init ((...)) () ())
   std::string_view GetInitUse()  const { return init_use_; } // (Init ... ... ...)
+
+  std::string StateToNext(const std::string & name) const;
 }; // class SyGuSTransBuffer
  
 
@@ -84,6 +89,7 @@ public:
 
   SyGusQueryGen(
     const SyntaxStructureT & syntax,
+    const SyGuSTransBuffer & sygus_ts_buf,
     const std::unordered_set<std::string> & keep_vars_name,
     const std::unordered_set<std::string> & remove_vars_name
   );
@@ -93,7 +99,7 @@ public:
     const facts_t & facts_all, // internal filters
     const cexs_t  & cex_to_block,
     const smt::Term & prop_to_imply,
-    const SyGuSTransBuffer & sygus_ts_buf,
+    bool assert_in_prevF,
     std::ostream &fout);
 
 protected:
@@ -101,16 +107,18 @@ protected:
   // smt::Term prev_;
   // const facts_t & facts_;
   // const cexs_t  & cexs_;
-  // const SyGuSTransBuffer & sygus_ts_buf_;
   const SyntaxStructureT & syntax_;
+  const SyGuSTransBuffer & sygus_ts_buf_;
   std::unordered_map<uint64_t, std::unordered_set<std::string>> 
     new_variable_set_;
 
   std::string inv_def_var_list;
   std::string inv_use_var_list;
   std::string inv_use;
+  std::string inv_use_next;
 
   std::vector<std::string> ordered_vars;
+  std::vector<std::string> ordered_vars_next;
   std::unordered_set<std::string> vars_kept;
 
   // generate the synth-fun part

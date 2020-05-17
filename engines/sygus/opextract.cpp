@@ -15,7 +15,7 @@
  **/
  
 #include "opextract.h"
-#include "container_shortcut.h"
+#include "utils/container_shortcut.h"
 
 #include <cassert>
 #include <queue>
@@ -130,16 +130,22 @@ void OpExtractor::PreChild(const smt::Term & ast) {
   else
     return; // we don't handle other cases
 
-  if ( !IN(width, constructs) )
+  if ( !IN(width, constructs) ) {
     constructs.insert(std::make_pair(width, sygus::BvConstructs()));
+    new_constructs = true;
+  }
   sygus::BvConstructs & cnstr = constructs.at(width);
 
   if(ast->is_symbolic_const()) {
     // use ast->to_string()
-    cnstr.symbol_names.insert( sygus::name_sanitize ( ast->to_string()));
+    auto res = cnstr.symbol_names.insert( sygus::name_sanitize ( ast->to_string()));
+    if(res.second)
+      new_constructs = true; // indeed inserted
   } else if (ast->is_value()) {
     // use ast->to_string()
-    cnstr.constants.insert(ast->to_string());
+    auto res = cnstr.constants.insert(ast->to_string());
+    if(res.second)
+      new_constructs = true; // indeed inserted
   } else { // we will hope it is op
     smt::Op op;
     try {
@@ -153,8 +159,9 @@ void OpExtractor::PreChild(const smt::Term & ast) {
     switch (op.prim_op) {
       case smt::PrimOp::Not:
       case smt::PrimOp::BVNeg:
-      case smt::PrimOp::BVNot:
-        cnstr.op_unary.insert(op.prim_op); break;
+      case smt::PrimOp::BVNot: {
+        auto res = cnstr.op_unary.insert(op.prim_op); 
+        new_constructs = res.second ? true: new_constructs; break; }
       case smt::PrimOp::And:
       case smt::PrimOp::Or:
       case smt::PrimOp::Xor:
@@ -176,11 +183,15 @@ void OpExtractor::PreChild(const smt::Term & ast) {
       case smt::PrimOp::BVSmod:
       case smt::PrimOp::BVShl:
       case smt::PrimOp::BVAshr:
-      case smt::PrimOp::BVLshr:
-        cnstr.op_binary.insert(op.prim_op); break;
+      case smt::PrimOp::BVLshr: {
+        auto res = cnstr.op_binary.insert(op.prim_op); 
+        new_constructs = res.second ? true: new_constructs; 
+         break; }
 
-      case smt::PrimOp::BVComp: // equal
-        cnstr.op_comp.insert(smt::PrimOp::BVComp); break;
+      case smt::PrimOp::BVComp: // equal 
+        {
+        auto res = cnstr.op_comp.insert(smt::PrimOp::BVComp);
+        new_constructs = res.second ? true: new_constructs;  break; }
       case smt::PrimOp::Equal:
       case smt::PrimOp::Distinct:
       case smt::PrimOp::BVUlt:
@@ -190,20 +201,23 @@ void OpExtractor::PreChild(const smt::Term & ast) {
       case smt::PrimOp::BVSlt:
       case smt::PrimOp::BVSle:
       case smt::PrimOp::BVSgt:
-      case smt::PrimOp::BVSge:
-        cnstr.op_comp.insert(op.prim_op); break;
+      case smt::PrimOp::BVSge: {
+        auto res = cnstr.op_comp.insert(op.prim_op);
+        new_constructs = res.second ? true: new_constructs;  break; }
 
       case smt::PrimOp::Concat:
         {
           ARG2
-          cnstr.op_concat.insert(sygus::concat_t(a1->get_sort()->get_width(),a2->get_sort()->get_width())); 
+          auto res = cnstr.op_concat.insert(sygus::concat_t(a1->get_sort()->get_width(),a2->get_sort()->get_width())); 
+          new_constructs = res.second ? true: new_constructs;
         }
         break;
       case smt::PrimOp::Extract:
         assert (op.num_idx == 2);
         {
           ARG1
-          cnstr.op_extract.insert(sygus::extract_t(a1->get_sort()->get_width(),op.idx0,op.idx1)); 
+          auto res = cnstr.op_extract.insert(sygus::extract_t(a1->get_sort()->get_width(),op.idx0,op.idx1)); 
+          new_constructs = res.second ? true: new_constructs;
         }
         break;
       
@@ -211,7 +225,8 @@ void OpExtractor::PreChild(const smt::Term & ast) {
         assert (op.num_idx == 1);
         {
           ARG1
-          cnstr.op_extend.insert(sygus::extend_t(op.prim_op, op.idx0, a1->get_sort()->get_width())); 
+          auto res = cnstr.op_extend.insert(sygus::extend_t(op.prim_op, op.idx0, a1->get_sort()->get_width())); 
+          new_constructs = res.second ? true: new_constructs;
         }
         break;
 
@@ -219,16 +234,18 @@ void OpExtractor::PreChild(const smt::Term & ast) {
         assert (op.num_idx == 1);
         {
           ARG1
-          cnstr.op_extend.insert(sygus::extend_t(op.prim_op, op.idx0, a1->get_sort()->get_width())); 
+          auto res = cnstr.op_extend.insert(sygus::extend_t(op.prim_op, op.idx0, a1->get_sort()->get_width())); 
+          new_constructs = res.second ? true: new_constructs;
         }
         break;
 
 
       case smt::PrimOp::Rotate_Left:
-      case smt::PrimOp::Rotate_Right:
+      case smt::PrimOp::Rotate_Right: {
         assert (op.num_idx == 1);
-        cnstr.op_rotate.insert(sygus::rotate_t(op.prim_op, op.idx0));
-        break;
+        auto res = cnstr.op_rotate.insert(sygus::rotate_t(op.prim_op, op.idx0));
+        new_constructs = res.second ? true: new_constructs;
+        break; }
       default: // do nothing
         break;
     } //  switch (op.prim_op)

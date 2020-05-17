@@ -15,7 +15,7 @@
  **/
 
 #include "walker.h"
-#include "container_shortcut.h"
+#include "utils/container_shortcut.h"
 
 namespace cosa {
 

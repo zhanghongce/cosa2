@@ -17,7 +17,7 @@
  
 #include "apdr.h"
 
-#include "../sygus/container_shortcut.h"
+#include "utils/container_shortcut.h"
 
 #include <cassert>
 

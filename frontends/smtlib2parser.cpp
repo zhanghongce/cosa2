@@ -20,7 +20,7 @@
 
 #include "utils/exceptions.h"
 #include "utils/logger.h"
-#include "engines/sygus/container_shortcut.h"
+#include "utils/container_shortcut.h"
 
 #include <fstream>
 #include <sstream>
@@ -43,6 +43,8 @@ Smtlib2Parser::Smtlib2Parser(
 
   smtlib2_abstract_parser_init(parser_wrapper, (void *)this);
 
+  parser_wrapper->print_success_ = false;
+  
   smtlib2_parser_interface* pi;
   smtlib2_term_parser* tp;
 
@@ -84,6 +86,7 @@ Smtlib2Parser::Smtlib2Parser(
   pi->push_quantifier_scope = proxy_push_quantifier_scope;
   pi->pop_quantifier_scope = proxy_pop_quantifier_scope;
   pi->make_sort = proxy_make_sort;
+  pi->make_parametric_sort = proxy_make_parametric_sort;
   pi->declare_variable = proxy_declare_variable;
   pi->declare_function = proxy_declare_function;
   pi->check_sat = proxy_check_sat;
@@ -189,6 +192,41 @@ Smtlib2Parser::SortPtrT Smtlib2Parser::make_sort(const std::string& name, const 
   return 0;
 }
 
+
+Smtlib2Parser::SortPtrT Smtlib2Parser::make_parametric_sort(const std::string& name, const std::vector<SortPtrT>& tpargs) {
+  if (name == "Array") {
+    if (tpargs.size() == 2) {
+      auto sort1 = get_sort(tpargs[0]);
+      auto sort2 = get_sort(tpargs[1]);
+      if (sort1->get_sort_kind() != smt::BOOL && 
+          sort1->get_sort_kind() != smt::BV) {
+          throw CosaException("Parametric Array has wrong parameter type");
+          return 0;
+      }
+      if (sort2->get_sort_kind() != smt::BOOL && 
+          sort2->get_sort_kind() != smt::BV) {
+          throw CosaException("Parametric Array has wrong parameter type");
+          return 0;
+      }
+      auto sort_name("A" + sort1->to_string()+" -> " + sort2->to_string());
+      auto sort_pos = sort_table.find(sort_name);
+      if (sort_pos == sort_table.end()) {
+        sort_names.push_back(sort_name);
+        size_t ptr = sort_names.size()-1;
+        sort_table.insert(std::make_pair(sort_name, 
+          std::make_pair(solver_->make_sort(smt::ARRAY, sort1, sort2),ptr)));
+        return ptr;
+      } else 
+        return (sort_pos->second.second);
+    } else {
+      throw CosaException("Parametric Array has wrong parameters");
+      return 0;
+    }
+  }
+  throw CosaException("Parametric Sort : " + name + " is unknown");
+  return 0;
+} // make_parametric_sort
+
 smt::Sort Smtlib2Parser::get_sort(SortPtrT sortptr) {
   assert (sortptr < sort_names.size());
   const auto & sort_name = sort_names.at(sortptr);
@@ -232,6 +270,7 @@ void * Smtlib2Parser::push_quantifier_scope() {
   //throw CosaException("forall/exists not supported.");
   return NULL;
 }
+
 void * Smtlib2Parser::pop_quantifier_scope() {
   quantifier_def_stack.pop_back();
   // throw CosaException("forall/exists not supported.");
@@ -341,8 +380,10 @@ smt::Term Smtlib2Parser::ParseSmtFromString(const std::string& text) {
       const std::vector<TermPtrT>& args)
 
 #define SORT(x)   ( (get_term(x))->get_sort() )
-#define ISBOOL(x) ( SORT(x)->get_sort_kind() == smt::BOOL )
-#define ISBV(x)   ( SORT(x)->get_sort_kind() == smt::BV )
+#define ISBOOL(x) (true)
+#define ISBV(x)   (true)
+//#define ISBOOL(x) ( SORT(x)->get_sort_kind() == smt::BOOL )
+//#define ISBV(x)   ( SORT(x)->get_sort_kind() == smt::BV )
 
 #define CHECK_EMPTY_PARAM(idx, args)                                       \
   assert((idx).empty());                                                   \

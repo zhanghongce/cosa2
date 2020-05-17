@@ -14,8 +14,8 @@
  ** 
  **/
 
-#include "str_util.h"
-#include "container_shortcut.h"
+#include "utils/str_util.h"
+#include "utils/container_shortcut.h"
 #include "gen_sygus_query.h"
 #include "utils/logger.h"
 
@@ -37,8 +37,9 @@ static std::string body_paranthesis_auto(const std::string & in) {
   return body;
 }
 
-SyGuSTransBuffer::SyGuSTransBuffer (const TransitionSystem & ts):
-ts_(ts), states_(ts.states()), next_states_(ts.next_states()), inputs_(ts.inputs()) {
+SyGuSTransBuffer::SyGuSTransBuffer ( const TransitionSystem & ts_msat, const TransitionSystem & ts_btor):
+ts_msat_(ts_msat), ts_btor_(ts_btor),
+states_(ts_msat.states()), next_states_(ts_msat.next_states()), inputs_(ts_msat.inputs()) {
   std::vector<std::string> arg_lists_init_;
   std::vector<std::string> arg_lists_trans_;
   std::vector<std::string> arg_lists_call_init_;
@@ -52,6 +53,9 @@ ts_(ts), states_(ts.states()), next_states_(ts.next_states()), inputs_(ts.inputs
     arg_lists_trans_.push_back("("+name + " " + sort+")");
     arg_lists_call_init_.push_back(name);
     arg_lists_call_trans_.push_back(name);
+
+    auto name_next = name_sanitize(ts_msat.next(s)->to_string());
+    state_to_next_map_.insert(std::make_pair(name, name_next));
   }
   for (const auto &s : next_states_) {
     auto name = name_sanitize(s->to_string());
@@ -69,7 +73,7 @@ ts_(ts), states_(ts.states()), next_states_(ts.next_states()), inputs_(ts.inputs
   }
 
   trans_def_ = "(define-fun Trans (" + Join(arg_lists_trans_, " ") +") Bool "
-    + body_paranthesis_auto(ts_.trans()->to_string()) + ")";
+    + body_paranthesis_auto(ts_msat.trans()->to_string()) + ")";
   trans_use_ = "(Trans " + Join(arg_lists_call_trans_, " ") + ")";
 
   // (define-fun Fprev (state_arg_def_) Bool (...))
@@ -78,7 +82,7 @@ ts_(ts), states_(ts.states()), next_states_(ts.next_states()), inputs_(ts.inputs
   state_arg_use_ = Join(arg_lists_call_init_, " ");
 
   init_def_ = "(define-fun Init (" + state_arg_def_ +") Bool "
-    + body_paranthesis_auto(ts_.init()->to_string()) + ")";
+    + body_paranthesis_auto(ts_msat.init()->to_string()) + ")";
   init_use_ = "(Init " + state_arg_use_ + ")";
 
 }
@@ -89,6 +93,21 @@ std::string SyGuSTransBuffer::GetFprevDef(const smt::Term & Fprev) const {
 }
 std::string SyGuSTransBuffer::GetFprevUse() const {
   return ("(Fprev " + state_arg_use_ + ")");
+}
+
+
+std::string SyGuSTransBuffer::StateToNext(const std::string & name) const {
+  auto pos = state_to_next_map_.find(name);
+  if ( pos!= state_to_next_map_.end() )
+    return pos->second;
+  pos = state_to_next_map_.find(name_sanitize(name));
+  if ( pos!= state_to_next_map_.end() )
+    return pos->second;
+  pos = state_to_next_map_.find(name_desanitize(name));
+  if ( pos!= state_to_next_map_.end() )
+    return pos->second;
+  assert(false);
+  return "";
 }
 
 // ------------ END of buffer functions ------------ //
@@ -205,9 +224,10 @@ static std::string syntax_constraints_template = R"**(
 
 SyGusQueryGen::SyGusQueryGen(
   const SyntaxStructureT & syntax,
+  const SyGuSTransBuffer & sygus_ts_buf,
   const std::unordered_set<std::string> & keep_vars_name,
   const std::unordered_set<std::string> & remove_vars_name) :
-  syntax_(syntax)
+  syntax_(syntax), sygus_ts_buf_(sygus_ts_buf)
 { 
 	// compute the all variable list
   // gen necessary strings
@@ -229,12 +249,14 @@ SyGusQueryGen::SyGusQueryGen(
       new_variable_set_[width].insert(name);
       inv_def_vars.push_back("("+ name + " " + width_to_type(width) + ")" );
       ordered_vars.push_back(name);
+      ordered_vars_next.push_back(sygus_ts_buf_.StateToNext(name));
       vars_kept.insert(name);
     }
   } // here we compute the vars to keep
   inv_def_var_list = Join(inv_def_vars, " ");
   inv_use_var_list = Join(ordered_vars, " ");
   inv_use = "(INV " + inv_use_var_list + ")";
+  inv_use_next = "(INV " + Join(ordered_vars_next, " ") + ")";
 
   generate_syntax_cnstr_string();  // -> syntax_constraints
 
@@ -453,7 +475,7 @@ bool SyGusQueryGen::dump_cex_block(
   std::ostream & os) {
 
   // use_var_name to find the states and do an index into it
-  const auto & symbols = sygus_ts_buf.ts_.symbols();
+  const auto & symbols = sygus_ts_buf.ts_btor_.symbols(); // we expect models are from btor
   for (auto model_ptr : cex_to_block) {
     if (contains_extra_var(model_ptr))
       continue;
@@ -482,7 +504,7 @@ bool SyGusQueryGen::dump_fact_allow(
   for (auto model_ptr : facts_all) {
     std::string constraint = "(constraint (INV";
     bool skip_this_fact = false;
-    const auto & symbols = sygus_ts_buf.ts_.symbols();
+    const auto & symbols = sygus_ts_buf.ts_btor_.symbols(); // we expect models are from btor
     for (auto && vname : ordered_vars) {
       auto desanitized_name = name_desanitize(vname);
       auto pos = symbols.find(desanitized_name);
@@ -521,37 +543,43 @@ void SyGusQueryGen::GenToFile(
     const facts_t & facts_all, // internal filters
     const cexs_t  & cex_to_block,
     const smt::Term & prop_to_imply,
-    const SyGuSTransBuffer & sygus_ts_buf,
+    bool assert_in_prevF,
     std::ostream &fout) {
 
   fout << "(set-logic BV)\n";
   fout << syntax_constraints << std::endl;
-  fout << sygus_ts_buf.GetInitDef() << std::endl;
+  fout << sygus_ts_buf_.GetInitDef() << std::endl;
   fout << std::endl;
-  fout << sygus_ts_buf.GetTransDef() << std::endl;
+  fout << sygus_ts_buf_.GetTransDef() << std::endl;
   fout << std::endl;
-  fout << sygus_ts_buf.GetFprevDef(prevF) << std::endl;
+  fout << sygus_ts_buf_.GetFprevDef(prevF) << std::endl;
   fout << std::endl;
-  fout << sygus_ts_buf.GetPrimalVarDef() << std::endl;
+  fout << sygus_ts_buf_.GetPrimalVarDef() << std::endl;
   fout << std::endl;
-  fout << sygus_ts_buf.GetPrimeVarDef() << std::endl;
+  fout << sygus_ts_buf_.GetPrimeVarDef() << std::endl;
   fout << std::endl;
-  fout << sygus_ts_buf.GetInputVarDef() << std::endl;
+  fout << sygus_ts_buf_.GetInputVarDef() << std::endl;
   
   // facts  -- filter needed with more vars
   fout << std::endl;
-  dump_cex_block(cex_to_block, sygus_ts_buf, fout);
+  dump_cex_block(cex_to_block, sygus_ts_buf_, fout);
   fout << std::endl;
-  dump_fact_allow(facts_all, sygus_ts_buf, fout);
+  dump_fact_allow(facts_all, sygus_ts_buf_, fout);
   fout << std::endl;
-  dump_inv_imply_prop(prop_to_imply, sygus_ts_buf, fout);
+  dump_inv_imply_prop(prop_to_imply, sygus_ts_buf_, fout);
   fout << std::endl;
 
   // imply  // '(constraint (=> (and (Fminus2 {argV}) (Tr {argV} {argP})) (INV {argInvP})))'
-  fout << "(constraint (=> (and " << sygus_ts_buf.GetFprevUse() << " " << sygus_ts_buf.GetTransUse()  << ") " << inv_use << "))" << std::endl;
+  if (assert_in_prevF)
+    fout << "(constraint (=> (and (and " << sygus_ts_buf_.GetFprevUse() << " " << inv_use << ") "
+         << sygus_ts_buf_.GetTransUse()  << ") " 
+         << inv_use_next << "))" << std::endl;
+  else
+    fout << "(constraint (=> (and " << sygus_ts_buf_.GetFprevUse() << " " << sygus_ts_buf_.GetTransUse()  << ") " 
+         << inv_use_next << "))" << std::endl;
   // init_imply // '(constraint (=> (Init {argV}) (INV {argInvV})))'
   fout << std::endl;
-  fout << "(constraint (=> " << sygus_ts_buf.GetInitUse() << " " << inv_use + "))" << std::endl;
+  fout << "(constraint (=> " << sygus_ts_buf_.GetInitUse() << " " << inv_use + "))" << std::endl;
   fout << std::endl;
   fout << "(check-synth)\n";
   fout << std::endl;

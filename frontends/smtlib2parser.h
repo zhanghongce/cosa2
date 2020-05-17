@@ -67,9 +67,9 @@ public:
     const symbol_table_t& symbol_table);
     
   virtual ~Smtlib2Parser();
-  /// no copy constructor
+  // no copy constructor
   Smtlib2Parser(const Smtlib2Parser&) = delete;
-  /// no assignment
+  // no assignment
   Smtlib2Parser& operator=(const Smtlib2Parser&) = delete;
   
   // if unsat --> add the (assert ...)
@@ -82,31 +82,33 @@ public:
   // ------------------------------------------------------------------------
   
   // we probably don't need to make sort
-  SortPtrT make_bv_sort(uint64_t w);
-  SortPtrT make_sort(const std::string& name, const std::vector<int>& idx);
-  void declare_quantified_variable(const std::string& name, SortPtrT sort);
+  SortPtrT virtual make_bv_sort(uint64_t w);
+  SortPtrT virtual make_sort(const std::string& name, const std::vector<int>& idx);
+  SortPtrT virtual make_parametric_sort(const std::string& name, const std::vector<SortPtrT>& tpargs);
 
-  void * push_quantifier_scope();
-  void * pop_quantifier_scope();
+  void virtual declare_quantified_variable(const std::string& name, SortPtrT sort);
+
+  virtual void * push_quantifier_scope();
+  virtual void * pop_quantifier_scope();
   
   smt::Term search_symbol_table(const std::string& name) const;
   TermPtrT search_quantified_var_stack(const std::string& name) const;
 
-  TermPtrT make_function(const std::string& name, SortPtrT sort,
+  TermPtrT virtual make_function(const std::string& name, SortPtrT sort,
     const std::vector<int>& idx, const std::vector<TermPtrT>& args );
   
-  TermPtrT make_number(const std::string& rep, int width, int base);
+  TermPtrT virtual make_number(const std::string& rep, int width, int base);
 
-  /// this function receives the final assert result
-  void assert_formula(TermPtrT term);
-  /// this function receives the final result
-  void define_function(const std::string& func_name,
+  // this function receives the final assert result
+  void virtual assert_formula(TermPtrT term);
+  // this function receives the final result
+  void virtual define_function(const std::string& func_name,
                        const std::vector<TermPtrT> & args,
                        SortPtrT ret_type, TermPtrT func_body);
 
 
 #define DECLARE_OPERATOR(name)                                                 \
-  TermPtrT mk_##name(const std::string& symbol, SortPtrT sort,       \
+  TermPtrT virtual mk_##name(const std::string& symbol, SortPtrT sort,       \
                         const std::vector<int> & idx,                     \
                         const std::vector<TermPtrT> & args)
 

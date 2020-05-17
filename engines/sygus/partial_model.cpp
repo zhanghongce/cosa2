@@ -15,8 +15,8 @@
  **/
 
 #include "utils/logger.h"
+#include "utils/container_shortcut.h"
 #include "partial_model.h"
-#include "container_shortcut.h"
 
 #include <cassert>
 

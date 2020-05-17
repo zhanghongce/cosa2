@@ -57,6 +57,10 @@ void proxy_define_func(smtlib2_parser_interface* parser, const char* name,
 //
 smtlib2_sort proxy_make_sort(smtlib2_parser_interface* p, const char* sortname,
                              smtlib2_vector* index);
+
+// (Array xx xx)
+smtlib2_sort proxy_make_parametric_sort(smtlib2_parser_interface *p,
+                                      const char *sortname, smtlib2_vector *tps);
 //
 void proxy_declare_variable(smtlib2_parser_interface* p, const char* name,
                             smtlib2_sort sort);

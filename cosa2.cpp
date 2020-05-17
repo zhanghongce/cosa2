@@ -30,6 +30,7 @@
 #include "defaults.h"
 #include "frontends/btor2_encoder.h"
 #include "frontends/smv_encoder.h"
+#include "frontends/smt_property_parser.h"
 #include "interpolant.h"
 #include "kinduction.h"
 #include "printers/btor2_witness_printer.h"
@@ -54,6 +55,7 @@ enum optionIndex
   PROP,
   VERBOSITY,
   VCDNAME,
+  PROPFILE,
   // for detail config
   PDR_ITP_MODE,
   SYGUS_LEMMA_REPAIR_ON,
@@ -97,26 +99,33 @@ struct Arg : public option::Arg
 struct apdr_msat_environment {
     FunctionalTransitionSystem * msat_fts;
     BTOR2Encoder * msat_enc;
+    Smtlib2PropertyParser * smtprop_msat;
     smt::Term prop_msat;
     Property * msat_p;
     apdr_msat_environment(
         smt::SmtSolver & msat,
         const std::string &filename,
+        const std::string &smt_prop_file,
         unsigned prop_idx ):
       msat_fts(new FunctionalTransitionSystem(msat)),
       msat_enc(new BTOR2Encoder(filename, *msat_fts)),
-      prop_msat(msat_enc->propvec()[prop_idx]),
+      smtprop_msat(smt_prop_file.empty()? NULL: (new Smtlib2PropertyParser(msat, *msat_fts)) ),
+      prop_msat(
+        smt_prop_file.empty() ? (msat_enc->propvec()[prop_idx]) :
+        (smtprop_msat->ParsePropertyFromFile(smt_prop_file),smtprop_msat->propvec()[prop_idx]) ),
       msat_p(new Property(*msat_fts, prop_msat))
      {  }
      apdr_msat_environment():
-      msat_fts(NULL), msat_enc(NULL), msat_p(NULL) {}
+      msat_fts(NULL), msat_enc(NULL), smtprop_msat(NULL), msat_p(NULL) {}
      apdr_msat_environment(apdr_msat_environment && a):
-      msat_fts(a.msat_fts), msat_enc(a.msat_enc), prop_msat(a.prop_msat), msat_p(a.msat_p) {
-        a.msat_fts = NULL; a.msat_enc = NULL; a.msat_p = NULL;
+      msat_fts(a.msat_fts), msat_enc(a.msat_enc), smtprop_msat(a.smtprop_msat),
+      prop_msat(a.prop_msat), msat_p(a.msat_p) {
+        a.msat_fts = NULL; a.msat_enc = NULL; a.smtprop_msat = NULL; a.msat_p = NULL;
       }
     apdr_msat_environment(const apdr_msat_environment & ) = delete;
     ~apdr_msat_environment() {
       if (msat_p) delete msat_p;
+      if (smtprop_msat) delete smtprop_msat;
       if (msat_enc) delete msat_enc;
       if (msat_p)  delete msat_fts;
     }
@@ -163,6 +172,12 @@ const option::Descriptor usage[] = {
     "vcd",
     Arg::NonEmpty,
     "  --vcd \tName of Value Change Dump (VCD) if witness exists." },
+  { PROPFILE,
+    0,
+    "",
+    "propfile",
+    Arg::NonEmpty,
+    "  --propfile \tName of the file that supplies extra properties." },
   // pdr configurations
   { PDR_ITP_MODE,
     0,
@@ -276,6 +291,7 @@ int main(int argc, char ** argv)
   unsigned int bound = default_bound;
   unsigned int verbosity = default_verbosity;
   std::string vcd_name;
+  std::string property_file_name;
   unsigned int itp_mode = 0;
   bool strengthen_off = options[STRENGTHEN_OFF] != NULL;
   bool sygus_repair_on = options[SYGUS_LEMMA_REPAIR_ON] != NULL;
@@ -291,6 +307,7 @@ int main(int argc, char ** argv)
       case PROP: prop_idx = atoi(opt.arg); break;
       case VERBOSITY: verbosity = atoi(opt.arg); break;
       case VCDNAME: vcd_name = opt.arg; break;
+      case PROPFILE: property_file_name = opt.arg; break;
       case PDR_ITP_MODE: itp_mode = atoi(opt.arg); break;
       case UNKNOWN_OPTION:
         // not possible because Arg::Unknown returns ARG_ILLEGAL
@@ -357,7 +374,13 @@ int main(int argc, char ** argv)
       logger.log(2, "Parsing BTOR2 file: {}", filename);
       FunctionalTransitionSystem fts(s);
       BTOR2Encoder btor_enc(filename, fts);
-      const TermVec & propvec = btor_enc.propvec();
+      Smtlib2PropertyParser prop_parser(s, fts);
+      if (!property_file_name.empty()) {
+        bool succ = prop_parser.ParsePropertyFromFile(property_file_name);
+        if (!succ)
+          throw CosaException("Parsing property file : " + filename + " failed, with msg :" + prop_parser.GetParserErrorMessage());
+      }
+      const TermVec & propvec = property_file_name.empty() ? btor_enc.propvec() : prop_parser.propvec();
       unsigned int num_props = propvec.size();
       if (prop_idx >= num_props) {
         throw CosaException(
@@ -366,6 +389,7 @@ int main(int argc, char ** argv)
             + " (" + to_string(num_props) + ")");
       }
       Term prop = propvec[prop_idx];
+
       Property p(fts, prop);
       vector<UnorderedTermMap> cex;
 
@@ -374,7 +398,7 @@ int main(int argc, char ** argv)
       }
       
       apdr_msat_environment apdr_env = 
-        engine == APDR ? apdr_msat_environment(second_solver, filename, prop_idx) : 
+        engine == APDR ? apdr_msat_environment(second_solver, filename, property_file_name, prop_idx) : 
                          apdr_msat_environment();
 
       r = check_prop(engine, bound, p, s, second_solver, cex, apdr_env);

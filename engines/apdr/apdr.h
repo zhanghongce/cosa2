@@ -17,7 +17,10 @@
 #pragma once
 
 #include "../sygus/partial_model.h"
+#include "../sygus/opextract.h"
+#include "../sygus/gen_sygus_query.h"
 #include "../prover.h"
+#include "frontends/smtlib2parser.h"
 
 #include "config.h"
 #include "lemma.h"
@@ -126,7 +129,6 @@ protected:
   std::unordered_map<unsigned, unsigned> frames_pushed_idxs_map;
   std::unordered_map<unsigned, unsigned> facts_pushed_idxs_map;
 
-
   const TransitionSystem & ts_msat_;
   const Property & property_msat_;
 
@@ -137,6 +139,12 @@ protected:
   // as itp to msat could result in problem
   smt::TermTranslator to_btor_;
   // no need to cache trans result -- already cached
+  smt::UnorderedTermSet sygus_symbol_;
+  std::unordered_set<std::string> sygus_symbol_names_;
+  sygus::SyGuSTransBuffer sygus_tf_buf_;
+  std::unique_ptr<OpExtractor> op_extract_;
+  std::unique_ptr<sygus::SyGusQueryGen> sygus_query_gen_;
+  Smtlib2Parser smtlib2parser;
 
 
 protected: // frame handling
@@ -152,7 +160,15 @@ protected: // frame handling
   void _add_lemma(Lemma * lemma, unsigned fidx);
   void _add_pushed_lemma(Lemma * lemma, unsigned start, unsigned end);
   void _add_fact(Model * fact, unsigned fidx);
-  
+  const facts_t & _get_fact(unsigned fidx) const;
+
+protected: // sygus related
+  void reset_sygus_syntax();  
+  // returns msat's term
+  smt::Term do_sygus(const smt::Term & prevF_msat, 
+    const smt::Term & prop_msat,
+    const std::vector<Model *> & cexs, const std::vector<Model *> & facts,
+    bool assert_inv_in_prevF);
 
 protected:
   // member class
@@ -168,9 +184,15 @@ public:
   void sanity_check_frame_monotone();
   smt::Result sanity_check_property_at_length_k(const smt::Term & btor_p, unsigned k);
   virtual void dump_frames(std::ostream & os) const override;
+  
+  std::pair<smt::Term, smt::Term> gen_lemma(const smt::Term & Fprev_msat, 
+    const smt::Term & prop_msat,
+    const std::vector<Model *> & cexs, const std::vector<Model *> & facts );
 
   virtual solve_trans_result solveTrans(
-    unsigned prevFidx, const smt::Term & prop_btor, const smt::Term & prop_msat,
+    unsigned prevFidx, 
+    const smt::Term & prop_btor_ptr, const smt::Term & prop_msat_ptr, // or the following
+    std::vector<Model *> models_to_block, std::vector<Model *> models_fact,
     bool remove_prop_in_prev_frame,
     bool use_init, bool findItp, bool get_post_state, FrameCache * fc ) override;
   

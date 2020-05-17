@@ -51,7 +51,9 @@ public:
   virtual smt::SmtSolver & btor() = 0;
   virtual smt::SmtSolver & msat() = 0;
   virtual solve_trans_result solveTrans(
-    unsigned prevFidx, const smt::Term & prop_btor,  const smt::Term & prop_msat,
+    unsigned prevFidx,
+    const smt::Term & prop_btor, const smt::Term & prop_msat, // or the following
+    std::vector<Model *> models_to_block, std::vector<Model *> models_fact,
     bool remove_prop_in_prev_frame,
     bool use_init, bool findItp, bool get_post_state, FrameCache * fc ) = 0;
   virtual bool try_recursive_block(

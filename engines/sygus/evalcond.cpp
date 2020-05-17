@@ -15,8 +15,8 @@
  **/
 
 #include "utils/logger.h"
+#include "utils/container_shortcut.h"
 #include "evalcond.h"
-#include "container_shortcut.h"
 
 #include <cassert>
 #include <queue>

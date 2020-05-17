@@ -17,8 +17,8 @@
 
 #include "apdr.h"
 
-#include "../sygus/container_shortcut.h"
-
+#include "utils/container_shortcut.h"
+#include "utils/term_analysis.h"
 #include "utils/logger.h"
 
 #include <cassert>
@@ -75,23 +75,27 @@ Apdr::Apdr(const Property & p, smt::SmtSolver & s,
   property_msat_(p_msat),
   itp_solver_(itp_solver),
   to_itp_solver_(itp_solver_),
-  to_btor_(solver_)
+  to_btor_(solver_),
+  sygus_symbol_(ts_msat_.states()),
+  sygus_tf_buf_(ts_msat_, ts_),
+  smtlib2parser(msat(), ts_msat_.symbols())
   // cache the transition and init condition formula -- trans/init
   // no need actually.
   // - itp_solver_trans_term_(to_itp_solver_.transfer_term(ts_.trans())),
   // - itp_solver_init_term_(to_itp_solver_.transfer_term(ts_.init()))
-  { 
-    for (auto && v : keep_vars_)
-      keep_vars_nxt_.insert(ts_.next(v));
-    for (auto && v : remove_vars_)
-      remove_vars_nxt_.insert(ts_.next(v));
-    
+  {     
     initialize();
   }
 
 void Apdr::initialize() {
 
   Prover::initialize();
+
+  // vars initialization
+  for (auto && v : keep_vars_)
+    keep_vars_nxt_.insert(ts_.next(v));
+  for (auto && v : remove_vars_)
+    remove_vars_nxt_.insert(ts_.next(v));
 
   // cache partial model getter
   partial_model_getter.CacheNode(ts_.init());
@@ -113,10 +117,28 @@ void Apdr::initialize() {
       ts_.init(), bv_to_bool_msat( ts_msat_.init() , itp_solver_),
       NULL, Lemma::LemmaOrigin::ORIGIN_FROM_INIT) );
   // frames.push_back(frame_t()); // F1 = []
+
+  // sygus state name initialization
+  for (auto && s : sygus_symbol_)
+      sygus_symbol_names_.insert( sygus::name_sanitize( s->to_string()) );
+
+  // extract the operators
+  op_extract_ = std::make_unique<OpExtractor>();
+  op_extract_->WalkBFS(ts_msat_.init());
+  op_extract_->WalkBFS(ts_msat_.trans());
+  op_extract_->RemoveUnusedWidth();
+
+  reset_sygus_syntax();
 }
 
 Apdr::~Apdr() { }
 
+void Apdr::reset_sygus_syntax() {
+  sygus_query_gen_.reset(
+    new sygus::SyGusQueryGen(
+      op_extract_->GetSyntaxConstruct(),
+      sygus_tf_buf_, sygus_symbol_names_, {}));
+}
 
 void Apdr::cut_vars_cur(std::unordered_set<smt::Term> & v) {
   auto pos = v.begin();
@@ -399,12 +421,108 @@ void Apdr::_add_fact(Model * fact, unsigned fidx) {
 // 3. init will be by default the init (will need to trans to msat)
 // 
 
+// init, init_msat_next, T_msat    are pre-computed any way
+
+// lemma_btor and lemma_msat
+std::pair<smt::Term, smt::Term> Apdr::gen_lemma(const smt::Term & prevF_msat, 
+  const smt::Term & prop_msat,
+  const std::vector<Model *> & cexs, const std::vector<Model *> & facts ) {
+    // this is the key point
+  smt::Term itp_msat;
+  smt::Term itp_btor;
+  bool get_itp = false;
+
+  if (GlobalAPdrConfig.LEMMA_GEN_MODE != APdrConfig::LEMMA_GEN_MODE_T::SYGUS_ONLY) {
+    // will do itp anyway
+    smt::Term prop_msat_nxt = ts_msat_.next(prop_msat); 
+    smt::Term A_msat = OR_msat( AND_msat(prevF_msat, T_msat), init_msat_nxt  );
+    smt::Term B_msat = NOT_msat( prop_msat_nxt );
+    // if not using init:
+    // A_msat = AND_msat(prevF_msat, T_msat);
+    // B_msat = NOT_msat(prop_msat_nxt);
+    // will use init anyway 
+    smt::Term itp_msat;
+    get_itp = itp_solver_->get_interpolant(A_msat,B_msat,itp_msat);
+    if (get_itp) {
+      itp_msat = ts_msat_.curr(bv_to_bool_msat(itp_msat, itp_solver_));
+      itp_btor = ts_.curr(to_btor_.transfer_term(itp_msat, ts_.symbols()));
+    } else {
+      itp_msat = itp_btor = nullptr;
+    }
+    /*
+    // statistic feature
+    if (GlobalAPdrConfig.STAT_ITP_STRICTLY_STRONG_CHECK) {
+      auto prop_btor_next = ts_.next( prop_btor );
+      bool equ = is_valid(IFF(prop_btor_next, itp_btor));
+      GlobalAPdrConfig.STAT_ITP_CHECK_COUNT ++;
+      if (equ) {
+        // std::cerr << "-";
+      } else {
+        // std::cerr << "G";
+        GlobalAPdrConfig.STAT_ITP_STRONG_COUNT ++;
+      }
+  }
+  */
+  } // end of interpolant computing
+
+  if (GlobalAPdrConfig.LEMMA_GEN_MODE == APdrConfig::LEMMA_GEN_MODE_T::ITP_ONLY)
+    return std::make_pair(itp_btor, itp_msat);
+
+  bool change_syntax = false;
+  // now sygus feature
+  if (GlobalAPdrConfig.LEMMA_GEN_MODE & APdrConfig::LEMMA_GEN_MODE_T::ITP_VAR_EXTRACT
+      && itp_msat != nullptr) {
+    smt::UnorderedTermSet new_vars;
+    get_free_symbols(itp_msat, new_vars);
+    if (new_vars != sygus_symbol_) {
+      sygus_symbol_ = new_vars;
+
+      sygus_symbol_names_.clear();
+      for (auto && s : sygus_symbol_)
+          sygus_symbol_names_.insert( sygus::name_sanitize( s->to_string()) );
+      
+      change_syntax  = true;
+    }
+  }
+
+  if (GlobalAPdrConfig.LEMMA_GEN_MODE & APdrConfig::LEMMA_GEN_MODE_T::ITP_SYNTAX_EXTRACT) {
+    op_extract_->new_constructs = false;
+    op_extract_->WalkBFS(itp_msat);
+    op_extract_->RemoveUnusedWidth();
+    if (op_extract_->new_constructs)
+      change_syntax = true;
+  }
+
+  if (change_syntax) {
+    // we need to recompute the syntax
+    reset_sygus_syntax(); // use var-set to recompute
+  }
+  // gen exec and extract
+  smt::Term lemma_msat = do_sygus(prevF_msat, prop_msat, cexs, facts, false /*assert inv in previous frame*/);
+  if (lemma_msat != nullptr) {
+    smt::Term lemma_btor = to_btor_.transfer_term(lemma_msat);
+    return std::make_pair(itp_btor, itp_msat);
+  }
+  return std::make_pair(nullptr, nullptr);
+}
+
 Apdr::solve_trans_result Apdr::solveTrans(
-  unsigned prevFidx, const smt::Term & prop_btor, const smt::Term & prop_msat,
+  unsigned prevFidx, const smt::Term & prop_btor_ptr, const smt::Term & prop_msat_ptr,
+  std::vector<Model *> models_to_block, std::vector<Model *> models_fact,
   bool remove_prop_in_prev_frame,
   bool use_init, bool findItp, bool get_post_state, FrameCache * fc ) {
   
   PUSH_STACK; SET_STATE(APdrConfig::APDR_WORKING_STATE_T::SOLVE_TRANS);
+
+  assert (!models_to_block.empty() && prop_btor_ptr !=nullptr);
+  assert (!(models_to_block.empty() && prop_btor_ptr ==nullptr));
+  assert ( (prop_msat_ptr ==nullptr) == (prop_msat_ptr==nullptr) );
+  assert ( models_fact.empty() || (!models_to_block.empty()) );
+  if(!models_to_block.empty())  assert ( models_to_block.size() == 1 );
+
+  // construct ...
+  smt::Term prop_btor = models_to_block.empty() ? prop_btor_ptr : NOT(models_to_block.at(0)->to_expr_btor(solver_));
+  smt::Term prop_msat = models_to_block.empty() ? prop_msat_ptr : NOT_msat(models_to_block.at(0)->to_expr_msat(itp_solver_, to_itp_solver_, ts_msat_.symbols()));
   
   if (findItp)
     assert (use_init); // otherwise the ITP will not include init state!!!
@@ -453,80 +571,25 @@ Apdr::solve_trans_result Apdr::solveTrans(
     POP_STACK;
     return solve_trans_result(NULL, NULL, smt::Term(NULL), smt::Term(NULL));
   }
-  // else unsat and findItp
 
   auto prevF_msat = frame_prop_msat(prevFidx);
-  // auto prop_msat = ( to_itp_solver_.transfer_term(prop_btor) );
-  auto prop_msat_nxt = ts_msat_.next(prop_msat); // (to_itp_solver_.transfer_term(ts_.next(prop_btor)) );
-
-  // auto init_msat_nxt = to_itp_solver_.transfer_term(ts_.next(ts_.init()));
-  // auto T_msat = to_itp_solver_.transfer_term(ts_.trans());
-
   if (remove_prop_in_prev_frame)
     prevF_msat = AND_msat(prevF_msat, prop_msat);
   if (fc && fc->has_lemma_at_frame(prevFidx)) {
     prevF_msat = AND_msat(prevF_msat, fc->conjoin_frame_for_props_msat(prevFidx));
   }
   
-  smt::Term A_msat;
-  smt::Term B_msat;
-  if (use_init) {
-    A_msat = OR_msat( AND_msat(prevF_msat, T_msat), init_msat_nxt  );
-    B_msat = NOT_msat(prop_msat_nxt);
-  } else {
-     A_msat = AND_msat(prevF_msat, T_msat);
-     B_msat = NOT_msat(prop_msat_nxt);
-  }
-
-  D(3,"      [solveTrans] Itp A: {}", A_msat->to_string());
-  D(3,"      [solveTrans] Itp B: {}", B_msat->to_string());
-
-
-  smt::Term itp_msat;
-  bool get_itp = itp_solver_->get_interpolant(A_msat,B_msat,itp_msat);
-#ifdef DEBUG
-  assert (get_itp);
-#else
-  if (!get_itp) {
-    // should we confirm that it is sat?
-    itp_solver_->reset_assertions();
-    itp_solver_->assert_formula(A_msat);
-    itp_solver_->assert_formula(B_msat);
-    auto sanity_check_sat = itp_solver_->check_sat();
-    // in this case btor thinks unsat, but msat thinks sat
-    assert (!sanity_check_sat.is_sat()); // it is obviously wrong
-    logger.log(0, "msat failed to get itp, use prop instead.");
-    // otherwise, 
-    // if we are not able to get interpolant then the best we can do is this
+  smt::Term itp_btor, itp_msat;
+  std::tie(itp_btor, itp_msat) = gen_lemma( prevF_msat, prop_msat, models_to_block, models_fact );
+  if (itp_btor == nullptr || itp_msat == nullptr ) {
+    INFO("Failed to get ITP, use prop instead.");
     POP_STACK;
     return solve_trans_result(NULL, NULL, prop_btor, prop_msat);
-  }
-#endif
-
-  itp_msat = bv_to_bool_msat(itp_msat, itp_solver_);
-  // translate back to btor and map back msat
-  smt::Term itp_btor = to_btor_.transfer_term(itp_msat, ts_.symbols());
-
-  D(3,"      [solveTrans] msat.nxt itp: {}", itp_msat->to_string());
-  D(3,"      [solveTrans] get itp.nxt: {}", itp_btor->to_string());
-
-  assert(ts_.only_next(itp_btor));
-
-  if (GlobalAPdrConfig.STAT_ITP_STRICTLY_STRONG_CHECK) {
-    auto prop_btor_next = ts_.next( prop_btor );
-    bool equ = is_valid(IFF(prop_btor_next, itp_btor));
-    GlobalAPdrConfig.STAT_ITP_CHECK_COUNT ++;
-    if (equ) {
-      // std::cerr << "-";
-    } else {
-      // std::cerr << "G";
-      GlobalAPdrConfig.STAT_ITP_STRONG_COUNT ++;
-    }
   }
 
   // transfer it back to current vars
   POP_STACK;
-  return solve_trans_result(NULL, NULL,ts_.curr(itp_btor), ts_msat_.curr(itp_msat));
+  return solve_trans_result(NULL, NULL,itp_btor, itp_msat);
 } // solveTrans
 
 
@@ -539,7 +602,7 @@ Model * Apdr::get_bad_state_from_property_invalid_after_trans (
   assert(idx >= 0);
   D(2, "    [F{} -> prop]", idx);
   auto trans_result = solveTrans(
-    idx, prop_btor, prop_msat,
+    idx, prop_btor, prop_msat, {}, {},
     /*remove_prop_in_prev*/ false, use_init,
     /*find itp*/ add_itp, /*post state*/ false, /*fc*/ NULL );
   if (trans_result.prev_ex == NULL && add_itp && trans_result.itp != NULL) {
@@ -623,13 +686,13 @@ bool Apdr::do_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex
       return false;
     }
 
-    auto prop_btor_cex = NOT(cex->to_expr_btor(solver_));
-    auto prop_msat_cex = NOT_msat(cex->to_expr_msat(itp_solver_, to_itp_solver_, ts_msat_.symbols()));
-
     D(3, "      [block] check at F{} -> F{} : {}", fidx-1, fidx, prop_btor_cex->to_string());
 
     // check at F Fidx-1 -> F idx 
-    auto trans_result = solveTrans(fidx-1, prop_btor_cex, prop_msat_cex, GlobalAPdrConfig.RM_CEX_IN_PREV,
+    auto trans_result = solveTrans(fidx-1, 
+      nullptr, nullptr, 
+      {cex}, _get_fact(fidx), // okay to use more fact
+      GlobalAPdrConfig.RM_CEX_IN_PREV,
       true /*use_init*/, true /*itp*/, false /*post state*/, NULL /*no fc*/ );
 
 
@@ -683,10 +746,11 @@ bool Apdr::try_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin ce
       return false;
     }
 
-    auto prop_btor_cex = NOT(cex->to_expr_btor(solver_));
-    auto prop_msat_cex = NOT_msat(cex->to_expr_msat(itp_solver_, to_itp_solver_, ts_msat_.symbols()));
     // check at F Fidx-1 -> F idx 
-    auto trans_result = solveTrans(fidx-1, prop_btor_cex, prop_msat_cex, GlobalAPdrConfig.RM_CEX_IN_PREV,
+    auto trans_result = solveTrans(fidx-1, 
+      nullptr, nullptr, 
+      {cex}, _get_fact(fidx), // okay to use more fact
+      GlobalAPdrConfig.RM_CEX_IN_PREV,
       true /*use_init*/, true /*itp*/, false /*post state*/, & frame_cache );
 
     D(3, "      [block-try] check at F{} -> F{} : {}", fidx-1, fidx, prop_btor_cex->to_string());
@@ -859,7 +923,9 @@ void Apdr::push_lemma_from_frame(unsigned fidx) {
       continue;
     D(2, "  [push_lemma F{}] Try pushing lemma l{} to F{}: {}",
       fidx, lemmaIdx, fidx+1, lemma->to_string());
-    auto result = solveTrans(fidx, lemma->expr(), lemma->expr_msat(),
+    auto result = solveTrans(fidx, 
+      lemma->expr(), lemma->expr_msat(),
+      {}, {}, // not blocking / facts -- no synthesis needed here
       false /*rm prop in prev frame*/, false /*use_init*/, false /*itp*/,
       true /*post state*/, NULL /*frame cache*/);
     if (result.prev_ex == NULL) {
