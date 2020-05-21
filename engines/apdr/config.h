@@ -71,7 +71,7 @@ namespace cosa {
       ITP_SYNTAX_EXTRACT = 2,
       ITP_VAR_AND_SYNTAX_EXTRACT = 3, 
       SYGUS_ONLY = 4
-    } LEMMA_GEN_MODE;
+    } LEMMA_GEN_MODE = ITP_ONLY;
 
     std::string CVC4PATH = "/home/hongce/cvc-installs/latest/bin/";
     std::string CVC4QUERY_OUT1 = "sygus-q.sl";

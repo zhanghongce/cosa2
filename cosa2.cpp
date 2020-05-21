@@ -58,6 +58,7 @@ enum optionIndex
   PROPFILE,
   // for detail config
   PDR_ITP_MODE,
+  LEMMA_GEN_MODE,
   SYGUS_LEMMA_REPAIR_ON,
   SYGUS_LEMMA_GEN_ON,
   STRENGTHEN_OFF
@@ -185,6 +186,12 @@ const option::Descriptor usage[] = {
     "itpmode",
     Arg::Numeric,
     "  --itpmode \tInterpolant mode : 0 for normal, 3 for bit-level interpolant" },
+  { LEMMA_GEN_MODE,
+    0,
+    "",
+    "lemma-gen-mode",
+    Arg::Numeric,
+    "  --lemma-gen-mode \tLemma generation : 0(itp) 1(v) 2(syn) 3(all) 4(sygus)" },
   { SYGUS_LEMMA_REPAIR_ON,
     0,
     "",
@@ -293,6 +300,7 @@ int main(int argc, char ** argv)
   std::string vcd_name;
   std::string property_file_name;
   unsigned int itp_mode = 0;
+  unsigned int lemma_gen_mode = GlobalAPdrConfig.LEMMA_GEN_MODE;
   bool strengthen_off = options[STRENGTHEN_OFF] != NULL;
   bool sygus_repair_on = options[SYGUS_LEMMA_REPAIR_ON] != NULL;
   bool sygus_lemma_gen_on = options[SYGUS_LEMMA_GEN_ON] != NULL;
@@ -309,6 +317,7 @@ int main(int argc, char ** argv)
       case VCDNAME: vcd_name = opt.arg; break;
       case PROPFILE: property_file_name = opt.arg; break;
       case PDR_ITP_MODE: itp_mode = atoi(opt.arg); break;
+      case LEMMA_GEN_MODE: lemma_gen_mode = atoi(opt.arg); break;
       case UNKNOWN_OPTION:
         // not possible because Arg::Unknown returns ARG_ILLEGAL
         // which aborts the parse with an error
@@ -344,6 +353,7 @@ int main(int argc, char ** argv)
       GlobalAPdrConfig.USE_SYGUS_REPAIR = sygus_repair_on;
       GlobalAPdrConfig.USE_SYGUS_LEMMA_GEN = sygus_lemma_gen_on;
       GlobalAPdrConfig.BLOCK_CTG = !strengthen_off;
+      GlobalAPdrConfig.LEMMA_GEN_MODE = (APdrConfig::LEMMA_GEN_MODE_T)lemma_gen_mode;
 
       s = BoolectorSolverFactory::create();
       s->set_opt("produce-models", "true");

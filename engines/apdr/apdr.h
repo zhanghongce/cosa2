@@ -117,6 +117,7 @@ protected:
   std::unordered_set<smt::Term> remove_vars_nxt_;
   smt::Term init_msat_nxt;
   smt::Term T_msat;
+  bool has_assumptions;
   void cut_vars_cur(std::unordered_set<smt::Term> & v);
   void put_vars_nxt(const std::unordered_set<smt::Term> & in, std::unordered_set<smt::Term> & out);
   // void cut_vars_nxt(std::unordered_set<smt::Term> & v);
@@ -145,6 +146,7 @@ protected:
   std::unique_ptr<OpExtractor> op_extract_;
   std::unique_ptr<sygus::SyGusQueryGen> sygus_query_gen_;
   Smtlib2Parser smtlib2parser;
+  facts_t empty_fact_; // used by _get_fact
 
 
 protected: // frame handling

@@ -278,30 +278,35 @@ TEST (OpExtract, OpExtractAllMathSat) {
 TEST (SygusGen, SygusGen)  {
     std::string fname = mktemp_btor();
     std::string sygus_file = mktemp();
-    SmtSolver s;
-    s = MsatSolverFactory::create_interpolating_solver();
+    SmtSolver msat;
+    SmtSolver btor;
+    msat = MsatSolverFactory::create_interpolating_solver();
+    btor = BoolectorSolverFactory::create();
 
-    FunctionalTransitionSystem fts(s);
-    BTOR2Encoder btor_enc(fname, fts);
+    FunctionalTransitionSystem fts_msat(msat);
+    BTOR2Encoder btor_enc_msat(fname, fts_msat);
 
-    sygus::SyGuSTransBuffer sygus_buf(fts);
+    FunctionalTransitionSystem fts_btor(btor);
+    BTOR2Encoder btor_enc_btor(fname, fts_btor);
+
+    sygus::SyGuSTransBuffer sygus_buf(fts_msat, fts_btor);
 
     OpExtractor opext;
-    opext.WalkBFS(fts.trans());
-    opext.WalkBFS(fts.init());
+    opext.WalkBFS(fts_msat.trans());
+    opext.WalkBFS(fts_msat.init());
     opext.RemoveUnusedWidth();
     const auto & lang_constructs = opext.GetSyntaxConstruct();
     
     std::unordered_set<std::string> state_name;
-    for (auto && s : fts.states()) {
-      state_name.insert(s->to_string());
+    for (auto && msat : fts_msat.states()) {
+      state_name.insert(msat->to_string());
     }
 
     sygus::SyGusQueryGen sygus_query_gen(lang_constructs, sygus_buf, state_name , {});
     
     {
       std::ofstream fout(sygus_file);
-      sygus_query_gen.GenToFile(fts.init(), {} , {} , fts.init(), true, fout);
+      sygus_query_gen.GenToFile(fts_msat.init(), {} , {} , fts_msat.init(), true, fout);
     }
 
     {
@@ -317,7 +322,7 @@ TEST (SygusGen, SygusGen)  {
     
     smt::Term t;
     {
-      Smtlib2Parser parser(s, fts.symbols());
+      Smtlib2Parser parser(msat, fts_msat.symbols());
       t = parser.ParseSmtFromString(inv_string);
       ASSERT_NE(t, nullptr);
       if (!t) {
