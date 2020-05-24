@@ -66,11 +66,12 @@ namespace cosa {
     const bool SYGUS_USE_FACT = true;
 
     enum LEMMA_GEN_MODE_T {
-      ITP_ONLY = 0,
-      ITP_VAR_EXTRACT = 1,
-      ITP_SYNTAX_EXTRACT = 2,
-      ITP_VAR_AND_SYNTAX_EXTRACT = 3, 
-      SYGUS_ONLY = 4
+      ITP_ONLY = 1,
+      ITP_VAR_EXTRACT = 2,
+      ITP_SYNTAX_EXTRACT = 4,
+      ITP_VAR_AND_SYNTAX_EXTRACT = 6, // 2 + 4
+      SYGUS_ONLY = 8,
+      ITP_AND_SYGUS_NO_SYNTAX_UPDATE = 9 // 8 + 1   
     } LEMMA_GEN_MODE = ITP_ONLY;
 
     std::string CVC4PATH = "/home/hongce/cvc-installs/latest/bin/";

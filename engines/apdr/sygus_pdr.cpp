@@ -37,7 +37,7 @@ smt::Term Apdr::do_sygus(const smt::Term & prevF_msat,
     std::ofstream fout(GlobalAPdrConfig.CVC4QUERY_OUT1);
     if (!fout.is_open())
       throw CosaException("Cannot open " + GlobalAPdrConfig.CVC4QUERY_OUT1 + " for write.");
-    sygus_query_gen_->GenToFile(prevF_msat, facts, cexs, prop_msat, false, fout);
+    sygus_query_gen_->GenToFile(prevF_msat, facts, cexs, prop_msat, false, fout , "");
     fout.close();
   }
 
@@ -82,6 +82,8 @@ smt::Term Apdr::do_sygus(const smt::Term & prevF_msat,
       }
 
       INFO("SyGuS-1 headline: " + line);
+      if (line.find ("CVC4 Error:") != line.npos)
+        throw CosaException("CVC4 error shown by : " + GlobalAPdrConfig.CVC4QUERY_BACK1);
     }
   }
   assert (!succ);
@@ -90,7 +92,7 @@ smt::Term Apdr::do_sygus(const smt::Term & prevF_msat,
     std::ofstream fout(GlobalAPdrConfig.CVC4QUERY_OUT2);
     if (!fout.is_open())
       throw CosaException("Cannot open " + GlobalAPdrConfig.CVC4QUERY_OUT2 + " for write.");
-    sygus_query_gen_->GenToFile(prevF_msat, facts, cexs, prop_msat, true, fout);
+    sygus_query_gen_->GenToFile(prevF_msat, facts, cexs, prop_msat, true, fout, "");
     fout.close();
   }
   succ = true;

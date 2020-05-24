@@ -37,8 +37,8 @@ namespace cosa {
 class BTOR2Encoder
 {
  public:
-  BTOR2Encoder(std::string filename, TransitionSystem & ts)
-      : ts_(ts), solver_(ts.solver())
+  BTOR2Encoder(std::string filename, TransitionSystem & ts, bool name_sanitize = false)
+      : ts_(ts), solver_(ts.solver()), to_sanitize_name_(name_sanitize)
   {
     preprocess(filename);
     parse(filename);
@@ -55,6 +55,8 @@ class BTOR2Encoder
   }
 
  protected:
+  // to saniztize the name
+  std::string name_sanitize(const std::string & s);
   // converts booleans to bitvector of size one
   smt::Term bool_to_bv(const smt::Term & t) const;
   // converts bitvector of size one to boolean
@@ -98,6 +100,7 @@ class BTOR2Encoder
   int64_t idx_;
   bool negated_;
   size_t witness_id_{ 0 };  ///< id of any introduced witnesses for properties
+  bool to_sanitize_name_;
 };
 }  // namespace cosa
 

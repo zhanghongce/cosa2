@@ -72,7 +72,7 @@ states_(ts_msat.states()), next_states_(ts_msat.next_states()), inputs_(ts_msat.
     arg_lists_call_trans_.push_back(name);
   }
 
-  trans_def_ = "(define-fun Trans (" + Join(arg_lists_trans_, " ") +") Bool "
+  trans_def_ = "(define-fun Trans \n    (" + Join(arg_lists_trans_, " ") +")\n    Bool\n     "
     + body_paranthesis_auto(ts_msat.trans()->to_string()) + ")";
   trans_use_ = "(Trans " + Join(arg_lists_call_trans_, " ") + ")";
 
@@ -81,14 +81,14 @@ states_(ts_msat.states()), next_states_(ts_msat.next_states()), inputs_(ts_msat.
   state_arg_def_ = Join(arg_lists_init_, " ");
   state_arg_use_ = Join(arg_lists_call_init_, " ");
 
-  init_def_ = "(define-fun Init (" + state_arg_def_ +") Bool "
+  init_def_ = "(define-fun Init \n    (" + state_arg_def_ +")\n     Bool\n     "
     + body_paranthesis_auto(ts_msat.init()->to_string()) + ")";
   init_use_ = "(Init " + state_arg_use_ + ")";
 
 }
 
 std::string SyGuSTransBuffer::GetFprevDef(const smt::Term & Fprev) const {
-  return ("(define-fun Fprev (" +state_arg_def_+") Bool "
+  return ("(define-fun Fprev \n    (" +state_arg_def_+")\n     Bool\n     "
     + body_paranthesis_auto(Fprev->to_string()) + ")");
 }
 std::string SyGuSTransBuffer::GetFprevUse() const {
@@ -544,8 +544,16 @@ void SyGusQueryGen::GenToFile(
     const cexs_t  & cex_to_block,
     const smt::Term & prop_to_imply,
     bool assert_in_prevF,
-    std::ostream &fout) {
-
+    std::ostream &fout,
+    const std::string & additional_info) {
+  
+  fout << "; ----- INFO SUMMARY -----" << std::endl;
+  fout << "; cex_to_block : " << cex_to_block.size() << std::endl;
+  fout << "; facts_all : " << facts_all.size() << std::endl;
+  fout << "; prop_to_imply : " << (prop_to_imply == nullptr ? "None" : "Y") << std::endl;
+  fout << "; assert_in_prevF : " << (assert_in_prevF ? "Y" : "N") << std::endl;
+  fout << "; additional_info : " << additional_info << std::endl;
+  fout << "; ----- END o INFO SUMMARY -----" << std::endl;
   fout << "(set-logic BV)\n";
   fout << syntax_constraints << std::endl;
   fout << sygus_ts_buf_.GetInitDef() << std::endl;

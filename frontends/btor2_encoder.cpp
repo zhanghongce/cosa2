@@ -182,6 +182,34 @@ TermVec BTOR2Encoder::lazy_convert(const TermVec & tvec) const
 }
 
 
+
+// static helper function
+static std::map<char, std::string> sanitizeTable(
+    {{'<', "__LT__"},    {'>', "__GT__"},    {'\\', "__BACKSLASH__"},
+     {'!', "__NOT__"},   {'~', "__NEG__"},   {'-', "__DASH__"},
+     {'&', "__AND__"},   {'|', "__SEP__"},   {' ', "__SPACE__"},
+     {'*', "__STAR__"},  {'%', "__PERC__"},  {'#', "__BANG__"},
+     {'@', "__AT__"},    {'$', "__DOLLAR__"},{'/', "__SLASH__"},
+     {':', "__COLON__"}, {';', "__SEMICOLON__"},
+     });
+
+// to saniztize the name
+std::string BTOR2Encoder::name_sanitize(const std::string & n) {
+  if(!to_sanitize_name_)
+    return n;
+  
+  std::string outStr;
+  for (unsigned idx = 0; idx < n.length(); ++idx) {
+    char c = n[idx];
+    auto pos = sanitizeTable.find(c);
+    if (pos != sanitizeTable.end())
+      outStr += pos->second;
+    else
+      outStr += c;
+  }
+  return outStr;
+}
+
 // to handle the case where yosys generate sth. like this
 // state (with no name)
 // output (with name)
@@ -221,7 +249,7 @@ void BTOR2Encoder::preprocess(const std::string& filename) {
         // in such case, we record that we can name if with this new name
         auto state_name_pos = state_renaming_table.find(*pos);
         if ( state_name_pos == state_renaming_table.end() ) {
-          state_renaming_table.insert(std::make_pair(*pos, l_->symbol));
+          state_renaming_table.insert(std::make_pair(*pos, name_sanitize(l_->symbol) ));
         } // otherwise we already have a name for it, then just ignore this one
       }
     } // end of if input
@@ -286,7 +314,7 @@ void BTOR2Encoder::parse(const std::string& filename)
      * ********************************/
     if (l_->tag == BTOR2_TAG_state) {
       if (l_->symbol) {
-        symbol_ = l_->symbol;
+        symbol_ = name_sanitize(l_->symbol);
       } else {
         auto renaming_lookup_pos = state_renaming_table.find(l_->id);
         if (renaming_lookup_pos != state_renaming_table.end() )
@@ -304,7 +332,7 @@ void BTOR2Encoder::parse(const std::string& filename)
       num_states++;
     } else if (l_->tag == BTOR2_TAG_input) {
       if (l_->symbol) {
-        symbol_ = l_->symbol;
+        symbol_ = name_sanitize(l_->symbol);
       } else {
         symbol_ = "input" + to_string(l_->id);
       }
@@ -313,7 +341,7 @@ void BTOR2Encoder::parse(const std::string& filename)
       inputsvec_.push_back(input);
     } else if (l_->tag == BTOR2_TAG_output) {
       if (l_->symbol) {
-        symbol_ = l_->symbol;
+        symbol_ = name_sanitize(l_->symbol);
       } else {
         symbol_ = "output" + to_string(l_->id);
       }
@@ -717,7 +745,7 @@ void BTOR2Encoder::parse(const std::string& filename)
     if (l_->symbol && l_->tag != BTOR2_TAG_input && l_->tag != BTOR2_TAG_output
         && l_->tag != BTOR2_TAG_state && terms_.find(l_->id) != terms_.end()) {
       try {
-        ts_.name_term(l_->symbol, terms_.at(l_->id));
+        ts_.name_term(name_sanitize(l_->symbol), terms_.at(l_->id));
       }
       catch (CosaException & e) {
         logger.log(1, "BTOR2Encoder Warning: {}", e.what());

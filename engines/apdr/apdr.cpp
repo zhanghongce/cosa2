@@ -540,12 +540,14 @@ std::pair<smt::Term, smt::Term> Apdr::gen_lemma(const smt::Term & prevF_msat,
     reset_sygus_syntax(); // use var-set to recompute
   }
   // gen exec and extract
-  smt::Term lemma_msat = do_sygus(prevF_msat, prop_msat, cexs, facts, false /*assert inv in previous frame*/);
+  smt::Term lemma_msat = do_sygus(prevF_msat, 
+    cexs.empty() ? prop_msat : nullptr, // depends on whether we use cexs or not
+    cexs, facts, false /*assert inv in previous frame*/);
   if (lemma_msat != nullptr) {
     smt::Term lemma_btor = to_btor_.transfer_term(lemma_msat, ts_.symbols());
     return std::make_pair(lemma_btor, lemma_msat);
   }
-
+  // at this point, sygus lemma gen has failed
   if (GlobalAPdrConfig.LEMMA_GEN_MODE != APdrConfig::LEMMA_GEN_MODE_T::SYGUS_ONLY) {
     if (get_itp && itp_msat != nullptr && itp_btor != nullptr) {
       D(3, "         [lemma-gen] sygus failed, use itp instead.");
@@ -564,8 +566,8 @@ Apdr::solve_trans_result Apdr::solveTrans(
   
   PUSH_STACK; SET_STATE(APdrConfig::APDR_WORKING_STATE_T::SOLVE_TRANS);
 
-  assert ( (models_to_block.empty()) ^ (prop_btor_ptr ==nullptr) );
-  assert ( (prop_msat_ptr ==nullptr) == (prop_msat_ptr==nullptr) );
+  assert ( (models_to_block.empty()) != (prop_btor_ptr ==nullptr) );
+  assert ( (prop_msat_ptr ==nullptr) == (prop_btor_ptr==nullptr) );
   assert ( models_fact.empty() || (!models_to_block.empty()) );
   if(!models_to_block.empty())  assert ( models_to_block.size() == 1 );
 

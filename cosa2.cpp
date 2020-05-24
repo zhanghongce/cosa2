@@ -109,7 +109,7 @@ struct apdr_msat_environment {
         const std::string &smt_prop_file,
         unsigned prop_idx ):
       msat_fts(new FunctionalTransitionSystem(msat)),
-      msat_enc(new BTOR2Encoder(filename, *msat_fts)),
+      msat_enc(new BTOR2Encoder(filename, *msat_fts, true)),
       smtprop_msat(smt_prop_file.empty()? NULL: (new Smtlib2PropertyParser(msat, *msat_fts)) ),
       prop_msat(
         smt_prop_file.empty() ? (msat_enc->propvec()[prop_idx]) :
@@ -383,7 +383,7 @@ int main(int argc, char ** argv)
     if (file_ext == "btor2" || file_ext == "btor") {
       logger.log(2, "Parsing BTOR2 file: {}", filename);
       FunctionalTransitionSystem fts(s);
-      BTOR2Encoder btor_enc(filename, fts);
+      BTOR2Encoder btor_enc(filename, fts, true);
       Smtlib2PropertyParser prop_parser(s, fts);
       if (!property_file_name.empty()) {
         bool succ = prop_parser.ParsePropertyFromFile(property_file_name);

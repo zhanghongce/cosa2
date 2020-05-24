@@ -100,7 +100,8 @@ public:
     const cexs_t  & cex_to_block,
     const smt::Term & prop_to_imply,
     bool assert_in_prevF,
-    std::ostream &fout);
+    std::ostream &fout,
+    const std::string & additional_info);
 
 protected:
   // -- get on demand

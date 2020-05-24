@@ -306,7 +306,7 @@ TEST (SygusGen, SygusGen)  {
     
     {
       std::ofstream fout(sygus_file);
-      sygus_query_gen.GenToFile(fts_msat.init(), {} , {} , fts_msat.init(), true, fout);
+      sygus_query_gen.GenToFile(fts_msat.init(), {} , {} , fts_msat.init(), true, fout, "");
     }
 
     {
