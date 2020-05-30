@@ -28,112 +28,124 @@
 
 namespace cosa {
 
+static smt::Term EXEC_OP(const std::string & outfile, const std::string & infile, const std::string & text,
+  bool assert_in_prev, bool use_syntax, unsigned time_limit, const std::vector<std::string> & cmd_args,
+  bool & succ, bool & timeout, unsigned & time_used,
+  sygus::SyGusQueryGen *sygus_query_gen_, 
+  Smtlib2Parser & smtlib2parser,
+
+  const smt::Term & prevF_msat, 
+  const smt::Term & prop_msat,
+  const std::vector<Model *> & cexs,
+  const std::vector<Model *> & facts) {
+    
+    {
+      std::ofstream fout(outfile);
+      if (!fout.is_open())
+        throw CosaException("Cannot open " + outfile + " for write.");
+      sygus_query_gen_->GenToFile(prevF_msat, facts, cexs, prop_msat, assert_in_prev, use_syntax, fout , "");      \
+      fout.close();
+    }
+    succ = true;
+    timeout = false;
+    {
+      std::vector<std::string> cmd = (cmd_args);
+      cmd.push_back(outfile);
+      auto res = timed_execute(cmd, infile, BOTH, time_limit);
+      if (res.timeout) {
+        INFO(text + " timeout, exceed: {}" , time_limit);
+        timeout = true;
+        succ = false;
+      }
+      if (succ) {
+        std::ifstream fin(infile);
+        std::string line;
+        std::getline(fin, line);
+        if (line.find("unsat") == line.npos)
+          succ = false;
+        if (succ) {
+          std::stringstream buf;
+          buf << fin.rdbuf();
+          if (buf.str().find("Error") != std::string::npos) {
+            succ = false;
+            INFO(text + " output contains error.");
+            throw CosaException("Unable to parser sygus result from file: " + infile);
+          }
+          if(succ) {
+            time_used = (unsigned) res.seconds;
+            auto ret_term = smtlib2parser.ParseSmtFromString(buf.str());
+            if (ret_term != nullptr)
+              return ret_term;
+            throw CosaException("Unable to parser sygus result from file: " + infile);
+            succ = false;
+          }
+        }
+        INFO(text + " headline: " + line);
+        if (line.find ("Error") != line.npos || line.find ("error") != line.npos)
+          throw CosaException("CVC4 error shown by : " + infile);
+      }
+    }
+    return nullptr;
+  }
+
+
 smt::Term Apdr::do_sygus(const smt::Term & prevF_msat, 
   const smt::Term & prop_msat,
   const std::vector<Model *> & cexs, const std::vector<Model *> & facts,
   bool assert_inv_in_prevF) {
   
-  { // write to file
-    std::ofstream fout(GlobalAPdrConfig.CVC4QUERY_OUT1);
-    if (!fout.is_open())
-      throw CosaException("Cannot open " + GlobalAPdrConfig.CVC4QUERY_OUT1 + " for write.");
-    sygus_query_gen_->GenToFile(prevF_msat, facts, cexs, prop_msat, false, fout , "");
-    fout.close();
-  }
-
   // then execute 1. first try pbe, if fail try no-pbe
   std::string cvc4_full_path = "cvc4";
   if (!GlobalAPdrConfig.CVC4PATH.empty())
     cvc4_full_path = os_portable_append_dir(GlobalAPdrConfig.CVC4PATH, cvc4_full_path );
 
   bool succ = true;
-  {
-    std::vector<std::string> cmd = {cvc4_full_path};
-    cmd.push_back("--lang=sygus2");
-    cmd.push_back(GlobalAPdrConfig.CVC4QUERY_OUT1);
-    auto res = timed_execute(cmd, GlobalAPdrConfig.CVC4QUERY_BACK1, BOTH, GlobalAPdrConfig.SYGUS_PBE_TIME_LIMIT);
-    if (res.timeout) {
-      INFO("SyGuS-1 timeout.");
-      succ = false;
-    }
+  bool time_out = false;
+  unsigned time_used;
 
-    if (succ) {
-      std::ifstream fin(GlobalAPdrConfig.CVC4QUERY_BACK1);
-      std::string line;
-      std::getline(fin, line);
-      if (line.find("unsat") == line.npos) // if we don't have unsat
-        succ = false;
-      if (succ) {
-        std::stringstream buf;
-        buf << fin.rdbuf();
-        if (buf.str().find("Error") != std::string::npos) {
-          succ = false;
-          INFO("SyGuS-1 output contains error.");
-          throw CosaException("Unable to parser sygus result from file: " + GlobalAPdrConfig.CVC4QUERY_BACK1);
-        }
-        if(succ) {
-          auto ret_term = smtlib2parser.ParseSmtFromString(buf.str());
-          if (ret_term != nullptr)
-            return ret_term;
-          throw CosaException("Unable to parser sygus result from file: " + GlobalAPdrConfig.CVC4QUERY_BACK1);
-          // else
-          succ = false;
-        }
-      }
-
-      INFO("SyGuS-1 headline: " + line);
-      if (line.find ("CVC4 Error:") != line.npos)
-        throw CosaException("CVC4 error shown by : " + GlobalAPdrConfig.CVC4QUERY_BACK1);
-    }
+  smt::Term ret = EXEC_OP(GlobalAPdrConfig.CVC4QUERY_OUT1, GlobalAPdrConfig.CVC4QUERY_BACK1,
+    "SYGUS-1", false, true, GlobalAPdrConfig.SYGUS_PBE_TIME_LIMIT,
+    {cvc4_full_path,"--lang=sygus2"}, 
+    succ, time_out, time_used,
+    sygus_query_gen_.get(), smtlib2parser, 
+    prevF_msat, prop_msat, {}, facts);
+  if (ret != nullptr) {
+    // GlobalAPdrConfig.SYGUS_PBE_TIME_LIMIT = time_used*2;
+    return ret;
   }
+  
+  assert (!succ);
+
+  ret = EXEC_OP(GlobalAPdrConfig.CVC4QUERY_OUT_NO_SYNTAX, GlobalAPdrConfig.CVC4QUERY_BACK_NO_SYNTAX,
+    "SYGUS-1-nogrammar", false, false, GlobalAPdrConfig.SYGUS_PBE_TIME_LIMIT,
+    {cvc4_full_path,"--lang=sygus2"},
+    succ, time_out, time_used,
+    sygus_query_gen_.get(), smtlib2parser, 
+    prevF_msat, prop_msat, {}, facts);
+
+  if (ret != nullptr) {
+    // GlobalAPdrConfig.SYGUS_PBE_TIME_LIMIT = time_used*2;
+    return ret;
+  }
+
+  if (time_out)
+    GlobalAPdrConfig.SYGUS_PBE_TIME_LIMIT *= 2;
+
   assert (!succ);
   
-  { // try the second method
-    std::ofstream fout(GlobalAPdrConfig.CVC4QUERY_OUT2);
-    if (!fout.is_open())
-      throw CosaException("Cannot open " + GlobalAPdrConfig.CVC4QUERY_OUT2 + " for write.");
-    sygus_query_gen_->GenToFile(prevF_msat, facts, cexs, prop_msat, true, fout, "");
-    fout.close();
+  ret = EXEC_OP(GlobalAPdrConfig.CVC4QUERY_OUT2, GlobalAPdrConfig.CVC4QUERY_BACK2,
+    "SYGUS-2", true, true, GlobalAPdrConfig.SYGUS_NO_PBE_TIME_LIMIT,
+    {cvc4_full_path,"--lang=sygus2","--no-sygus-pbe"},
+    succ, time_out, time_used,
+    sygus_query_gen_.get(), smtlib2parser, 
+    prevF_msat, prop_msat, cexs, facts);
+  if (ret != nullptr) {
+    // GlobalAPdrConfig.SYGUS_NO_PBE_TIME_LIMIT = time_used*2;
+    return ret;
   }
-  succ = true;
-  {
-    std::vector<std::string> cmd = {cvc4_full_path};
-    cmd.push_back("--lang=sygus2");
-    cmd.push_back("--no-sygus-pbe");
-    cmd.push_back(GlobalAPdrConfig.CVC4QUERY_OUT2);
-    auto res = timed_execute(cmd, GlobalAPdrConfig.CVC4QUERY_BACK2, BOTH, GlobalAPdrConfig.SYGUS_PBE_TIME_LIMIT);
-    if (res.timeout) {
-      INFO("SyGuS-2 timeout.");
-      succ = false;
-    }
 
-    if (succ) {
-      std::ifstream fin(GlobalAPdrConfig.CVC4QUERY_BACK2);
-      std::string line;
-      std::getline(fin, line);
-      if (line.find("unsat") == line.npos) // if we don't have unsat
-        succ = false;
-      if (succ) {
-        std::stringstream buf;
-        buf << fin.rdbuf();
-        if (buf.str().find("Error") != std::string::npos) {
-          succ = false;
-          INFO("SyGuS-2 output contains error.");
-          throw CosaException("Unable to parser sygus result from file: " + GlobalAPdrConfig.CVC4QUERY_BACK2);
-        }
-        if(succ) {
-          auto ret_term = smtlib2parser.ParseSmtFromString(buf.str());
-          if (ret_term != nullptr)
-            return ret_term;
-          throw CosaException("Unable to parser sygus result from file: " + GlobalAPdrConfig.CVC4QUERY_BACK2);
-          // else
-          succ = false;
-        }
-      }
-
-      INFO("SyGuS-2 headline: " + line);
-    }
-  }
+  if (time_out)
+    GlobalAPdrConfig.SYGUS_NO_PBE_TIME_LIMIT *= 2;
 
   assert (!succ);
   INFO("SyGuS 1&2 both failed.");

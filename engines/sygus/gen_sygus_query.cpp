@@ -67,8 +67,10 @@ states_(ts_msat.states()), next_states_(ts_msat.next_states()), inputs_(ts_msat.
   for (const auto &s : inputs_) {
     auto name = name_sanitize(s->to_string());
     auto sort = s->get_sort()->to_string();
-    prime_var_def_ += "(declare-var " + name + " " + sort + ")\n";
+    input_var_def_ += "(declare-var " + name + " " + sort + ")\n";
+    arg_lists_init_.push_back("("+name + " " + sort+")");
     arg_lists_trans_.push_back("("+name + " " + sort+")");
+    arg_lists_call_init_.push_back(name);
     arg_lists_call_trans_.push_back(name);
   }
 
@@ -222,8 +224,14 @@ static std::string syntax_constraints_template = R"**(
 
 )**";
 
+
+static std::string syntax_no_constraints_template = R"**(
+(synth-fun INV 
+   %args% Bool)
+)**";
+
 SyGusQueryGen::SyGusQueryGen(
-  const SyntaxStructureT & syntax,
+  const SyntaxStructure & syntax,
   const SyGuSTransBuffer & sygus_ts_buf,
   const std::unordered_set<std::string> & keep_vars_name,
   const std::unordered_set<std::string> & remove_vars_name) :
@@ -234,18 +242,13 @@ SyGusQueryGen::SyGusQueryGen(
   std::vector<std::string> inv_def_vars;
   // std::vector<std::string> inv_use_vars;
 
-  for (auto && w_cnstr : syntax_) {
+  syntax_.CutVars(keep_vars_name, remove_vars_name);
+  syntax_.RemoveUnusedStructure();
+
+  for (auto && w_cnstr : syntax_.GetSyntaxConstruct()) {
     auto width = w_cnstr.first;
     const auto & cnstr = w_cnstr.second;
     for (const auto & name : cnstr.symbol_names) {
-      if (!keep_vars_name.empty() && !IN(name ,keep_vars_name ) &&
-          !IN(name_sanitize(name) ,keep_vars_name ) && 
-          !IN(name_desanitize(name) ,keep_vars_name ) )
-        continue;
-      if (IN(name, remove_vars_name) || 
-          IN(name_sanitize(name),remove_vars_name) ||
-          IN(name_desanitize(name),remove_vars_name) )
-        continue;
       new_variable_set_[width].insert(name);
       inv_def_vars.push_back("("+ name + " " + width_to_type(width) + ")" );
       ordered_vars.push_back(name);
@@ -266,15 +269,12 @@ SyGusQueryGen::SyGusQueryGen(
 void SyGusQueryGen::generate_syntax_cnstr_string() {
   typedef std::vector<std::string> stvec;
   // 1. refilter again the vars
-  remove_unused_width(); // -> reachable_width
   stvec comps_list;
   stvec nonterminal_list;
   std::string evcs;
-
-  for (auto width : reachable_width) {
-    if (!IN(width, syntax_))
-      continue;
-    const auto & syn = syntax_.at(width);
+  for (auto && width_syn_pair : syntax_.GetSyntaxConstruct()) {
+    auto width = width_syn_pair.first;
+    const auto & syn = width_syn_pair.second;
     std::unordered_set<std::string> empty_vars;
     const auto & var = IN(width, new_variable_set_) ? new_variable_set_.at(width) : empty_vars ;
 
@@ -415,50 +415,13 @@ void SyGusQueryGen::generate_syntax_cnstr_string() {
       "%nonterminals%", Join(nonterminal_list, " ") ),
       "%comps%", Join(comps_list, " ")),
       "%evcs%", evcs);
+      
+  syntax_no_constraints = 
+    ReplaceAll(syntax_no_constraints_template,
+      "%args%", "(" + inv_def_var_list + ")");
 } // SyGusQueryGen::generate_syntax_cnstr_string()
 
 
-void SyGusQueryGen::remove_unused_width() {
-  //std::unordered_set<width_t> start_set;
-  std::unordered_map<width_t, std::unordered_set<width_t>> use_map;
-  std::queue<width_t> q;
-
-  for (auto && width_cnstr : syntax_) {
-    auto width = width_cnstr.first;
-    const auto & cnstr = width_cnstr.second;
-    
-    if ( (IN(width, new_variable_set_) && !new_variable_set_.at(width).empty()) ||
-        !cnstr.constants.empty()) {
-      q.push(width);
-      use_map[width].insert(width);
-    }
-
-    if (!cnstr.op_unary.empty() || !cnstr.op_binary.empty() || !cnstr.op_concat.empty())
-      use_map[width].insert(width);
-    for (const auto & exd: cnstr.op_extend)
-      use_map[width].insert(exd.input_width);
-    for (const auto & extract: cnstr.op_extract)
-      use_map[width].insert(extract.input_width);
-    for (const auto & concats: cnstr.op_concat) {
-      use_map[width].insert(concats.width1);      
-      use_map[width].insert(concats.width2);      
-    }   
-  } // for each width
-
-  // now do the graph reach algorithm
-  while(!q.empty()) {
-    width_t cur = q.front();
-    q.pop();
-
-    for (auto dstw : use_map[cur]) {
-      if(!IN(dstw,reachable_width )) {
-        reachable_width.insert(dstw);
-        q.push(dstw);
-      }
-    }
-  } // while queue is not empty
-
-} // RemoveUnusedWidth
 
 bool SyGusQueryGen::contains_extra_var(Model * m) const {
   for ( auto && v_val : m->cube ) {
@@ -469,11 +432,12 @@ bool SyGusQueryGen::contains_extra_var(Model * m) const {
 } // SyGusQueryGen::contains_extra_var
 
 // return true if there are cex left
-bool SyGusQueryGen::dump_cex_block(
+unsigned SyGusQueryGen::dump_cex_block(
   const cexs_t  & cex_to_block, 
   const SyGuSTransBuffer & sygus_ts_buf,
   std::ostream & os) {
 
+  unsigned n_cex = 0;
   // use_var_name to find the states and do an index into it
   const auto & symbols = sygus_ts_buf.ts_btor_.symbols(); // we expect models are from btor
   for (auto model_ptr : cex_to_block) {
@@ -493,14 +457,17 @@ bool SyGusQueryGen::dump_cex_block(
       }
     } // for each v in INV
     os << ")))\n";
+    n_cex ++;
   }
+  return n_cex;
 } // SyGusQueryGen::dump_cex_block
 
 // return true if there are fact left
-bool SyGusQueryGen::dump_fact_allow(
+unsigned SyGusQueryGen::dump_fact_allow(
   const facts_t  & facts_all, 
   const SyGuSTransBuffer & sygus_ts_buf,
   std::ostream & os) {
+  unsigned n_fact = 0;
   for (auto model_ptr : facts_all) {
     std::string constraint = "(constraint (INV";
     bool skip_this_fact = false;
@@ -522,7 +489,9 @@ bool SyGusQueryGen::dump_fact_allow(
       continue;
     constraint += "))\n";
     os << constraint;
+    n_fact ++;
   } // for each fact
+  return n_fact;
 } // SyGusQueryGen::dump_fact_allow
 
 
@@ -544,6 +513,7 @@ void SyGusQueryGen::GenToFile(
     const cexs_t  & cex_to_block,
     const smt::Term & prop_to_imply,
     bool assert_in_prevF,
+    bool use_syntax,
     std::ostream &fout,
     const std::string & additional_info) {
   
@@ -552,10 +522,16 @@ void SyGusQueryGen::GenToFile(
   fout << "; facts_all : " << facts_all.size() << std::endl;
   fout << "; prop_to_imply : " << (prop_to_imply == nullptr ? "None" : "Y") << std::endl;
   fout << "; assert_in_prevF : " << (assert_in_prevF ? "Y" : "N") << std::endl;
+  fout << "; use_syntax : " << (use_syntax ? "Y" : "N") << std::endl;
   fout << "; additional_info : " << additional_info << std::endl;
-  fout << "; ----- END o INFO SUMMARY -----" << std::endl;
+  fout << "; ----- END of INFO SUMMARY -----\n" << std::endl;
   fout << "(set-logic BV)\n";
-  fout << syntax_constraints << std::endl;
+  
+  if (use_syntax)
+    fout << syntax_constraints << std::endl;
+  else
+    fout << syntax_no_constraints << std::endl;
+
   fout << sygus_ts_buf_.GetInitDef() << std::endl;
   fout << std::endl;
   fout << sygus_ts_buf_.GetTransDef() << std::endl;
@@ -570,12 +546,14 @@ void SyGusQueryGen::GenToFile(
   
   // facts  -- filter needed with more vars
   fout << std::endl;
-  dump_cex_block(cex_to_block, sygus_ts_buf_, fout);
+  unsigned n_cex = dump_cex_block(cex_to_block, sygus_ts_buf_, fout);
   fout << std::endl;
   dump_fact_allow(facts_all, sygus_ts_buf_, fout);
   fout << std::endl;
   dump_inv_imply_prop(prop_to_imply, sygus_ts_buf_, fout);
   fout << std::endl;
+
+  assert (!(n_cex == 0 && prop_to_imply == nullptr));
 
   // imply  // '(constraint (=> (and (Fminus2 {argV}) (Tr {argV} {argP})) (INV {argInvP})))'
   if (assert_in_prevF)

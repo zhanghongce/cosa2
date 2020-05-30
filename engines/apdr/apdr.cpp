@@ -117,11 +117,13 @@ void Apdr::initialize() {
   for (auto && v : remove_vars_)
     remove_vars_nxt_.insert(ts_.next(v));
 
-  // cache partial model getter
-  partial_model_getter.CacheNode(ts_.init());
-  // create the cache of next vars in 
-  for (const auto & nxt : ts_.state_updates()) {
-    partial_model_getter.CacheNode(nxt.second);
+  if (GlobalAPdrConfig.CACHE_PARTIAL_MODEL_CONDITION) {
+    // cache partial model getter
+    partial_model_getter.CacheNode(ts_.init());
+    // create the cache of next vars in 
+    for (const auto & nxt : ts_.state_updates()) {
+      partial_model_getter.CacheNode(nxt.second);
+    }
   }
 
   // cache msat expression
@@ -146,7 +148,10 @@ void Apdr::initialize() {
   op_extract_ = std::make_unique<OpExtractor>();
   op_extract_->WalkBFS(ts_msat_.init());
   op_extract_->WalkBFS(ts_msat_.trans());
-  op_extract_->RemoveUnusedWidth();
+  op_extract_->GetSyntaxConstruct().RemoveConcat();
+  op_extract_->GetSyntaxConstruct().RemoveExtract();
+  op_extract_->GetSyntaxConstruct().AddBvultBvule();
+  op_extract_->GetSyntaxConstruct().RemoveUnusedStructure();
 
   reset_sygus_syntax();
 }
@@ -484,6 +489,7 @@ std::pair<smt::Term, smt::Term> Apdr::gen_lemma(const smt::Term & prevF_msat,
     if (get_itp) {
       itp_msat = ts_msat_.curr(bv_to_bool_msat(itp_msat, itp_solver_));
       itp_btor = to_btor_.transfer_term(itp_msat, ts_.symbols());
+      D(2, "         [lemma-gen] get itp {}.", itp_msat->to_string());
     } else {
       D(1, "         [lemma-gen] interpolation failed.");
       D(1, "            [A_msat] : ", A_msat->to_string());
@@ -511,8 +517,8 @@ std::pair<smt::Term, smt::Term> Apdr::gen_lemma(const smt::Term & prevF_msat,
 
   bool change_syntax = false;
   // now sygus feature
-  if (GlobalAPdrConfig.LEMMA_GEN_MODE & APdrConfig::LEMMA_GEN_MODE_T::ITP_VAR_EXTRACT
-      && itp_msat != nullptr) {
+  if ( (GlobalAPdrConfig.LEMMA_GEN_MODE & APdrConfig::LEMMA_GEN_MODE_T::ITP_VAR_EXTRACT)
+      && (itp_msat != nullptr)) {
     smt::UnorderedTermSet new_vars;
     get_free_symbols(itp_msat, new_vars);
     if (new_vars != sygus_symbol_) {
@@ -526,31 +532,35 @@ std::pair<smt::Term, smt::Term> Apdr::gen_lemma(const smt::Term & prevF_msat,
     }
   }
 
-  if (GlobalAPdrConfig.LEMMA_GEN_MODE & APdrConfig::LEMMA_GEN_MODE_T::ITP_SYNTAX_EXTRACT) {
-    op_extract_->new_constructs = false;
+  if ( (GlobalAPdrConfig.LEMMA_GEN_MODE & APdrConfig::LEMMA_GEN_MODE_T::ITP_SYNTAX_EXTRACT) 
+       && (itp_msat != nullptr)  ) {
+    op_extract_->GetSyntaxConstruct().new_constructs = false;
     op_extract_->WalkBFS(itp_msat);
-    op_extract_->RemoveUnusedWidth();
-    if (op_extract_->new_constructs)
+    if (op_extract_->GetSyntaxConstruct().new_constructs)
       change_syntax = true;
   }
 
   if (change_syntax) {
     // we need to recompute the syntax
-    D(3, "         [lemma-gen] sygus syntax updated");
-    reset_sygus_syntax(); // use var-set to recompute
+    D(2, "         [lemma-gen] sygus syntax updated");
+    reset_sygus_syntax( /*will use new op_extract*/ ); // use var-set to recompute
   }
+
   // gen exec and extract
   smt::Term lemma_msat = do_sygus(prevF_msat, 
-    cexs.empty() ? prop_msat : nullptr, // depends on whether we use cexs or not
+    prop_msat,
+    // cexs.empty() ? prop_msat : nullptr, // depends on whether we use cexs or not
     cexs, facts, false /*assert inv in previous frame*/);
   if (lemma_msat != nullptr) {
+    D(2, "         [lemma-gen] sygus: {}", lemma_msat->to_string());
     smt::Term lemma_btor = to_btor_.transfer_term(lemma_msat, ts_.symbols());
     return std::make_pair(lemma_btor, lemma_msat);
   }
   // at this point, sygus lemma gen has failed
   if (GlobalAPdrConfig.LEMMA_GEN_MODE != APdrConfig::LEMMA_GEN_MODE_T::SYGUS_ONLY) {
     if (get_itp && itp_msat != nullptr && itp_btor != nullptr) {
-      D(3, "         [lemma-gen] sygus failed, use itp instead.");
+      D(2, "         [lemma-gen] sygus failed, use itp instead.");
+      D(2, "         [lemma-gen] itp: {}", itp_msat->to_string());
       return std::make_pair(itp_btor, itp_msat);
     }
   }
@@ -598,7 +608,7 @@ Apdr::solve_trans_result Apdr::solveTrans(
   }
 
   D(3,"      [solveTrans] Property: {} , v=>v', useinit: {}", prop_btor->to_string(), use_init  );
-  D(3,"      [solveTrans] formula : {}", F_to_check->to_string());
+  D(4,"      [solveTrans] formula : {}", F_to_check->to_string());
 
   solver_->push();
   solver_->assert_formula(F_to_check);

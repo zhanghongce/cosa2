@@ -173,8 +173,8 @@ TEST (OpExtract, OpExtractAllBtor) {
     OpExtractor opext;
     std::cout << "Expr:" <<  p10->to_string() << std::endl;
     opext.WalkBFS(p10);
-    opext.RemoveUnusedWidth();
-    const auto & lang_constructs = opext.GetSyntaxConstruct();
+    opext.GetSyntaxConstruct().RemoveUnusedStructure();
+    const auto & lang_constructs = opext.GetSyntaxConstruct().GetSyntaxConstruct();
     std::cout << "Syntax width " ;
     for (auto && w_c : lang_constructs) {
       std::cout << w_c.first << " " ;
@@ -254,8 +254,8 @@ TEST (OpExtract, OpExtractAllMathSat) {
     OpExtractor opext;
     std::cout << "Expr:" <<  p10->to_string() << std::endl;
     opext.WalkBFS(p10);
-    opext.RemoveUnusedWidth();
-    const auto & lang_constructs = opext.GetSyntaxConstruct();
+    opext.GetSyntaxConstruct().RemoveUnusedStructure();
+    const auto & lang_constructs = opext.GetSyntaxConstruct().GetSyntaxConstruct();
     std::cout << "Syntax width " ;
     for (auto && w_c : lang_constructs) {
       std::cout << w_c.first << " " ;
@@ -294,7 +294,7 @@ TEST (SygusGen, SygusGen)  {
     OpExtractor opext;
     opext.WalkBFS(fts_msat.trans());
     opext.WalkBFS(fts_msat.init());
-    opext.RemoveUnusedWidth();
+    opext.GetSyntaxConstruct().RemoveUnusedStructure();
     const auto & lang_constructs = opext.GetSyntaxConstruct();
     
     std::unordered_set<std::string> state_name;
@@ -306,7 +306,7 @@ TEST (SygusGen, SygusGen)  {
     
     {
       std::ofstream fout(sygus_file);
-      sygus_query_gen.GenToFile(fts_msat.init(), {} , {} , fts_msat.init(), true, fout, "");
+      sygus_query_gen.GenToFile(fts_msat.init(), {} , {} , fts_msat.init(), true,true, fout, "");
     }
 
     {

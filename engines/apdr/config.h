@@ -24,6 +24,8 @@ namespace cosa {
 
   struct APdrConfig {
     unsigned MAX_FRAME   = 10000000;
+    // Partial model gen
+    bool CACHE_PARTIAL_MODEL_CONDITION = false;
 
     // SyGuS related
     bool     USE_SYGUS_REPAIR = false;
@@ -77,11 +79,13 @@ namespace cosa {
     std::string CVC4PATH = "/home/hongce/cvc-installs/latest/bin/";
     std::string CVC4QUERY_OUT1 = "sygus-q.sl";
     std::string CVC4QUERY_BACK1 = "sygus-a.smt2";
+    std::string CVC4QUERY_OUT_NO_SYNTAX = "sygus-nogrammar-q.sl";
+    std::string CVC4QUERY_BACK_NO_SYNTAX = "sygus-nogrammar-a.smt2";
     std::string CVC4QUERY_OUT2 = "sygus-enum-q.sl";
     std::string CVC4QUERY_BACK2 = "sygus-enum-a.smt2";
     bool SYGUS_ASSERT_LEMMA_IN_PREV_FRAME = true; // same as RM_CEX_IN_PREV
-    unsigned SYGUS_PBE_TIME_LIMIT = 30;
-    unsigned SYGUS_NO_PBE_TIME_LIMIT = 30;
+    unsigned SYGUS_PBE_TIME_LIMIT = 300;
+    unsigned SYGUS_NO_PBE_TIME_LIMIT = 300;
 
     // ------------- STATISTICS tracking ---------------------------------
     bool STAT_ITP_STRICTLY_STRONG_CHECK = true;

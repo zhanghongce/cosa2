@@ -63,8 +63,8 @@ public:
   std::string_view GetPrimeVarDef() const { return prime_var_def_; }
   std::string_view GetInputVarDef() const { return input_var_def_; }
 
-  std::string_view GetStateArgDef() const { return state_arg_def_; }
-  std::string_view GetStateArgUse() const { return state_arg_use_; }
+  //std::string_view GetStateArgDef() const { return state_arg_def_; }
+  //std::string_view GetStateArgUse() const { return state_arg_use_; }
   std::string GetFprevDef(const smt::Term & Fprev) const;
   std::string GetFprevUse() const;
   
@@ -88,7 +88,7 @@ public:
   typedef std::vector<Model *> cexs_t;
 
   SyGusQueryGen(
-    const SyntaxStructureT & syntax,
+    const SyntaxStructure & syntax,
     const SyGuSTransBuffer & sygus_ts_buf,
     const std::unordered_set<std::string> & keep_vars_name,
     const std::unordered_set<std::string> & remove_vars_name
@@ -100,6 +100,7 @@ public:
     const cexs_t  & cex_to_block,
     const smt::Term & prop_to_imply,
     bool assert_in_prevF,
+    bool use_syntax,
     std::ostream &fout,
     const std::string & additional_info);
 
@@ -108,7 +109,7 @@ protected:
   // smt::Term prev_;
   // const facts_t & facts_;
   // const cexs_t  & cexs_;
-  const SyntaxStructureT & syntax_;
+  SyntaxStructure syntax_;
   const SyGuSTransBuffer & sygus_ts_buf_;
   std::unordered_map<uint64_t, std::unordered_set<std::string>> 
     new_variable_set_;
@@ -126,21 +127,21 @@ protected:
   // use : new_variable_set_, syntax_, inv_def_var_list
   // create : syntax_constraints
   std::string syntax_constraints;
+  std::string syntax_no_constraints;
   void generate_syntax_cnstr_string();
   // output : reachable_width
-  std::unordered_set<width_t> reachable_width;
   void remove_unused_width();
   
   bool contains_extra_var(Model * m) const;
   // no need for contains fewer var because
   // we can iterate through the vars
 
-  bool dump_cex_block(
+  unsigned dump_cex_block(
     const cexs_t  & cex_to_block, 
     const SyGuSTransBuffer & sygus_ts_buf,
     std::ostream & os);
   
-  bool dump_fact_allow(
+  unsigned dump_fact_allow(
     const facts_t  & facts_all, 
     const SyGuSTransBuffer & sygus_ts_buf,
     std::ostream & os);

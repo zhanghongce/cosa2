@@ -18,90 +18,8 @@
 #include "utils/container_shortcut.h"
 
 #include <cassert>
-#include <queue>
 
 namespace cosa {
-
-namespace sygus{ 
-
-
-std::string name_sanitize(const std::string &s) {
-  if (s.length() > 2 && s.front() == '|' && s.back() == '|')
-    return s; // already | |
-  bool need_separator = false;
-  for (auto pos = s.begin(); pos != s.end(); ++pos) {
-    char c = *pos;
-    if (isalnum(c))
-      continue;
-    if (c == '.' || c == '-' )
-      continue;
-    if (c == '_' && pos != s.begin())
-      continue;
-    // else
-    need_separator = true;
-    break;
-  }
-  if (need_separator)
-    return "|" + s + "|";
-  return s;
-}
-
-std::string name_desanitize(const std::string &s) {
-  if (s.length() > 2 && s.front() == '|' && s.back() == '|')
-    return s.substr(1,s.length()-2); // already | |
-  return s;
-}
-
-
-// ------------------------------------------------------
-
-
-bool operator==(const concat_t & a, const concat_t & b) {
-  return ( (a.width1 == b.width1) && (a.width2 == b.width2) );
-}
-bool operator==(const extract_t & a, const extract_t & b) {
-  return ( (a.h == b.h) && (a.l == b.l) && (a.input_width == b.input_width) );
-}
-bool operator==(const rotate_t & a, const rotate_t & b) {
-  return ( (a.op == b.op) && (a.param == b.param) );
-}
-bool operator==(const extend_t & a, const extend_t & b) {
-  return ( (a.input_width == b.input_width) && (a.op == b.op) && (a.extw == b.extw) );
-}
-
-template <class T>
-inline size_t hash_combine(std::size_t seed, const T& v)
-{
-    std::hash<T> hasher;
-    seed ^= hasher(v) + 0x9e3779b9 + (seed<<6) + (seed>>2);
-    return seed;
-}
-
-size_t concat_hash::operator() (const concat_t & t) const {
-  std::hash<uint64_t> hasher;
-  return hash_combine(hasher(t.width2), t.width2);
-}
-
-size_t extract_hash::operator() (const extract_t & t) const {
-  std::hash<uint64_t> hasher;
-  return hash_combine(hash_combine(hasher(t.h), t.l), t.input_width);
-}
-
-size_t rotate_hash::operator() (const rotate_t & t) const {
-  std::hash<uint64_t> hasher;
-  return hash_combine(hasher(t.param), t.op);
-}
-
-size_t extend_hash::operator() (const extend_t & t) const {
-  std::hash<uint64_t> hasher;
-  return hash_combine(hash_combine(hasher(t.input_width), t.extw), t.op);
-}
-
-
-} // namespace sygus
-
-
-// ------------------------------------------------------
 
 bool OpExtractor::Skip(const smt::Term & ast) {
   return IN(ast, walked_nodes_);
@@ -130,22 +48,13 @@ void OpExtractor::PreChild(const smt::Term & ast) {
   else
     return; // we don't handle other cases
 
-  if ( !IN(width, constructs) ) {
-    constructs.insert(std::make_pair(width, sygus::BvConstructs()));
-    new_constructs = true;
-  }
-  sygus::BvConstructs & cnstr = constructs.at(width);
 
   if(ast->is_symbolic_const()) {
     // use ast->to_string()
-    auto res = cnstr.symbol_names.insert( sygus::name_sanitize ( ast->to_string()));
-    if(res.second)
-      new_constructs = true; // indeed inserted
+    constructs.insert_symbol(width, ast->to_string());
   } else if (ast->is_value()) {
     // use ast->to_string()
-    auto res = cnstr.constants.insert(ast->to_string());
-    if(res.second)
-      new_constructs = true; // indeed inserted
+    constructs.insert_const(width, ast->to_string());
   } else { // we will hope it is op
     smt::Op op;
     try {
@@ -159,9 +68,8 @@ void OpExtractor::PreChild(const smt::Term & ast) {
     switch (op.prim_op) {
       case smt::PrimOp::Not:
       case smt::PrimOp::BVNeg:
-      case smt::PrimOp::BVNot: {
-        auto res = cnstr.op_unary.insert(op.prim_op); 
-        new_constructs = res.second ? true: new_constructs; break; }
+      case smt::PrimOp::BVNot: 
+        constructs.insert_op_unary(width, op.prim_op); break;
       case smt::PrimOp::And:
       case smt::PrimOp::Or:
       case smt::PrimOp::Xor:
@@ -183,15 +91,10 @@ void OpExtractor::PreChild(const smt::Term & ast) {
       case smt::PrimOp::BVSmod:
       case smt::PrimOp::BVShl:
       case smt::PrimOp::BVAshr:
-      case smt::PrimOp::BVLshr: {
-        auto res = cnstr.op_binary.insert(op.prim_op); 
-        new_constructs = res.second ? true: new_constructs; 
-         break; }
-
+      case smt::PrimOp::BVLshr: 
+        constructs.insert_op_binary(width, op.prim_op); break;
       case smt::PrimOp::BVComp: // equal 
-        {
-        auto res = cnstr.op_comp.insert(smt::PrimOp::BVComp);
-        new_constructs = res.second ? true: new_constructs;  break; }
+        constructs.insert_op_comp(width, smt::PrimOp::Equal); break;
       case smt::PrimOp::Equal:
       case smt::PrimOp::Distinct:
       case smt::PrimOp::BVUlt:
@@ -201,23 +104,19 @@ void OpExtractor::PreChild(const smt::Term & ast) {
       case smt::PrimOp::BVSlt:
       case smt::PrimOp::BVSle:
       case smt::PrimOp::BVSgt:
-      case smt::PrimOp::BVSge: {
-        auto res = cnstr.op_comp.insert(op.prim_op);
-        new_constructs = res.second ? true: new_constructs;  break; }
-
+      case smt::PrimOp::BVSge: 
+        constructs.insert_op_comp(width, op.prim_op); break;
       case smt::PrimOp::Concat:
         {
           ARG2
-          auto res = cnstr.op_concat.insert(sygus::concat_t(a1->get_sort()->get_width(),a2->get_sort()->get_width())); 
-          new_constructs = res.second ? true: new_constructs;
+          constructs.insert_concat(width, sygus::concat_t(a1->get_sort()->get_width(),a2->get_sort()->get_width())); break;
         }
         break;
       case smt::PrimOp::Extract:
         assert (op.num_idx == 2);
         {
           ARG1
-          auto res = cnstr.op_extract.insert(sygus::extract_t(a1->get_sort()->get_width(),op.idx0,op.idx1)); 
-          new_constructs = res.second ? true: new_constructs;
+          constructs.insert_extract(width, sygus::extract_t(a1->get_sort()->get_width(),op.idx0,op.idx1)); 
         }
         break;
       
@@ -225,8 +124,7 @@ void OpExtractor::PreChild(const smt::Term & ast) {
         assert (op.num_idx == 1);
         {
           ARG1
-          auto res = cnstr.op_extend.insert(sygus::extend_t(op.prim_op, op.idx0, a1->get_sort()->get_width())); 
-          new_constructs = res.second ? true: new_constructs;
+          constructs.insert_extend(width, sygus::extend_t(op.prim_op, op.idx0, a1->get_sort()->get_width()));
         }
         break;
 
@@ -234,8 +132,7 @@ void OpExtractor::PreChild(const smt::Term & ast) {
         assert (op.num_idx == 1);
         {
           ARG1
-          auto res = cnstr.op_extend.insert(sygus::extend_t(op.prim_op, op.idx0, a1->get_sort()->get_width())); 
-          new_constructs = res.second ? true: new_constructs;
+          constructs.insert_extend(width, sygus::extend_t(op.prim_op, op.idx0, a1->get_sort()->get_width()));
         }
         break;
 
@@ -243,8 +140,7 @@ void OpExtractor::PreChild(const smt::Term & ast) {
       case smt::PrimOp::Rotate_Left:
       case smt::PrimOp::Rotate_Right: {
         assert (op.num_idx == 1);
-        auto res = cnstr.op_rotate.insert(sygus::rotate_t(op.prim_op, op.idx0));
-        new_constructs = res.second ? true: new_constructs;
+        constructs.insert_rotate(width, sygus::rotate_t(op.prim_op, op.idx0));
         break; }
       default: // do nothing
         break;
@@ -255,58 +151,6 @@ void OpExtractor::PreChild(const smt::Term & ast) {
 void OpExtractor::PostChild(const smt::Term & ast) {
 
 }
-
-
-void OpExtractor::RemoveUnusedWidth() {
-  typedef uint64_t width_t;
-  //std::unordered_set<width_t> start_set;
-  std::unordered_map<width_t, std::unordered_set<width_t>> use_map;
-
-  std::unordered_set<width_t> reachable_set;
-  std::queue<width_t> q;
-
-
-  for (auto && width_cnstr : constructs) {
-    auto width = width_cnstr.first;
-    const auto & cnstr = width_cnstr.second;
-    if (!cnstr.constants.empty() || 
-        !cnstr.symbol_names.empty()) {
-      q.push(width);
-      use_map[width].insert(width);
-    }
-    if (!cnstr.op_unary.empty() || !cnstr.op_binary.empty() || !cnstr.op_concat.empty())
-      use_map[width].insert(width);
-    for (const auto & exd: cnstr.op_extend)
-      use_map[width].insert(exd.input_width);
-    for (const auto & extract: cnstr.op_extract)
-      use_map[width].insert(extract.input_width);
-    for (const auto & concats: cnstr.op_concat) {
-      use_map[width].insert(concats.width1);      
-      use_map[width].insert(concats.width2);      
-    }   
-  }
-
-  // now do the graph reach algorithm
-  while(!q.empty()) {
-    width_t cur = q.front();
-    q.pop();
-
-    for (auto dstw : use_map[cur]) {
-      if(!IN(dstw,reachable_set )) {
-        reachable_set.insert(dstw);
-        q.push(dstw);
-      }
-    }
-  } // while queue is not empty
-  auto pos = constructs.begin();
-  while (pos != constructs.end()) {
-    if (IN(pos->first, reachable_set))
-      ++pos;
-    else
-      pos = constructs.erase(pos);
-  } // remove not in reachable set
-
-} // RemoveUnusedWidth
 
 
 } // namespace cosa
