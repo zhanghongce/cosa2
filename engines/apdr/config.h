@@ -31,7 +31,6 @@ namespace cosa {
     bool     USE_SYGUS_REPAIR = false;
     bool     USE_SYGUS_REPAIR_LEMMA_MAY_BLOCK = true;
     bool     USE_FACT_IN_SYGUS_REPAIR = false;
-    bool     USE_SYGUS_LEMMA_GEN = false;
 
     // later we may introduce the possiblity to avoid
     // msat's interpolant, but not now
@@ -60,7 +59,19 @@ namespace cosa {
     bool COI_CACHING_ENABLE = true;
     bool MSAT_INTERPOLANT_ENABLE = true;
 
-    // ------------- SyGuS Configuration ---------------------------------
+    // ------------- Internal SyGuS Configuration ---------------------------------
+    bool COMP_DEFAULT_OVERRIDE = true;
+    bool COMP_DEFAULT_BVULTULE = true;
+    uint64_t STARTING_CONJ_DEPTH = 3;
+    uint64_t EXTRACT_DEGENERATE_THRESHOLD = 3;
+    enum SYGUS_MODE_T {
+      NONE = 0,
+      INTERNAL = 1,
+      EXTERNAL = 2,
+      HYBRID = 3
+    } SYGUS_MODE = SYGUS_MODE_T::INTERNAL;
+
+    // ------------- CVC4 SyGuS Configuration ---------------------------------
 
     const bool SYGUS_EXPAND_VALUES = false;
     const bool SYGUS_USE_TRANS = true;

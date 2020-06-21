@@ -39,6 +39,9 @@ std::string IntToStrCustomBase(uint64_t value, unsigned base, bool uppercase) {
   return ret;
 }
 
+unsigned long long StrToULongLong(const std::string& str, int base) {
+  return std::stoull(str, NULL, base);
+}
 
 /// Trim a string from start (in place)
 void StrLeftTrim(std::string& s) {

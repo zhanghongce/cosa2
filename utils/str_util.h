@@ -48,6 +48,8 @@ std::vector<std::string> SplitSpaceTabEnter(const std::string& str);
 /// Transform int to string with different bases
 std::string IntToStrCustomBase(uint64_t value, unsigned base, bool uppercase);
 
+/// Return the value represented in the string in unsigned long long, e.g. "10".
+unsigned long long StrToULongLong(const std::string& str, int base);
 
 /// Python-style join, return a string that joins the list by the delim
 std::string Join(const std::vector<std::string>& in, const std::string& delim);

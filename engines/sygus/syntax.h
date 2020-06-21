@@ -29,26 +29,47 @@ namespace sygus {
 
   std::string name_sanitize(const std::string &); 
   std::string name_desanitize(const std::string &s);
+  uint64_t get_width_of_var(const smt::Term & v);
+  smt::Term smt_string_to_const_term(const std::string & val, smt::SmtSolver & s);
+  bool is_primop_symmetry(smt::PrimOp);
 
-  struct concat_t  {
+  struct sygus_op {
+    virtual smt::Op to_smt_op() const = 0;
+  };
+
+  struct concat_t : public sygus_op {
     uint64_t width1; uint64_t width2;
     concat_t(uint64_t w1, uint64_t w2) :
       width1(w1), width2(w2) { }
+    
+    virtual smt::Op to_smt_op() const override {
+      return smt::Op(smt::PrimOp::Concat);
+    }
+
   };
-  struct extract_t {
+  struct extract_t : public sygus_op {
     uint64_t input_width, h, l;
     extract_t(uint64_t iw, uint64_t _h, uint64_t _l) :
       input_width(iw), h(_h), l(_l) { }
+    virtual smt::Op to_smt_op() const override {
+      return smt::Op(smt::PrimOp::Extract, h, l);
+    }
   };
-  struct rotate_t  {
+  struct rotate_t : public sygus_op {
     smt::PrimOp op; uint64_t param;
     rotate_t(smt::PrimOp _op, uint64_t _param) :
       op(_op), param(_param) { }
+    virtual smt::Op to_smt_op() const override {
+      return smt::Op(op, param);
+    }
   };
-  struct extend_t  {
+  struct extend_t : public sygus_op {
     smt::PrimOp op; uint64_t extw, input_width;
     extend_t(smt::PrimOp _op, uint64_t _extw, uint64_t _iw) :
       op(_op), extw(_extw), input_width(_iw) { }
+    virtual smt::Op to_smt_op() const override {
+      return smt::Op(op, extw);
+    }
   };
 
   class concat_hash {
@@ -124,6 +145,8 @@ namespace sygus {
     void RemoveConcat();
     void AddBvultBvule();
 
+    static smt::Term const_to_term(const std::string & val, smt::SmtSolver & s);
+    
   protected:
     SyntaxT syntax_;
 

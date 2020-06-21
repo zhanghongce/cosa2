@@ -150,13 +150,26 @@ void Apdr::initialize() {
   op_extract_->WalkBFS(ts_msat_.trans());
   op_extract_->GetSyntaxConstruct().RemoveConcat();
   op_extract_->GetSyntaxConstruct().RemoveExtract();
-  op_extract_->GetSyntaxConstruct().AddBvultBvule();
+  if (GlobalAPdrConfig.COMP_DEFAULT_OVERRIDE && GlobalAPdrConfig.COMP_DEFAULT_BVULTULE)
+    op_extract_->GetSyntaxConstruct().AddBvultBvule();
   op_extract_->GetSyntaxConstruct().RemoveUnusedStructure();
 
   reset_sygus_syntax();
+
+  // cache the two lambda functions
+  btor_var_to_msat_func_ = [&] (const smt::Term & v) -> smt::Term {
+    return to_itp_solver_.transfer_term(v, ts_msat_.symbols());
+  };
+  to_next_func_ = [&] (const smt::Term & v) -> smt::Term {
+    return ts_.next(v);
+  };
+
+  sygus_enum::Enumerator::ClearCache(); // initially clear cache
 }
 
-Apdr::~Apdr() { }
+Apdr::~Apdr() {
+  sygus_enum::Enumerator::ClearCache(); // finally: make sure terms are destructed first
+}
 
 void Apdr::reset_sygus_syntax() {
   sygus_query_gen_.reset(
@@ -468,8 +481,11 @@ const Apdr::facts_t & Apdr::_get_fact(unsigned fidx) const {
 // init, init_msat_next, T_msat    are pre-computed any way
 
 // lemma_btor and lemma_msat
-std::pair<smt::Term, smt::Term> Apdr::gen_lemma(const smt::Term & prevF_msat, 
+std::pair<smt::Term, smt::Term> Apdr::gen_lemma(
+  const smt::Term & prevF_msat,
+  const smt::Term & prevF_btor, 
   const smt::Term & prop_msat,
+  const smt::Term & prop_btor,
   const std::vector<Model *> & cexs, const std::vector<Model *> & facts ) {
     // this is the key point
   smt::Term itp_msat;
@@ -547,8 +563,8 @@ std::pair<smt::Term, smt::Term> Apdr::gen_lemma(const smt::Term & prevF_msat,
   }
 
   // gen exec and extract
-  smt::Term lemma_msat = do_sygus(prevF_msat, 
-    prop_msat,
+  smt::Term lemma_msat = do_sygus(prevF_msat,  prevF_btor,
+    prop_msat, prop_btor,
     // cexs.empty() ? prop_msat : nullptr, // depends on whether we use cexs or not
     cexs, facts, false /*assert inv in previous frame*/);
   if (lemma_msat != nullptr) {
@@ -626,7 +642,7 @@ Apdr::solve_trans_result Apdr::solveTrans(
     Model * post_ex = get_post_state ? new_model(post_varlist) : NULL;
     solver_->pop();
 
-    if(has_assumptions) {
+    if(!has_assumptions) {
       CHECK_MODEL(solver_, F_to_check, prev_ex);
     }
 
@@ -647,7 +663,8 @@ Apdr::solve_trans_result Apdr::solveTrans(
   }
   
   smt::Term lemma_btor, lemma_msat;
-  std::tie(lemma_btor, lemma_msat) = gen_lemma( prevF_msat, prop_msat, models_to_block, models_fact );
+  std::tie(lemma_btor, lemma_msat) = gen_lemma( prevF_msat, prevF_btor,
+    prop_msat, prop_btor, models_to_block, models_fact );
   if (lemma_btor == nullptr || lemma_msat == nullptr ) {
     INFO("Failed to get ITP, use prop instead.");
     POP_STACK;
@@ -759,7 +776,7 @@ bool Apdr::do_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex
 
     // check at F Fidx-1 -> F idx 
     auto trans_result = solveTrans(fidx-1, 
-      nullptr, nullptr, 
+      nullptr, nullptr, // prop_btor & prop_msat 
       {cex}, _get_fact(fidx), // okay to use more fact
       GlobalAPdrConfig.RM_CEX_IN_PREV,
       true /*use_init*/, true /*itp*/, false /*post state*/, NULL /*no fc*/ );

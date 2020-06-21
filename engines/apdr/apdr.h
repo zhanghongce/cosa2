@@ -16,10 +16,11 @@
  
 #pragma once
 
-#include "../sygus/partial_model.h"
-#include "../sygus/opextract.h"
-#include "../sygus/gen_sygus_query.h"
-#include "../prover.h"
+#include "engines/sygus/partial_model.h"
+#include "engines/sygus/opextract.h"
+#include "engines/sygus/gen_sygus_query.h"
+#include "engines/sygus/enum.h"
+#include "engines/prover.h"
 #include "frontends/smtlib2parser.h"
 
 #include "config.h"
@@ -86,6 +87,9 @@ public:
     bool operator() (const fcex_t & l, const fcex_t & r) {
       return l.first > r.first;
     } };
+
+  using btor_var_to_msat_t = sygus_enum::Enumerator::btor_var_to_msat_t;
+  using to_next_t = sygus_enum::Enumerator::to_next_t;
   
 public:
   // inherited interfaces
@@ -148,6 +152,9 @@ protected:
   Smtlib2Parser smtlib2parser;
   facts_t empty_fact_; // used by _get_fact
 
+  // cache the two lambda function
+  btor_var_to_msat_t btor_var_to_msat_func_;
+  to_next_t to_next_func_;
 
 protected: // frame handling
   virtual smt::Term frame_prop_btor(unsigned fidx) const override;
@@ -168,7 +175,9 @@ protected: // sygus related
   void reset_sygus_syntax();  
   // returns msat's term
   smt::Term do_sygus(const smt::Term & prevF_msat, 
+    const smt::Term & prevF_btor,
     const smt::Term & prop_msat,
+    const smt::Term & prop_btor,
     const std::vector<Model *> & cexs, const std::vector<Model *> & facts,
     bool assert_inv_in_prevF);
 
@@ -187,8 +196,11 @@ public:
   smt::Result sanity_check_property_at_length_k(const smt::Term & btor_p, unsigned k);
   virtual void dump_frames(std::ostream & os) const override;
   
-  std::pair<smt::Term, smt::Term> gen_lemma(const smt::Term & Fprev_msat, 
+  std::pair<smt::Term, smt::Term> gen_lemma(
+    const smt::Term & Fprev_msat, 
+    const smt::Term & Fprev_btor, 
     const smt::Term & prop_msat,
+    const smt::Term & prop_btor,
     const std::vector<Model *> & cexs, const std::vector<Model *> & facts );
 
   virtual solve_trans_result solveTrans(

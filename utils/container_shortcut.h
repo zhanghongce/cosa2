@@ -56,4 +56,17 @@ const typename MAP::mapped_type& get_with_default(const MAP& m,
     return it->second;
 }
 
+template<class T> bool is_union_empty(
+    const std::unordered_set<T> & a, 
+    const std::unordered_set<T> & b) {
+
+  const std::unordered_set<T> & small = a.size() < b.size() ? a : b;
+  const std::unordered_set<T> & big = a.size() < b.size() ? b : a;
+  for(auto && p : small) {
+    if (big.find(p) != big.end())
+      return false;
+  }
+  return true;
+}
+
 }  // namespace cosa

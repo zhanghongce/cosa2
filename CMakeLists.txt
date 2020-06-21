@@ -109,6 +109,7 @@ add_library(cosa2 "${COSA2_LIB_TYPE}"
   "${PROJECT_SOURCE_DIR}/engines/sygus/gen_sygus_query.cpp"
   "${PROJECT_SOURCE_DIR}/engines/sygus/partial_model.cpp"
   "${PROJECT_SOURCE_DIR}/engines/sygus/syntax.cpp"
+  "${PROJECT_SOURCE_DIR}/engines/sygus/enum.cpp"
   "${PROJECT_SOURCE_DIR}/engines/apdr/apdr.cpp"
   "${PROJECT_SOURCE_DIR}/engines/apdr/framecache.cpp"
   "${PROJECT_SOURCE_DIR}/engines/apdr/lemma.cpp"
@@ -122,7 +123,7 @@ target_include_directories(cosa2 PUBLIC
   "${PROJECT_SOURCE_DIR}/contrib/optionparser-1.7/src"
   "${PROJECT_SOURCE_DIR}/deps/btor2tools/src"
   "${PROJECT_SOURCE_DIR}/deps/smt-switch/local/include"
-  "${PROJECT_SOURCE_DIR}/deps/smtlib2parser/include/smtparser"
+  "${PROJECT_SOURCE_DIR}/deps/smtlib2parser/include"
   # generated Bison headers go in build directory
   "${CMAKE_CURRENT_BINARY_DIR}"
   )

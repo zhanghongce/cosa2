@@ -146,9 +146,9 @@ exec_result_t timed_execute(
   gettimeofday(&Time1, NULL);
 
 #if defined(__linux__)
-  pipe2(pipefd, O_CLOEXEC); // pipe2 is linux only feature!
+  int p = pipe2(pipefd, O_CLOEXEC); // pipe2 is linux only feature!
 #elif defined(__unix__) || defined(unix) || defined(__APPLE__) || defined(__MACH__) ||  defined(__FreeBSD__)
-  pipe(pipefd);
+  int p = pipe(pipefd);
 #endif
 
   // on *nix, spawn a child process to do this
@@ -185,7 +185,7 @@ exec_result_t timed_execute(
         logger.log(0, "Failed to open " + redirect_output_file);
         perror(NULL);
         report_to_parent = exec_result_t::PREIO;
-        write(pipefd[1], (void *) & report_to_parent, sizeof(report_to_parent));
+        size_t l = write(pipefd[1], (void *) & report_to_parent, sizeof(report_to_parent));
         exit(1);
       }
       if (rdt & exec_redirect_t::STDOUT)
@@ -203,7 +203,7 @@ exec_result_t timed_execute(
     char * argv[MAX_ARG];
     if (cmdargs.size() >= MAX_ARG) {
       report_to_parent = exec_result_t::ARG;
-      write(pipefd[1], (void *) & report_to_parent, sizeof(report_to_parent));
+      size_t l = write(pipefd[1], (void *) & report_to_parent, sizeof(report_to_parent));
       exit(1);
     }
 
@@ -217,13 +217,13 @@ exec_result_t timed_execute(
     argv[ cmdargs.size() ] = NULL;
 
     report_to_parent = exec_result_t::NONE;
-    write(pipefd[1], (void *) & report_to_parent, sizeof(report_to_parent));
+    size_t l = write(pipefd[1], (void *) & report_to_parent, sizeof(report_to_parent));
 
     int ret = execvp(cmdargs[0].c_str(), argv);
     // if not successful
     if (ret == -1) {
       report_to_parent = exec_result_t::EXEC;
-      write(pipefd[1], (void *) & report_to_parent, sizeof(report_to_parent));
+      size_t l = write(pipefd[1], (void *) & report_to_parent, sizeof(report_to_parent));
     }
     close(pipefd[1]);
     exit(ret);

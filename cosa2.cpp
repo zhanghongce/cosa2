@@ -59,8 +59,7 @@ enum optionIndex
   // for detail config
   PDR_ITP_MODE,
   LEMMA_GEN_MODE,
-  SYGUS_LEMMA_REPAIR_ON,
-  SYGUS_LEMMA_GEN_ON,
+  INTERNAL_SYGUS_BVCOMP,
   STRENGTHEN_OFF
   
 };
@@ -191,19 +190,13 @@ const option::Descriptor usage[] = {
     "",
     "lemma-gen-mode",
     Arg::Numeric,
-    "  --lemma-gen-mode \tLemma generation : 0(itp) 1(v) 2(syn) 3(all) 4(sygus)" },
-  { SYGUS_LEMMA_REPAIR_ON,
+    "  --lemma-gen-mode \tLemma generation : 1(itp) 2(v) 4(syn) 6(all) 8(sygus-only) 9(itp-sygus-nosyn-update)" },
+  { INTERNAL_SYGUS_BVCOMP,
     0,
     "",
-    "sygus-repair",
-    Arg::None,
-    "  --sygus-repair \tEnable SyGuS for lemma repairing" },
-  { SYGUS_LEMMA_GEN_ON,
-    0,
-    "",
-    "sygus-summary",
-    Arg::None,
-    "  --sygus-summary \tEnable SyGuS for lemma summary" },
+    "bvcomp",
+    Arg::Numeric,
+    "  --bvcomp \tbits: 4(bvult) 2(bvule) 1(override)" },
   { STRENGTHEN_OFF,
     0,
     "",
@@ -302,8 +295,7 @@ int main(int argc, char ** argv)
   unsigned int itp_mode = 0;
   unsigned int lemma_gen_mode = GlobalAPdrConfig.LEMMA_GEN_MODE;
   bool strengthen_off = options[STRENGTHEN_OFF] != NULL;
-  bool sygus_repair_on = options[SYGUS_LEMMA_REPAIR_ON] != NULL;
-  bool sygus_lemma_gen_on = options[SYGUS_LEMMA_GEN_ON] != NULL;
+  unsigned int bvcomp_mode = 0; // 000 no bvult, no bvule, no override
 
   for (int i = 0; i < parse.optionsCount(); ++i) {
     option::Option & opt = buffer[i];
@@ -318,6 +310,7 @@ int main(int argc, char ** argv)
       case PROPFILE: property_file_name = opt.arg; break;
       case PDR_ITP_MODE: itp_mode = atoi(opt.arg); break;
       case LEMMA_GEN_MODE: lemma_gen_mode = atoi(opt.arg); break;
+      case INTERNAL_SYGUS_BVCOMP: bvcomp_mode = atoi(opt.arg); break;
       case UNKNOWN_OPTION:
         // not possible because Arg::Unknown returns ARG_ILLEGAL
         // which aborts the parse with an error
@@ -350,10 +343,10 @@ int main(int argc, char ** argv)
     } else if (engine == APDR) {
       #ifdef WITH_MSAT
       // need mathsat for interpolant based model checking
-      GlobalAPdrConfig.USE_SYGUS_REPAIR = sygus_repair_on;
-      GlobalAPdrConfig.USE_SYGUS_LEMMA_GEN = sygus_lemma_gen_on;
       GlobalAPdrConfig.BLOCK_CTG = !strengthen_off;
       GlobalAPdrConfig.LEMMA_GEN_MODE = (APdrConfig::LEMMA_GEN_MODE_T)lemma_gen_mode;
+      GlobalAPdrConfig.COMP_DEFAULT_BVULTULE = ((bvcomp_mode & 0x4) || (bvcomp_mode & 0x2));
+      GlobalAPdrConfig.COMP_DEFAULT_OVERRIDE = ((bvcomp_mode & 0x1));
 
       s = BoolectorSolverFactory::create();
       s->set_opt("produce-models", "true");

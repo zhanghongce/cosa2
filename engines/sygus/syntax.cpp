@@ -16,9 +16,11 @@
   
 
 #include "syntax.h"
+#include "utils/str_util.h"
 #include "utils/container_shortcut.h"
 
 #include <queue>
+#include <cassert>
 
 namespace cosa {
 
@@ -51,6 +53,87 @@ std::string name_desanitize(const std::string &s) {
     return s.substr(1,s.length()-2); // already | |
   return s;
 }
+
+uint64_t get_width_of_var(const smt::Term & v) {
+  if ( v->get_sort()->get_sort_kind() == smt::SortKind::BOOL )
+    return 0;
+  else if ( v->get_sort()->get_sort_kind() == smt::SortKind::BV)
+   return v->get_sort()->get_width();
+  assert (false);
+  return 0;
+}
+
+
+smt::Term smt_string_to_const_term(const std::string & val, smt::SmtSolver & s) {
+  if (val == "true" || val == "True") {
+    return s->make_term(true);
+  } else if (val == "false" || val == "False") {
+    return s->make_term(false);
+  } else if(val.find("#b") == 0) {
+    uint64_t width = val.length()-2; // exclude #b
+    auto bvsort = s->make_sort(smt::SortKind::BV, width);
+    return s->make_term(val.substr(2), bvsort, 2UL);
+  } else if(val.find("#x") == 0) {
+    uint64_t width = (val.length()-2)*4; // exclude #x
+    auto bvsort = s->make_sort(smt::SortKind::BV, width);
+    return s->make_term(val.substr(2), bvsort, 16UL);
+  } else if (val.find("(_ bv") == 0) {
+    auto v_w_pair = SplitSpaceTabEnter(val.substr(5));
+    assert(v_w_pair.size()>=2);
+    uint64_t width = (uint64_t)(StrToULongLong(ReplaceAll(v_w_pair[1],")",""), 10));
+    auto bvsort = s->make_sort(smt::SortKind::BV, width);
+    return s->make_term(v_w_pair[0], bvsort, 10UL);    
+  } 
+  assert (false); // unknown format
+  return nullptr;
+}
+
+
+bool is_primop_symmetry(smt::PrimOp op) {
+    switch (op) {
+      case smt::PrimOp::And:
+      case smt::PrimOp::Or:
+      case smt::PrimOp::Xor:
+      case smt::PrimOp::Iff:
+      case smt::PrimOp::BVAnd:
+      case smt::PrimOp::BVOr:
+      case smt::PrimOp::BVXor:
+      case smt::PrimOp::BVNor:
+      case smt::PrimOp::BVXnor:
+      case smt::PrimOp::BVNand:
+      case smt::PrimOp::BVAdd:
+      case smt::PrimOp::BVMul:
+      case smt::PrimOp::Equal:
+      case smt::PrimOp::Distinct: return true;
+/*
+      case smt::PrimOp::Not:
+      case smt::PrimOp::BVNeg:
+      case smt::PrimOp::BVNot:
+      case smt::PrimOp::Implies: 
+      case smt::PrimOp::BVSub:
+      case smt::PrimOp::BVUdiv:
+      case smt::PrimOp::BVSdiv:
+      case smt::PrimOp::BVUrem:
+      case smt::PrimOp::BVSrem:
+      case smt::PrimOp::BVSmod:
+      case smt::PrimOp::BVShl:
+      case smt::PrimOp::BVAshr:
+      case smt::PrimOp::BVLshr: 
+      case smt::PrimOp::BVComp:
+      case smt::PrimOp::BVUlt:
+      case smt::PrimOp::BVUle:
+      case smt::PrimOp::BVUgt:
+      case smt::PrimOp::BVUge:
+      case smt::PrimOp::BVSlt:
+      case smt::PrimOp::BVSle:
+      case smt::PrimOp::BVSgt:
+      case smt::PrimOp::BVSge: 
+      case .. others*/
+      default:
+        return false;
+  } // switch
+  assert (false);
+} // is_primop_symmetry
 
 // ------------------------------------------------------
 

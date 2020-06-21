@@ -16,6 +16,7 @@
 #include "frontends/btor2_encoder.h"
 #include "frontends/smtlib2parser.h"
 #include "sygus/gen_sygus_query.h"
+#include "sygus/enum.h"
 #ifdef WITH_MSAT
   #include "smt-switch/msat_factory.h"
 #endif
@@ -331,6 +332,131 @@ TEST (SygusGen, SygusGen)  {
     }
     std::cout <<"Parsed smtlib2: " << t->to_string() << std::endl;
 }
+
+
+TEST (SygusInternal, FromCex)  {
+    std::string fname = mktemp_btor();
+    SmtSolver msat;
+    SmtSolver btor;
+    msat = MsatSolverFactory::create_interpolating_solver();
+    btor = BoolectorSolverFactory::create();
+    btor->set_opt("produce-models", "true");
+    btor->set_opt("incremental", "true");
+    TermTranslator to_msat(msat);
+
+    FunctionalTransitionSystem fts_msat(msat);
+    BTOR2Encoder btor_enc_msat(fname, fts_msat);
+
+    FunctionalTransitionSystem fts_btor(btor);
+    BTOR2Encoder btor_enc_btor(fname, fts_btor);
+    auto prop_btor = btor_enc_btor.propvec()[0];
+
+    OpExtractor opext;
+    opext.WalkBFS(fts_msat.trans());
+    opext.WalkBFS(fts_msat.init());
+    opext.GetSyntaxConstruct().RemoveUnusedStructure();
+    const auto & lang_constructs = opext.GetSyntaxConstruct();
+
+    // you need to get cex
+    
+    PartialModelGen pt(btor);
+    Model m;
+    {
+      btor->push();
+      auto t = btor->make_term(smt::Not, prop_btor);
+      btor->assert_formula(t);
+      auto ret = btor->check_sat();
+      EXPECT_EQ(ret.is_sat(), true);
+      pt.GetPartialModel(t, m.cube, false);
+      btor->pop();
+    }
+    // and then start the enumerator
+
+    auto btor_var_to_msat_var = [&] (const smt::Term & v) -> smt::Term {
+      return to_msat.transfer_term(v, fts_msat.symbols());
+    };
+    auto to_next = [&] (const smt::Term & v)  -> smt::Term {
+      return fts_btor.next(v);
+    };
+
+    
+    sygus_enum::Enumerator sygus_enumerator(
+      btor_var_to_msat_var,
+      to_next,
+      btor,msat,
+      fts_btor.trans(), fts_btor.init(),
+      fts_btor.init() /*prevF*/, 
+      {&m} /*cexs \*/,
+      {} /*facts*/,
+      nullptr /*prop_btor*/,
+      lang_constructs      
+    );
+
+    std::cout << "Cex : " << m.to_string() << std::endl;
+    std::cout << "Enum # = " << sygus_enumerator.GetCurrentLevelMaxEffort() << std::endl;
+    auto res = sygus_enumerator.EnumCurrentLevel();
+
+    std::cout << "Result btor : " << res.first->to_string() << std::endl;
+
+    sygus_enumerator.ClearCache();
+} // InternalSygus from cex
+
+
+TEST (SygusInternal, FromProp)  {
+    std::string fname = mktemp_btor();
+    SmtSolver msat;
+    SmtSolver btor;
+    msat = MsatSolverFactory::create_interpolating_solver();
+    btor = BoolectorSolverFactory::create();
+    btor->set_opt("produce-models", "true");
+    btor->set_opt("incremental", "true");
+    TermTranslator to_msat(msat);
+
+    FunctionalTransitionSystem fts_msat(msat);
+    BTOR2Encoder btor_enc_msat(fname, fts_msat);
+
+    FunctionalTransitionSystem fts_btor(btor);
+    BTOR2Encoder btor_enc_btor(fname, fts_btor);
+    auto prop_btor = btor_enc_btor.propvec()[0];
+
+    OpExtractor opext;
+    opext.WalkBFS(fts_msat.trans());
+    opext.WalkBFS(fts_msat.init());
+    opext.GetSyntaxConstruct().RemoveUnusedStructure();
+    const auto & lang_constructs = opext.GetSyntaxConstruct();
+
+    // you need to get cex
+    
+    // and then start the enumerator
+
+    auto btor_var_to_msat_var = [&] (const smt::Term & v) -> smt::Term {
+      return to_msat.transfer_term(v, fts_msat.symbols());
+    };
+    auto to_next = [&] (const smt::Term & v)  -> smt::Term {
+      return fts_btor.next(v);
+    };
+
+    
+    sygus_enum::Enumerator sygus_enumerator(
+      btor_var_to_msat_var,
+      to_next,
+      btor,msat,
+      fts_btor.trans(), fts_btor.init(),
+      fts_btor.init() /*prevF*/, 
+      {} /*cexs \*/,
+      {} /*facts*/,
+      prop_btor /*prop_btor*/,
+      lang_constructs      
+    );
+
+    std::cout << "Prop : " << prop_btor -> to_string() << std::endl;
+    std::cout << "Enum # = " << sygus_enumerator.GetCurrentLevelMaxEffort() << std::endl;
+    auto res = sygus_enumerator.EnumCurrentLevel();
+
+    std::cout << "Result btor : " << res.first->to_string() << std::endl;
+
+    sygus_enumerator.ClearCache();
+} // InternalSygus
 
 #endif
 
