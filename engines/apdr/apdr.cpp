@@ -164,11 +164,11 @@ void Apdr::initialize() {
     return ts_.next(v);
   };
 
-  sygus_enum::Enumerator::ClearCache(); // initially clear cache
+  sat_enum::Enumerator::ClearCache(); // initially clear cache
 }
 
 Apdr::~Apdr() {
-  sygus_enum::Enumerator::ClearCache(); // finally: make sure terms are destructed first
+  sat_enum::Enumerator::ClearCache(); // finally: make sure terms are destructed first
 }
 
 void Apdr::reset_sygus_syntax() {

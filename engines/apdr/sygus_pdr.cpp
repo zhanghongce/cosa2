@@ -99,7 +99,7 @@ smt::Term Apdr::do_sygus(const smt::Term & prevF_msat,
   if (GlobalAPdrConfig.SYGUS_MODE & APdrConfig::SYGUS_MODE_T::INTERNAL) {
     // do it here
     
-    sygus_enum::Enumerator sygus_enumerator(
+    sat_enum::Enumerator sygus_enumerator(
       btor_var_to_msat_func_,
       to_next_func_,
       btor(),msat(),
@@ -111,19 +111,16 @@ smt::Term Apdr::do_sygus(const smt::Term & prevF_msat,
       op_extract_->GetSyntaxConstruct()      
     );
 
-    if (sygus_enumerator.GetEnumStatus().is_curr_round_finished()) {
-      INFO("NO good preds, skip, will increase pred complexity next round.");
-    } else {
-      // INFO("ID {} --- Enum status before: ", sygus_enumerator.GetCexRefId());
-      sygus_enumerator.GetEnumStatus().dump();
-      INFO("\n--- Enum status end ");
-      auto ret = sygus_enumerator.EnumCurrentLevel();
-      INFO("--- Enum status after: ");
-      sygus_enumerator.GetEnumStatus().dump();
-      INFO("\n--- Enum status end ");
-      if (ret.second != nullptr)
-        return ret.second;
-    }
+    // INFO("ID {} --- Enum status before: ", sygus_enumerator.GetCexRefId());
+    sygus_enumerator.GetEnumStatus().dump();
+    INFO("\n--- Enum status end ");
+    auto ret = sygus_enumerator.EnumCurrentLevel();
+    INFO("--- Enum status after: ");
+    sygus_enumerator.GetEnumStatus().dump();
+    INFO("\n--- Enum status end ");
+    if (ret.second != nullptr)
+      return ret.second;
+    
   }
 
   if (GlobalAPdrConfig.SYGUS_MODE & APdrConfig::SYGUS_MODE_T::EXTERNAL) {

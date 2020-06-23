@@ -68,6 +68,11 @@ if (NOT EXISTS "${PROJECT_SOURCE_DIR}/deps/smtlib2parser/build/src/libsmtparser.
   message(FATAL_ERROR "Missing smtlib2parser library -- try running ./contrib/setup-smtlib2parser.sh")
 endif()
 
+if (NOT EXISTS "${PROJECT_SOURCE_DIR}/deps/z3/install")
+  message(FATAL_ERROR "Missing z3 -- try running ./contrib/setup-z3.sh")
+endif()
+
+
 # Generate the SMV parser using Flex/Bison
 BISON_TARGET(SMVParser ${PROJECT_SOURCE_DIR}/frontends/smvparser.y
   ${CMAKE_CURRENT_BINARY_DIR}/smvparser.cpp
@@ -110,6 +115,7 @@ add_library(cosa2 "${COSA2_LIB_TYPE}"
   "${PROJECT_SOURCE_DIR}/engines/sygus/partial_model.cpp"
   "${PROJECT_SOURCE_DIR}/engines/sygus/syntax.cpp"
   "${PROJECT_SOURCE_DIR}/engines/sygus/enum.cpp"
+  "${PROJECT_SOURCE_DIR}/engines/sygus/sat_enum.cpp"
   "${PROJECT_SOURCE_DIR}/engines/apdr/apdr.cpp"
   "${PROJECT_SOURCE_DIR}/engines/apdr/framecache.cpp"
   "${PROJECT_SOURCE_DIR}/engines/apdr/lemma.cpp"
@@ -128,6 +134,8 @@ target_include_directories(cosa2 PUBLIC
   "${CMAKE_CURRENT_BINARY_DIR}"
   )
 
+
+target_link_libraries(cosa2 PUBLIC "${PROJECT_SOURCE_DIR}/deps/z3/install/lib/libz3.a")
 target_link_libraries(cosa2 PUBLIC "${PROJECT_SOURCE_DIR}/deps/smt-switch/local/lib/libsmt-switch-btor.a")
 if (WITH_MSAT)
   target_link_libraries(cosa2 PUBLIC "${PROJECT_SOURCE_DIR}/deps/smt-switch/local/lib/libsmt-switch-msat.a")
@@ -157,7 +165,8 @@ target_include_directories(cosa2-bin PUBLIC
   "${PROJECT_SOURCE_DIR}/contrib/"
   "${PROJECT_SOURCE_DIR}/contrib/optionparser-1.7/src"
   "${PROJECT_SOURCE_DIR}/deps/btor2tools/src"
-  "${PROJECT_SOURCE_DIR}/deps/smt-switch/local/include")
+  "${PROJECT_SOURCE_DIR}/deps/smt-switch/local/include"
+  "${PROJECT_SOURCE_DIR}/deps/z3/install/include")
 
 target_link_libraries(cosa2-bin PUBLIC cosa2)
 

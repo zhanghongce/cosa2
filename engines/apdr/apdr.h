@@ -19,7 +19,7 @@
 #include "engines/sygus/partial_model.h"
 #include "engines/sygus/opextract.h"
 #include "engines/sygus/gen_sygus_query.h"
-#include "engines/sygus/enum.h"
+#include "engines/sygus/sat_enum.h"
 #include "engines/prover.h"
 #include "frontends/smtlib2parser.h"
 
@@ -88,8 +88,8 @@ public:
       return l.first > r.first;
     } };
 
-  using btor_var_to_msat_t = sygus_enum::Enumerator::btor_var_to_msat_t;
-  using to_next_t = sygus_enum::Enumerator::to_next_t;
+  using btor_var_to_msat_t = sat_enum::Enumerator::btor_var_to_msat_t;
+  using to_next_t = sat_enum::Enumerator::to_next_t;
   
 public:
   // inherited interfaces

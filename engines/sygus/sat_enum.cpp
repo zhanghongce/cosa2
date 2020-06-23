@@ -210,7 +210,7 @@ bool enum_status::next_pred_assignment(size_t conjunction_depth) { // return fal
   true_preds_.clear();
   if (conjunction_depth != 0) {
     sat_solver_.push();
-    sat_solver_.add(num_of_true_pred_ <= conjunction_depth);
+    sat_solver_.add(num_of_true_pred_ <= sat_context_.int_val(conjunction_depth) );
   }
   auto psat = sat_solver_.check();
   if (psat == z3::check_result::sat) {
@@ -254,9 +254,9 @@ void Enumerator::ClearCache() {
 }
 
 uint64_t Enumerator::GetCurrentLevelMaxEffort() const {
-  std::cout << "(" << enum_status_.curr_predicate_num << " ^ " << enum_status_.curr_conjunction_depth << ")" << std::endl;
+  std::cout << "(" << enum_status_.curr_predicate_num << " ^ " << curr_conjunction_depth << ")" << std::endl;
   return (
-    std::pow(enum_status_.curr_predicate_num, enum_status_.curr_conjunction_depth)
+    std::pow(enum_status_.curr_predicate_num, curr_conjunction_depth)
   ); // just an estimation
 }
 
@@ -301,9 +301,7 @@ Enumerator::Enumerator(
   if (enum_status_.is_uninit()) {
     PopulatePredicateListsWithTermsIncr();
     enum_status_.init();
-  } else if (enum_status_.is_curr_round_finished()) {
-    MoveToNextLevel();
-  } // else will continue to enum on this
+  }
 }
 
 
@@ -794,15 +792,18 @@ void Enumerator::insert_comp(smt::PrimOp smt_op, const btor_msat_term_pair_t & l
 
 
 void Enumerator::MoveToNextLevel() { // more predicates more in conjunction
-  assert(enum_status_.is_curr_round_finished());
-  if( enum_status_.curr_conjunction_depth == GlobalAPdrConfig.EXTRACT_DEGENERATE_THRESHOLD) {
+
+  if( curr_conjunction_depth == GlobalAPdrConfig.EXTRACT_DEGENERATE_THRESHOLD) {
     PopulateTermTableWithExtractOpAllWidthVars(width_term_table_);
-    enum_status_.increase_both_conjunction_depth_and_predicate_num();
+    PopulatePredicateListsWithTermsIncr();
+    enum_status_.increase_predicate_num();
+    curr_conjunction_depth ++; 
   } else {
     PopulateTermTableWithUnaryOp(width_term_table_);
     PopulateTermTableWithBinaryOp(width_term_table_);
     PopulatePredicateListsWithTermsIncr();
-    enum_status_.increase_both_conjunction_depth_and_predicate_num();
+    enum_status_.increase_predicate_num();
+    curr_conjunction_depth ++;
   }
 }
 
