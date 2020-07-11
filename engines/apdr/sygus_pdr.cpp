@@ -106,12 +106,12 @@ smt::Term Apdr::do_sygus(const smt::Term & prevF_msat,
       ts_.trans(), ts_.init(),
       prevF_btor /*prevF*/, 
       cexs /*cexs \*/,
-      {} /*facts*/,
+      facts /*facts*/,
       prop_btor /*prop_btor*/,
       op_extract_->GetSyntaxConstruct()      
     );
 
-    // INFO("ID {} --- Enum status before: ", sygus_enumerator.GetCexRefId());
+    INFO("ID {} --- Enum status before: ", sygus_enumerator.GetCexRefId());
     sygus_enumerator.GetEnumStatus().dump();
     INFO("\n--- Enum status end ");
     auto ret = sygus_enumerator.EnumCurrentLevel();

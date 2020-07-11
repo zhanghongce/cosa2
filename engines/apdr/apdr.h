@@ -206,7 +206,7 @@ public:
   virtual solve_trans_result solveTrans(
     unsigned prevFidx, 
     const smt::Term & prop_btor_ptr, const smt::Term & prop_msat_ptr, // or the following
-    std::vector<Model *> models_to_block, std::vector<Model *> models_fact,
+    const std::vector<Model *> & models_to_block, const std::vector<Model *> & models_fact,
     bool remove_prop_in_prev_frame,
     bool use_init, bool findItp, bool get_post_state, FrameCache * fc ) override;
   

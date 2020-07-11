@@ -586,7 +586,7 @@ std::pair<smt::Term, smt::Term> Apdr::gen_lemma(
 
 Apdr::solve_trans_result Apdr::solveTrans(
   unsigned prevFidx, const smt::Term & prop_btor_ptr, const smt::Term & prop_msat_ptr,
-  std::vector<Model *> models_to_block, std::vector<Model *> models_fact,
+  const std::vector<Model *> & models_to_block, const std::vector<Model *> & models_fact,
   bool remove_prop_in_prev_frame,
   bool use_init, bool findItp, bool get_post_state, FrameCache * fc ) {
   
@@ -663,6 +663,7 @@ Apdr::solve_trans_result Apdr::solveTrans(
   }
   
   smt::Term lemma_btor, lemma_msat;
+  std::cout << "models_fact size : " << models_fact.size() << std::endl;
   std::tie(lemma_btor, lemma_msat) = gen_lemma( prevF_msat, prevF_btor,
     prop_msat, prop_btor, models_to_block, models_fact );
   if (lemma_btor == nullptr || lemma_msat == nullptr ) {
@@ -688,7 +689,7 @@ Model * Apdr::get_bad_state_from_property_invalid_after_trans (
   assert(idx >= 0);
   D(2, "    [F{} -> prop]", idx);
   auto trans_result = solveTrans(
-    idx, prop_btor, prop_msat, {}, {},
+    idx, prop_btor, prop_msat, {} /*models to block*/, {} /*facts to imply*/,
     /*remove_prop_in_prev*/ false, use_init,
     /*find itp*/ add_itp, /*post state*/ false, /*fc*/ NULL );
   if (trans_result.prev_ex == NULL && add_itp && trans_result.itp != NULL) {

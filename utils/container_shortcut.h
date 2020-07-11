@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <set>
 #include <string>
+#include <unordered_set>
 
 // actually no use, because micros are not bound by namespace
 // should only be included in .cpp

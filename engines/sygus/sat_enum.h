@@ -37,6 +37,7 @@ struct enum_status {
   //  }; // pre1 /\ pre2 /\ ... => post1 \/ post2 \/ ...
 
   std::vector<smt::Term> predicate_list_btor; // already predicates
+  std::vector<smt::Term> predicate_list_btor_next; // already predicates
   std::vector<smt::Term> predicate_list_msat; // how many in conjunctions and each pos
   
   //  uint64_t prev_predicate_num;
@@ -67,6 +68,7 @@ struct enum_status {
   const std::unordered_set<size_t> & curr_true_pred() const {return true_preds_; }
   
   smt::Term GetCandidateBtor(smt::SmtSolver & btor) const; // based on true_preds
+  smt::Term GetCandidateBtorNext(smt::SmtSolver & btor) const; // based on true_preds
   smt::Term GetCandidateMsat(smt::SmtSolver & msat) const;
   bool next_pred_assignment(size_t conjunction_depth); // return false if unsat --> no pred under the current pred num
     
@@ -172,12 +174,12 @@ protected:
   to_next_t to_next_;
   smt::SmtSolver & solver_;
   smt::SmtSolver & msat_solver_;
-  const smt::Term & trans_;
-  const smt::Term & init_;
-  const smt::Term & prev_;
-  const std::vector<Model *> & cexs_;
-  const std::vector<Model *> & facts_;  
-  const smt::Term & prop_;
+  smt::Term trans_;
+  smt::Term init_;
+  smt::Term prev_;
+  std::vector<Model *> cexs_;
+  std::vector<Model *> facts_;  
+  smt::Term prop_;
   const sygus::SyntaxStructure & syntax_;  
   const sygus::SyntaxStructure::SyntaxT & syntax_struct_;
   // do you need the keep vars? no I don't think so.
@@ -203,6 +205,7 @@ protected:
 
   enum_status & enum_status_;
   std::vector<smt::Term> & predicate_list_btor_; // how many in conjunctions and each pos
+  std::vector<smt::Term> & predicate_list_btor_next_; // how many in conjunctions and each pos
   std::vector<smt::Term> & predicate_list_msat_; // how many in conjunctions and each pos
   enum_status & SetUpEnumStatus();
 
@@ -220,7 +223,7 @@ protected:
   bool is_predicate_const(const smt::Term & t);
   bool is_predicate_implicable(const smt::Term & t);
   bool init_imply(const smt::Term & c);
-  bool F_T_and_P_imply_Pprime(const smt::Term & c);
+  bool F_T_and_P_imply_Pprime(const smt::Term & c, const smt::Term & c_nxt);
   bool compatible_w_facts(const smt::Term & c);
 
   const std::unordered_set<smt::PrimOp> &  GetCompForWidth(uint64_t w);

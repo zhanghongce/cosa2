@@ -16,7 +16,7 @@
 #include "frontends/btor2_encoder.h"
 #include "frontends/smtlib2parser.h"
 #include "sygus/gen_sygus_query.h"
-#include "sygus/enum.h"
+#include "sygus/sat_enum.h"
 #ifdef WITH_MSAT
   #include "smt-switch/msat_factory.h"
 #endif
@@ -380,7 +380,7 @@ TEST (SygusInternal, FromCex)  {
     };
 
     
-    sygus_enum::Enumerator sygus_enumerator(
+    sat_enum::Enumerator sygus_enumerator(
       btor_var_to_msat_var,
       to_next,
       btor,msat,
@@ -437,7 +437,7 @@ TEST (SygusInternal, FromProp)  {
     };
 
     
-    sygus_enum::Enumerator sygus_enumerator(
+    sat_enum::Enumerator sygus_enumerator(
       btor_var_to_msat_var,
       to_next,
       btor,msat,

@@ -18,6 +18,7 @@
 #include "utils/term_analysis.h"
 #include "utils/str_util.h"
 #include "utils/container_shortcut.h"
+#include "utils/logger.h"
 
 #include "engines/apdr/config.h"
 #include <cassert>
@@ -32,6 +33,15 @@
 #define OR(x, y)     (solver_->make_term(smt::Or, (x), (y)))
 #define IMPLY(x, y)  (solver_->make_term(smt::Implies, (x), (y)))
 #define IFF(x, y)    (solver_->make_term(smt::Iff, (x), (y)))
+
+#define DEBUG
+#ifdef DEBUG
+  #define D(...) logger.log( __VA_ARGS__ )
+  #define INFO(...) D(0, __VA_ARGS__)
+#else
+  #define D(...) do {} while (0)
+  #define INFO(...) logger.log(1, __VA_ARGS__)
+#endif
 
 namespace cosa {
 
@@ -124,6 +134,7 @@ z3::expr enum_status::or_of_all_predvs() {
 
 void enum_status::increase_predicate_num() {
   assert(predicate_list_btor.size() == predicate_list_msat.size());
+  assert(predicate_list_btor.size() == predicate_list_btor_next.size());
   assert(predicate_list_btor.size() > curr_predicate_num);
 
   // TODO: we need to create vars and clear things here !!!
@@ -159,9 +170,11 @@ void enum_status::increase_predicate_num() {
 
 void enum_status::dump() const {  
   // print imps_
+#ifdef DEBUG
   for(auto && rel: existing_impls_) {
     std::cout << rel << std::endl;
   }
+#endif
   // print current preds
   if (true_preds_.empty())
     std::cout <<"()";
@@ -179,6 +192,20 @@ smt::Term enum_status::GetCandidateBtor(smt::SmtSolver & solver_) const {
       ret = predicate_list_btor.at(idx);
     else
       ret = AND(ret, predicate_list_btor.at(idx));
+  }
+  return ret;
+}
+
+
+smt::Term enum_status::GetCandidateBtorNext(smt::SmtSolver & solver_) const {
+  assert (!true_preds_.empty());
+  smt::Term ret = nullptr;
+  for (auto idx : true_preds_ ) {
+    assert(idx < predicate_list_btor_next.size());
+    if (ret == nullptr)
+      ret = predicate_list_btor_next.at(idx);
+    else
+      ret = AND(ret, predicate_list_btor_next.at(idx));
   }
   return ret;
 }
@@ -230,10 +257,21 @@ bool enum_status::next_pred_assignment(size_t conjunction_depth) { // return fal
       sat_solver_.pop();
       assert(true_preds_.size() <= conjunction_depth);
     }
+
+    #ifdef DEBUG
+    std::cout << "[sat-enum]: ";
+    for(auto pidx : true_preds_)
+      std::cout << pidx << " ";
+    std::cout << std::endl;
+    #endif
+
     return true;
   } // end of extraction of model
   if(conjunction_depth != 0)
     sat_solver_.pop();
+  
+  D(1, "[sat-enum]: no candidate");
+
   return false; // unsat // no pred will work
 } // next_pred_assignment
 
@@ -292,16 +330,19 @@ Enumerator::Enumerator(
       width_term_table_(SetupInitTermList()),
       enum_status_(SetUpEnumStatus()),
       predicate_list_btor_(enum_status_.predicate_list_btor),
+      predicate_list_btor_next_(enum_status_.predicate_list_btor_next),
       predicate_list_msat_(enum_status_.predicate_list_msat)
 {
   // SetupInitialPredicateListAndEnumStatus
   // term table dump
+  D(0, "[sat-enum] receive init {} , prop {}", (init_->to_string()), (prop_ == NULL ? "None": prop_->to_string())  );
   PrintWidthTermTable(width_term_table_);
 
   if (enum_status_.is_uninit()) {
     PopulatePredicateListsWithTermsIncr();
     enum_status_.init();
   }
+  D(0, "[sat-enum] receive init {} , prop {}", (init_->to_string()), (prop_ == NULL ? "None": prop_->to_string())  );
 }
 
 
@@ -372,7 +413,7 @@ Enumerator::width_term_table_t & Enumerator::SetupInitTermList() {
  //  initial population of tables 
 void Enumerator::PopulateTermTableWithConstants(width_term_table_t & table) {
   // width -> vars and constants and then apply comps on them
-  // output: predicate_list_btor_, predicate_list_msat_
+  // output: predicate_list_btor_, predicate_list_btor_next_, predicate_list_msat_
 
   // SetupInitTermList already set up vars
   // add constants from grammar
@@ -572,13 +613,24 @@ bool Enumerator::is_predicate_implicable(const smt::Term & t) {
 bool Enumerator::init_imply(const smt::Term & c) {
   solver_->push();
     solver_->assert_formula(init_);
+    D(0, "[init_imply] assert {} ", init_->to_string());
     solver_->assert_formula(NOT(c));
+    D(0, "[init_imply] assert not({}) ", c->to_string());
     auto r = solver_->check_sat();
     if (r.is_sat()) {
       // now we are going to iterate along those pred
       // and find whose value under this model is 1 
       // and then we must select from among them
-      
+#ifdef DEBUG
+      { // dumping state assignments
+        smt::UnorderedTermSet all_symbols;
+        get_free_symbols(init_, all_symbols);
+        get_free_symbols(c, all_symbols);
+        for (const auto & s : all_symbols) {
+          std::cout << "[init_imply] " << s->to_string() << " = " << solver_->get_value(s)->to_string() << std::endl;
+        }
+      }
+#endif
       std::unordered_set<size_t> post_or; 
       for(size_t pidx = 0; pidx < predicate_list_btor_.size(); ++ pidx) {
         // evaluate those preds
@@ -603,8 +655,10 @@ bool Enumerator::compatible_w_facts(const smt::Term & c) {
   std::unordered_set<size_t> incompatible_fact_idxs;
   solver_->push();
     solver_->assert_formula(c);
+    std::cout << "facts size : " << facts_.size() << std::endl;
     for (auto f_ptr : facts_) {
       solver_->push();
+      std::cout << "F : " << f_ptr->to_string() << std::endl;
       solver_->assert_formula(f_ptr->to_expr_btor(solver_));
       bool compatible = solver_->check_sat().is_sat();
       solver_->pop();
@@ -639,23 +693,39 @@ bool Enumerator::compatible_w_facts(const smt::Term & c) {
   return incompatible_fact_idxs.empty();
 } // compatible_w_facts
 
-bool Enumerator::F_T_and_P_imply_Pprime(const smt::Term & c) {
+bool Enumerator::F_T_and_P_imply_Pprime(const smt::Term & c, const smt::Term & c_nxt) {
   solver_->push();
     solver_->assert_formula(prev_);
     solver_->assert_formula(c);
     solver_->assert_formula(trans_);
-    solver_->assert_formula(NOT(to_next_(c)));
+    solver_->assert_formula(NOT(c_nxt));
     auto r = solver_->check_sat();
     if (r.is_sat()) {
       // now we are going to iterate along those pred
       // and find whose value under this model is 1 
       // and then we must select from among them
-      
+      #ifdef DEBUG
+      // std::cout << "Eval: ";
+      for (auto && w_t_pair : width_term_table_) {
+        auto width = w_t_pair.first;
+        const auto & terms = w_t_pair.second;
+        for (auto vidx = 0; vidx < terms.n_vars; ++ vidx) {
+          auto v = terms.terms.at(vidx).first;
+          std::cout << v->to_string() << ":=" << solver_->get_value(v)->to_string() << " , ";
+          auto v_nxt = to_next_(terms.terms.at(vidx).first);
+          std::cout << v_nxt->to_string() << ":=" << solver_->get_value(v_nxt)->to_string() << " , ";
+        }
+      }
+      std::cout << "END\n";
+      #endif
+
       std::unordered_set<size_t> post_or; 
       for(size_t pidx = 0; pidx < predicate_list_btor_.size(); ++ pidx) {
         // evaluate those preds
-        const auto & p = predicate_list_btor_.at(pidx);
-        if ( solver_->get_value(NOT(p))->to_int() != 0ULL ) {
+        const auto & p = predicate_list_btor_next_.at(pidx);
+        auto val =  solver_->get_value(NOT(p))->to_int();
+        D(0, "[F_T_and_P] eval NOT({}) on s' , get {} ", p->to_string() ,  val);
+        if ( val != 0ULL ) {
           post_or.insert(pidx);
           assert(!IN(pidx, enum_status_.curr_true_pred()));
         }
@@ -706,6 +776,7 @@ const std::unordered_set<smt::PrimOp> &  Enumerator::GetCompForWidth(uint64_t w)
 // terms to predicates
 void Enumerator::PopulatePredicateListsWithTermsIncr() {
   assert (predicate_list_btor_.size() == predicate_list_msat_.size());
+  assert (predicate_list_btor_.size() == predicate_list_btor_next_.size());
 
   for (auto & width_term_pair : width_term_table_) {
     auto width = width_term_pair.first;
@@ -716,6 +787,7 @@ void Enumerator::PopulatePredicateListsWithTermsIncr() {
       continue; // skip those without vars;
     }
     // interprete the variables based on the cex/prop
+    // so that, based on values, you can decide what comparator to use
     if (terms.terms.size() > terms.terms_val_under_cex.size()) {
       // assert that in the solver
       solver_->push();
@@ -777,6 +849,8 @@ void Enumerator::PopulatePredicateListsWithTermsIncr() {
 
     width_term_pair.second.prev_comp_pointer = terms.terms.size();
   } // for each width
+  assert (predicate_list_btor_.size() == predicate_list_msat_.size());
+  assert (predicate_list_btor_.size() == predicate_list_btor_next_.size());
 } // PopulatePredicateListsWithTermsIncr
 
 
@@ -786,6 +860,7 @@ void Enumerator::insert_comp(smt::PrimOp smt_op, const btor_msat_term_pair_t & l
     return; // do nothing
   auto pred_msat = msat_solver_->make_term(smt::Op(smt_op), l.second, r.second);
   predicate_list_btor_.push_back(pred_btor);
+  predicate_list_btor_next_.push_back(to_next_(pred_btor));
   predicate_list_msat_.push_back(pred_msat);
 } // Enumerator::insert_comp
 
@@ -809,6 +884,8 @@ void Enumerator::MoveToNextLevel() { // more predicates more in conjunction
 
 std::pair<smt::Term, smt::Term> Enumerator::EnumCurrentLevel(uint64_t bnd) {
   uint64_t idx = 0;
+  D(0, "[sat-enum] receive init {} , prop {}", (init_->to_string()), (prop_ == NULL ? "None": prop_->to_string())  );
+  
   while(true) {
     if(bnd != 0 && idx > bnd)
       return std::make_pair(nullptr,nullptr);
@@ -820,13 +897,15 @@ std::pair<smt::Term, smt::Term> Enumerator::EnumCurrentLevel(uint64_t bnd) {
     
     smt::Term raw_cand = enum_status_.GetCandidateBtor(solver_);
     smt::Term cand = NOT(raw_cand);
+    D(0, "[EnumCurrentLevel] : cand : {}", cand->to_string());
     // fact => cand
     // init => cand
     if (!compatible_w_facts(cand))
       continue;
     if (!init_imply(cand))
       continue;
-    if (!F_T_and_P_imply_Pprime(cand))
+    smt::Term cand_next = NOT(enum_status_.GetCandidateBtorNext(solver_));
+    if (!F_T_and_P_imply_Pprime(cand, cand_next))
       continue;
     smt::Term cand_msat = NOT_msat(enum_status_.GetCandidateMsat(msat_solver_));
     return std::make_pair(cand, cand_msat);

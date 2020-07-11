@@ -110,12 +110,12 @@ protected:
   to_next_t to_next_;
   smt::SmtSolver & solver_;
   smt::SmtSolver & msat_solver_;
-  const smt::Term & trans_;
-  const smt::Term & init_;
-  const smt::Term & prev_;
-  const std::vector<Model *> & cexs_;
-  const std::vector<Model *> & facts_;  
-  const smt::Term & prop_;
+  smt::Term trans_;
+  smt::Term init_;
+  smt::Term prev_;
+  std::vector<Model *> cexs_;
+  std::vector<Model *> facts_;  
+  smt::Term prop_;
   const sygus::SyntaxStructure & syntax_;  
   const sygus::SyntaxStructure::SyntaxT & syntax_struct_;
   // do you need the keep vars? no I don't think so.
