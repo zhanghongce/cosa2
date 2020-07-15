@@ -64,6 +64,7 @@ namespace cosa {
     bool COMP_DEFAULT_BVULTULE = true;
     uint64_t STARTING_CONJ_DEPTH = 3;
     uint64_t EXTRACT_DEGENERATE_THRESHOLD = 3;
+    uint64_t NESTED_TERMS_THRESHOLD = 3;
     enum SYGUS_MODE_T {
       NONE = 0,
       INTERNAL = 1,
@@ -102,6 +103,10 @@ namespace cosa {
     bool STAT_ITP_STRICTLY_STRONG_CHECK = true;
     uint64_t STAT_ITP_CHECK_COUNT = 0;
     uint64_t STAT_ITP_STRONG_COUNT = 0;
+
+    uint64_t STAT_LEMMA_USE_ITP = 0;
+    uint64_t STAT_LEMMA_USE_NOT_CEX = 0;
+    uint64_t STAT_LEMMA_USE_SYGUS = 0;
 
     // ------------- STATUS tracking ---------------------------------
     enum APDR_WORKING_STATE_T { 

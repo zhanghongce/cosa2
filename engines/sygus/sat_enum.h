@@ -44,6 +44,7 @@ struct enum_status {
   //  uint64_t prev_conjunction_depth;
 
   uint64_t curr_predicate_num;
+  uint64_t curr_conjunction_depth;
   
   // sat-based enum helpers
   z3::context sat_context_;
@@ -73,7 +74,7 @@ struct enum_status {
   bool next_pred_assignment(size_t conjunction_depth); // return false if unsat --> no pred under the current pred num
     
   enum_status() : 
-    curr_predicate_num(0), 
+    curr_predicate_num(0), curr_conjunction_depth(1),
     sat_solver_(sat_context_), num_of_true_pred_(sat_context_.int_val(0)),
     zero(sat_context_.int_val(0)), one(sat_context_.int_val(1)) { }
   
@@ -168,7 +169,6 @@ public:
   typedef std::function<smt::Term(const smt::Term &)> btor_var_to_msat_t;
 
 protected:
-  size_t curr_conjunction_depth;
   btor_var_to_msat_t btor_var_to_msat_;
   // const btor_var_to_msat_var_map_t & btor_var_to_msat_var_map_;
   to_next_t to_next_;
@@ -204,6 +204,7 @@ protected:
   width_term_table_t & SetupInitTermList();
 
   enum_status & enum_status_;
+  size_t & curr_conjunction_depth;
   std::vector<smt::Term> & predicate_list_btor_; // how many in conjunctions and each pos
   std::vector<smt::Term> & predicate_list_btor_next_; // how many in conjunctions and each pos
   std::vector<smt::Term> & predicate_list_msat_; // how many in conjunctions and each pos

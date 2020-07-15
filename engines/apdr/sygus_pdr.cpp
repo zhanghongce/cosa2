@@ -120,7 +120,12 @@ smt::Term Apdr::do_sygus(const smt::Term & prevF_msat,
     INFO("\n--- Enum status end ");
     if (ret.second != nullptr)
       return ret.second;
-    
+  
+  // if use enum::Enumerator, you will not need to move to next level
+  #ifndef SYGUS_ENUM_NO_MOVE_TO_NEXT_LEVEL
+    // at this point, move to next level, because we run out of candidates
+    sygus_enumerator.MoveToNextLevel();
+  #endif
   }
 
   if (GlobalAPdrConfig.SYGUS_MODE & APdrConfig::SYGUS_MODE_T::EXTERNAL) {

@@ -324,11 +324,43 @@ void SyntaxStructure::RemoveConcat() {
 void SyntaxStructure::AddBvultBvule() {
   for (auto & width_cnstr : syntax_) {
     auto width = width_cnstr.first;
-    if (width == 0 || width == 1)
-      continue;
     auto & cnstr = width_cnstr.second;
-    cnstr.op_comp.insert(smt::PrimOp::BVUlt);
-    cnstr.op_comp.insert(smt::PrimOp::BVUle);
+    if (width == 0 || width == 1) {
+      // remove BVUlt BVUle 
+      cnstr.op_comp.erase(smt::PrimOp::Equal);
+      cnstr.op_comp.erase(smt::PrimOp::Distinct);
+      cnstr.op_comp.erase(smt::PrimOp::BVUlt);
+      cnstr.op_comp.erase(smt::PrimOp::BVUle);
+      cnstr.op_comp.erase(smt::PrimOp::BVUgt);
+      cnstr.op_comp.erase(smt::PrimOp::BVUge);
+      cnstr.op_comp.erase(smt::PrimOp::BVSlt);
+      cnstr.op_comp.erase(smt::PrimOp::BVSle);
+      cnstr.op_comp.erase(smt::PrimOp::BVSgt);
+      cnstr.op_comp.erase(smt::PrimOp::BVSge);
+    } else {
+      cnstr.op_comp.insert(smt::PrimOp::BVUlt);
+      cnstr.op_comp.insert(smt::PrimOp::BVUle);
+      cnstr.op_comp.erase(smt::PrimOp::BVUgt);
+      cnstr.op_comp.erase(smt::PrimOp::BVUge);
+      cnstr.op_comp.erase(smt::PrimOp::BVSlt);
+      cnstr.op_comp.erase(smt::PrimOp::BVSle);
+      cnstr.op_comp.erase(smt::PrimOp::BVSgt);
+      cnstr.op_comp.erase(smt::PrimOp::BVSge);
+      // find and remove others
+    }
+  }
+}
+
+void SyntaxStructure::AndOrConvert() {
+  for (auto & width_cnstr : syntax_) {
+    auto width = width_cnstr.first;
+    auto & cnstr = width_cnstr.second;
+    if ( ( IN( smt::PrimOp::BVAnd , cnstr.op_binary ) || IN( smt::PrimOp::And , cnstr.op_binary ) )&& 
+         ( IN( smt::PrimOp::BVOr , cnstr.op_binary )  || IN( smt::PrimOp::Or , cnstr.op_binary ) ) && 
+         ( IN( smt::PrimOp::BVNot , cnstr.op_unary ) || IN( smt::PrimOp::Not , cnstr.op_unary ) ) ) {
+      cnstr.op_binary.erase(smt::PrimOp::BVOr);
+      cnstr.op_binary.erase(smt::PrimOp::Or);
+    }
   }
 }
   

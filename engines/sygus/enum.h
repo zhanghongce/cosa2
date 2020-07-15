@@ -24,6 +24,8 @@
 #include <vector>
 #include <functional>
 
+#define SYGUS_ENUM_NO_MOVE_TO_NEXT_LEVEL 1
+
 namespace cosa {
 
 namespace sygus_enum {

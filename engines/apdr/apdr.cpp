@@ -152,6 +152,8 @@ void Apdr::initialize() {
   op_extract_->GetSyntaxConstruct().RemoveExtract();
   if (GlobalAPdrConfig.COMP_DEFAULT_OVERRIDE && GlobalAPdrConfig.COMP_DEFAULT_BVULTULE)
     op_extract_->GetSyntaxConstruct().AddBvultBvule();
+
+  op_extract_->GetSyntaxConstruct().AndOrConvert();
   op_extract_->GetSyntaxConstruct().RemoveUnusedStructure();
 
   reset_sygus_syntax();
@@ -528,8 +530,10 @@ std::pair<smt::Term, smt::Term> Apdr::gen_lemma(
   */
   } // end of interpolant computing
 
-  if (GlobalAPdrConfig.LEMMA_GEN_MODE == APdrConfig::LEMMA_GEN_MODE_T::ITP_ONLY)
+  if (GlobalAPdrConfig.LEMMA_GEN_MODE == APdrConfig::LEMMA_GEN_MODE_T::ITP_ONLY) {
+    GlobalAPdrConfig.STAT_LEMMA_USE_ITP ++;
     return std::make_pair(itp_btor, itp_msat);
+  }
 
   bool change_syntax = false;
   // now sygus feature
@@ -567,9 +571,11 @@ std::pair<smt::Term, smt::Term> Apdr::gen_lemma(
     prop_msat, prop_btor,
     // cexs.empty() ? prop_msat : nullptr, // depends on whether we use cexs or not
     cexs, facts, false /*assert inv in previous frame*/);
+
   if (lemma_msat != nullptr) {
     D(2, "         [lemma-gen] sygus: {}", lemma_msat->to_string());
     smt::Term lemma_btor = to_btor_.transfer_term(lemma_msat, ts_.symbols());
+    GlobalAPdrConfig.STAT_LEMMA_USE_SYGUS ++;
     return std::make_pair(lemma_btor, lemma_msat);
   }
   // at this point, sygus lemma gen has failed
@@ -577,10 +583,12 @@ std::pair<smt::Term, smt::Term> Apdr::gen_lemma(
     if (get_itp && itp_msat != nullptr && itp_btor != nullptr) {
       D(2, "         [lemma-gen] sygus failed, use itp instead.");
       D(2, "         [lemma-gen] itp: {}", itp_msat->to_string());
+      GlobalAPdrConfig.STAT_LEMMA_USE_ITP ++;
       return std::make_pair(itp_btor, itp_msat);
     }
   }
 
+  GlobalAPdrConfig.STAT_LEMMA_USE_NOT_CEX ++;
   return std::make_pair(nullptr, nullptr);
 } // Apdr::gen_lemma
 

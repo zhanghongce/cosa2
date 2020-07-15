@@ -319,7 +319,6 @@ Enumerator::Enumerator(
     const std::vector<Model *> & cexs, const std::vector<Model *> & facts,
     const smt::Term & prop_btor,
     const sygus::SyntaxStructure & syntax ):
-      curr_conjunction_depth(1),
       btor_var_to_msat_(btor_var_to_msat_func),
       to_next_(to_next_func),
       solver_(btor_solver), msat_solver_(msat_solver),
@@ -329,6 +328,7 @@ Enumerator::Enumerator(
       use_cex_(!cexs.empty()),
       width_term_table_(SetupInitTermList()),
       enum_status_(SetUpEnumStatus()),
+      curr_conjunction_depth(enum_status_.curr_conjunction_depth),
       predicate_list_btor_(enum_status_.predicate_list_btor),
       predicate_list_btor_next_(enum_status_.predicate_list_btor_next),
       predicate_list_msat_(enum_status_.predicate_list_msat)
@@ -568,21 +568,24 @@ void Enumerator::PopulateTermTableWithExtractOpSyntaxDependentVars(width_term_ta
 
 
 bool Enumerator::is_predicate_const(const smt::Term & t) {
+  auto term_string = t->to_string();
   {
-  solver_->push();
-    solver_->assert_formula(t);
-    auto r = solver_->check_sat();
-  solver_->pop();
-  if (r.is_unsat()) // is always false
-    return true;
+    //std::cout << "[is_predicate_const] Checking " << term_string << std::endl;
+    solver_->push();
+      solver_->assert_formula(t);
+      auto r = solver_->check_sat();
+    solver_->pop();
+    if (r.is_unsat()) // is always false
+      return true;
   }
   {
-  solver_->push();
-    solver_->assert_formula(NOT(t));
-    auto r = solver_->check_sat();
-  solver_->pop();
-  if (r.is_unsat()) // is always true
-    return true;
+    // std::cout << "[is_predicate_const] Checking NOT( " << term_string <<")" << std::endl;
+    solver_->push();
+      solver_->assert_formula(NOT(t));
+      auto r = solver_->check_sat();
+    solver_->pop();
+    if (r.is_unsat()) // is always true
+      return true;
   }
   return false;
 } // is_predicate_const
@@ -873,6 +876,8 @@ void Enumerator::MoveToNextLevel() { // more predicates more in conjunction
     PopulatePredicateListsWithTermsIncr();
     enum_status_.increase_predicate_num();
     curr_conjunction_depth ++; 
+  } else if (curr_conjunction_depth < GlobalAPdrConfig.NESTED_TERMS_THRESHOLD) {
+    curr_conjunction_depth ++;
   } else {
     PopulateTermTableWithUnaryOp(width_term_table_);
     PopulateTermTableWithBinaryOp(width_term_table_);

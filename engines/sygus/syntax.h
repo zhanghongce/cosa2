@@ -144,6 +144,7 @@ namespace sygus {
     void RemoveExtract();
     void RemoveConcat();
     void AddBvultBvule();
+    void AndOrConvert();
 
     static smt::Term const_to_term(const std::string & val, smt::SmtSolver & s);
     
