@@ -24,7 +24,7 @@ class UnitTests : public ::testing::Test,
  protected:
   void SetUp() override
   {
-    s = available_solvers().at(GetParam())();
+    s = available_solvers().at(GetParam())(false);
     bvsort = s->make_sort(BV, 8);
   }
   SmtSolver s;

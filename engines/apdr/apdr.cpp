@@ -671,7 +671,6 @@ Apdr::solve_trans_result Apdr::solveTrans(
   }
   
   smt::Term lemma_btor, lemma_msat;
-  std::cout << "models_fact size : " << models_fact.size() << std::endl;
   std::tie(lemma_btor, lemma_msat) = gen_lemma( prevF_msat, prevF_btor,
     prop_msat, prop_btor, models_to_block, models_fact );
   if (lemma_btor == nullptr || lemma_msat == nullptr ) {

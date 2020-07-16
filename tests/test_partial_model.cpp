@@ -74,7 +74,7 @@ bool SameVar(const Model &m, const std::unordered_set<smt::Term> & vars) {
 
 TEST(PartialModelGen, PartialModelBoolector) {
     SmtSolver s;
-    s = BoolectorSolverFactory::create();
+    s = BoolectorSolverFactory::create(false);
     s->set_opt("produce-models", "true");
     s->set_opt("incremental", "true");
     Sort bvsort = s->make_sort(BV, 8);
@@ -139,7 +139,7 @@ TEST(PartialModelGen, PartialModelBoolector) {
 
 TEST (OpExtract, OpExtractAllBtor) {
     SmtSolver s;
-    s = BoolectorSolverFactory::create();
+    s = BoolectorSolverFactory::create(false);
     Sort bvsort8 = s->make_sort(BV, 8);
     Sort bvsort4 = s->make_sort(BV, 4);
     Sort bvsort1 = s->make_sort(BV, 1);
@@ -282,7 +282,7 @@ TEST (SygusGen, SygusGen)  {
     SmtSolver msat;
     SmtSolver btor;
     msat = MsatSolverFactory::create_interpolating_solver();
-    btor = BoolectorSolverFactory::create();
+    btor = BoolectorSolverFactory::create(false);
 
     FunctionalTransitionSystem fts_msat(msat);
     BTOR2Encoder btor_enc_msat(fname, fts_msat);
@@ -339,7 +339,7 @@ TEST (SygusInternal, FromCex)  {
     SmtSolver msat;
     SmtSolver btor;
     msat = MsatSolverFactory::create_interpolating_solver();
-    btor = BoolectorSolverFactory::create();
+    btor = BoolectorSolverFactory::create(false);
     btor->set_opt("produce-models", "true");
     btor->set_opt("incremental", "true");
     TermTranslator to_msat(msat);
@@ -407,7 +407,7 @@ TEST (SygusInternal, FromProp)  {
     SmtSolver msat;
     SmtSolver btor;
     msat = MsatSolverFactory::create_interpolating_solver();
-    btor = BoolectorSolverFactory::create();
+    btor = BoolectorSolverFactory::create(false);
     btor->set_opt("produce-models", "true");
     btor->set_opt("incremental", "true");
     TermTranslator to_msat(msat);

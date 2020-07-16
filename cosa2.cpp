@@ -331,7 +331,7 @@ int main(int argc, char ** argv)
     if (engine == INTERP) {
       #ifdef WITH_MSAT
       // need mathsat for interpolant based model checking
-      s = MsatSolverFactory::create();
+      s = MsatSolverFactory::create(false);
       second_solver = MsatSolverFactory::create_interpolating_solver();
       #else
       throw CosaException("Interpolation-based model checking requires MathSAT and "
@@ -348,7 +348,7 @@ int main(int argc, char ** argv)
       GlobalAPdrConfig.COMP_DEFAULT_BVULTULE = ((bvcomp_mode & 0x4) || (bvcomp_mode & 0x2));
       GlobalAPdrConfig.COMP_DEFAULT_OVERRIDE = ((bvcomp_mode & 0x1));
 
-      s = BoolectorSolverFactory::create();
+      s = BoolectorSolverFactory::create(false);
       s->set_opt("produce-models", "true");
       s->set_opt("incremental", "true");
       Configurations::MsatInterpolatorConfiguration cfg;
@@ -363,7 +363,7 @@ int main(int argc, char ** argv)
       #endif
     } else {
       // boolector is faster but doesn't support interpolants
-      s = BoolectorSolverFactory::create();
+      s = BoolectorSolverFactory::create(false);
       s->set_opt("produce-models", "true");
       s->set_opt("incremental", "true");
     }
