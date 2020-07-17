@@ -146,6 +146,7 @@ Term TransitionSystem::next(const Term & term) const
   if (next_map_.find(term) != next_map_.end()) {
     return next_map_.at(term);
   }
+
   return solver_->substitute(term, next_map_);
 }
 

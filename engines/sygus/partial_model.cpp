@@ -100,12 +100,12 @@ smt::Term Model::bv_to_bool(const smt::Term & t, smt::SmtSolver & solver_)
 
 smt::Term Model::to_expr_translate(
     const cube_t & c, smt::SmtSolver & solver_,
-    smt::TermTranslator & to_msat, const std::unordered_map<std::string, smt::Term> & symbols) {
+    smt::TermTranslator & to_msat) {
 
   smt::Term ret = nullptr;
   for (auto && v_val : c ) {
-    auto var_msat = to_msat.transfer_term(v_val.first, symbols);
-    auto val_msat = to_msat.transfer_term(v_val.second, symbols);
+    auto var_msat = to_msat.transfer_term(v_val.first, false);
+    auto val_msat = to_msat.transfer_term(v_val.second, false);
     if ( var_msat->get_sort()->get_sort_kind() != 
          val_msat->get_sort()->get_sort_kind()) {
       if (var_msat->get_sort()->get_sort_kind() == smt::BV) {
@@ -138,9 +138,9 @@ smt::Term Model::to_expr_btor(smt::SmtSolver & btor_solver_) {
   return expr_btor_;
 }
 
-smt::Term Model::to_expr_msat(smt::SmtSolver & msat_solver_, smt::TermTranslator & to_msat, const std::unordered_map<std::string, smt::Term> & symbols ) {
+smt::Term Model::to_expr_msat(smt::SmtSolver & msat_solver_, smt::TermTranslator & to_msat ) {
   if (expr_msat_ == nullptr)
-    expr_msat_ = to_expr_translate(this->cube, msat_solver_, to_msat, symbols);
+    expr_msat_ = to_expr_translate(this->cube, msat_solver_, to_msat);
   return expr_msat_;
 }
 
@@ -202,8 +202,8 @@ static inline bool is_all_zero(const std::string & s)  {
 
 static inline bool is_all_one(const std::string & s, uint64_t w)  {
   assert(s.substr(0, 2) == "#b");
-  assert (s.length() + 2 <= w);
-  if (s.length() + 2 < w) // if it has fewer zeros
+  assert (s.length() - 2 <= w);
+  if (s.length() - 2 < w) // if it has fewer zeros
     return false;
   for (auto pos = s.begin()+2; pos != s.end(); ++ pos)
     if (*pos != '1')

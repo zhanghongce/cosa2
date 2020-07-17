@@ -28,12 +28,12 @@ namespace cosa {
 class TransitionSystem
 {
  public:
-  TransitionSystem(smt::SmtSolver & s)
+  explicit TransitionSystem(smt::SmtSolver & s)
       : solver_(s), init_(s->make_term(true)), trans_(s->make_term(true)),
         constraint_(s->make_term(true))
   {
   }
-
+  
   virtual ~TransitionSystem(){};
 
   /* Sets initial states to the provided formula
@@ -154,6 +154,30 @@ class TransitionSystem
   const smt::UnorderedTermMap & state_updates() const
   {
     return state_updates_;
+  };
+
+  /* Returns the next state updates (keys are the prime variable)
+   * @return a map of functional next state updates
+   */
+  const smt::UnorderedTermMap & nxt_state_updates() const
+  {
+    return nxt_state_updates_;
+  };
+
+  /* Returns variable -> prime variable mapping
+   * @return a map of variable to prime variable mapping
+   */
+  const smt::UnorderedTermMap & next_map() const
+  {
+    return next_map_;
+  };
+
+  /*Returns prime variable -> variable mapping
+   * @return a map of prime variable to non-prime variable mapping
+   */
+  const smt::UnorderedTermMap & curr_map() const
+  {
+    return curr_map_;
   };
 
   /* @return the named terms mapping */

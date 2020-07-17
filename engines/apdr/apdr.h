@@ -25,6 +25,7 @@
 
 #include "config.h"
 #include "lemma.h"
+#include "transferts.h"
 
 namespace cosa {
 
@@ -94,7 +95,7 @@ public:
 public:
   // inherited interfaces
   Apdr(const Property & p, smt::SmtSolver & s, 
-    const Property & p_msat, smt::SmtSolver & itp_solver,
+    smt::SmtSolver & itp_solver,
     const std::unordered_set<smt::Term> & keep_vars,
     const std::unordered_set<smt::Term> & remove_vars);
   virtual void initialize() override;
@@ -134,8 +135,6 @@ protected:
   std::unordered_map<unsigned, unsigned> frames_pushed_idxs_map;
   std::unordered_map<unsigned, unsigned> facts_pushed_idxs_map;
 
-  const TransitionSystem & ts_msat_;
-  const Property & property_msat_;
 
   // the itp solver
   smt::SmtSolver & itp_solver_;
@@ -143,6 +142,16 @@ protected:
   // should not need this -- 
   // as itp to msat could result in problem
   smt::TermTranslator to_btor_;
+
+  //const TransitionSystem & ts_msat_;
+  //const Property & property_msat_;
+  TransferredTransitionSystem ts_msat_;
+  smt::Term property_msat_;
+
+  // cache the two lambda function
+  btor_var_to_msat_t btor_var_to_msat_func_;
+  to_next_t to_next_func_;
+
   // no need to cache trans result -- already cached
   smt::UnorderedTermSet sygus_symbol_;
   std::unordered_set<std::string> sygus_symbol_names_;
@@ -151,11 +160,7 @@ protected:
   std::unique_ptr<sygus::SyGusQueryGen> sygus_query_gen_;
   Smtlib2Parser smtlib2parser;
   facts_t empty_fact_; // used by _get_fact
-
-  // cache the two lambda function
-  btor_var_to_msat_t btor_var_to_msat_func_;
-  to_next_t to_next_func_;
-
+  
 protected: // frame handling
   virtual smt::Term frame_prop_btor(unsigned fidx) const override;
   virtual smt::Term frame_prop_btor(unsigned fidx, unsigned not_include_lemmaIdx) const override;

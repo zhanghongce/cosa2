@@ -34,7 +34,7 @@
 #define IMPLY(x, y)  (solver_->make_term(smt::Implies, (x), (y)))
 #define IFF(x, y)    (solver_->make_term(smt::Iff, (x), (y)))
 
-#define DEBUG
+//#define DEBUG
 #ifdef DEBUG
   #define D(...) logger.log( __VA_ARGS__ )
   #define INFO(...) D(0, __VA_ARGS__)
@@ -180,7 +180,7 @@ void enum_status::dump() const {
     std::cout <<"()";
   for(auto pred : true_preds_)
     std::cout << pred<<",";
-  std::cout <<" , # preds : "<< curr_predicate_num << std::endl;
+  std::cout <<" , # preds : "<< curr_predicate_num << "*" << curr_conjunction_depth <<std::endl;
 }
 
 smt::Term enum_status::GetCandidateBtor(smt::SmtSolver & solver_) const {

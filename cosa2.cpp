@@ -96,42 +96,6 @@ struct Arg : public option::Arg
   }
 };
 
-struct apdr_msat_environment {
-    FunctionalTransitionSystem * msat_fts;
-    BTOR2Encoder * msat_enc;
-    Smtlib2PropertyParser * smtprop_msat;
-    smt::Term prop_msat;
-    Property * msat_p;
-    apdr_msat_environment(
-        smt::SmtSolver & msat,
-        const std::string &filename,
-        const std::string &smt_prop_file,
-        unsigned prop_idx ):
-      msat_fts(new FunctionalTransitionSystem(msat)),
-      msat_enc(new BTOR2Encoder(filename, *msat_fts, true)),
-      smtprop_msat(smt_prop_file.empty()? NULL: (new Smtlib2PropertyParser(msat, *msat_fts)) ),
-      prop_msat(
-        smt_prop_file.empty() ? (msat_enc->propvec()[prop_idx]) :
-        (smtprop_msat->ParsePropertyFromFile(smt_prop_file),smtprop_msat->propvec()[prop_idx]) ),
-      msat_p(new Property(*msat_fts, prop_msat))
-     {  }
-     apdr_msat_environment():
-      msat_fts(NULL), msat_enc(NULL), smtprop_msat(NULL), msat_p(NULL) {}
-     apdr_msat_environment(apdr_msat_environment && a):
-      msat_fts(a.msat_fts), msat_enc(a.msat_enc), smtprop_msat(a.smtprop_msat),
-      prop_msat(a.prop_msat), msat_p(a.msat_p) {
-        a.msat_fts = NULL; a.msat_enc = NULL; a.smtprop_msat = NULL; a.msat_p = NULL;
-      }
-    apdr_msat_environment(const apdr_msat_environment & ) = delete;
-    ~apdr_msat_environment() {
-      if (msat_p) delete msat_p;
-      if (smtprop_msat) delete smtprop_msat;
-      if (msat_enc) delete msat_enc;
-      if (msat_p)  delete msat_fts;
-    }
-    apdr_msat_environment& operator=(const apdr_msat_environment &) = delete;
-};
-
 const option::Descriptor usage[] = {
   { UNKNOWN_OPTION,
     0,
@@ -213,8 +177,7 @@ ProverResult check_prop(Engine engine,
                         Property & p,
                         SmtSolver & s,
                         SmtSolver & second_solver,
-                        std::vector<UnorderedTermMap> & cex,
-                        apdr_msat_environment & apdr_env)
+                        std::vector<UnorderedTermMap> & cex)
 {
   logger.log(1, "Solving property: {}", p.prop());
 
@@ -232,9 +195,7 @@ ProverResult check_prop(Engine engine,
     assert(second_solver != NULL);
     prover = std::make_shared<InterpolantMC>(p, s, second_solver);
   } else if (engine == APDR) {
-    if(! apdr_env.msat_p) 
-      throw CosaException("APDR on SMV is not implemented.");
-    Apdr * ptr = new Apdr(p, s, *apdr_env.msat_p, second_solver,
+    Apdr * ptr = new Apdr(p, s, second_solver,
       std::unordered_set<smt::Term>(), std::unordered_set<smt::Term> ());
     GlobalAPdrConfig.ApdrInterface = ptr;    
     prover = std::shared_ptr<Apdr> ( ptr );
@@ -348,7 +309,7 @@ int main(int argc, char ** argv)
       GlobalAPdrConfig.COMP_DEFAULT_BVULTULE = ((bvcomp_mode & 0x4) || (bvcomp_mode & 0x2));
       GlobalAPdrConfig.COMP_DEFAULT_OVERRIDE = ((bvcomp_mode & 0x1));
 
-      s = BoolectorSolverFactory::create(false);
+      s = BoolectorSolverFactory::create(true); // let's create it with a wrapper in case translation failed
       s->set_opt("produce-models", "true");
       s->set_opt("incremental", "true");
       Configurations::MsatInterpolatorConfiguration cfg;
@@ -400,11 +361,7 @@ int main(int argc, char ** argv)
         RegisterApdrSigHandler();
       }
       
-      apdr_msat_environment apdr_env = 
-        engine == APDR ? apdr_msat_environment(second_solver, filename, property_file_name, prop_idx) : 
-                         apdr_msat_environment();
-
-      r = check_prop(engine, bound, p, s, second_solver, cex, apdr_env);
+      r = check_prop(engine, bound, p, s, second_solver, cex);
 
       if (engine == APDR)
         UnregisterApdrSigHandler();
@@ -446,8 +403,7 @@ int main(int argc, char ** argv)
       Term prop = propvec[prop_idx];
       Property p(rts, prop);
       std::vector<UnorderedTermMap> cex;
-      apdr_msat_environment apdr_env;
-      r = check_prop(engine, bound, p, s, second_solver, cex, apdr_env);
+      r = check_prop(engine, bound, p, s, second_solver, cex);
       logger.log(0, "Property {} is {}", prop_idx, to_string(r));
 
       if (r == FALSE) {
