@@ -39,6 +39,8 @@ struct enum_status {
   std::vector<smt::Term> predicate_list_btor; // already predicates
   std::vector<smt::Term> predicate_list_btor_next; // already predicates
   std::vector<smt::Term> predicate_list_msat; // how many in conjunctions and each pos
+
+  std::unordered_set<std::string> predicate_set_btor; // use to avoid semantically the same predicates
   
   //  uint64_t prev_predicate_num;
   //  uint64_t prev_conjunction_depth;
@@ -137,7 +139,7 @@ struct term_table_t {
   typedef std::pair<smt::Term,smt::Term> btor_msat_term_pair_t;
   std::vector<btor_msat_term_pair_t> terms;
   std::vector<eval_val> terms_val_under_cex;
-  std::unordered_set<std::string> consts_string; // to help eliminate redundant constants
+  std::unordered_set<std::string> term_strings; // to help eliminate redundant constants
   uint64_t n_vars;    // 0 --> n_vars - 1
   uint64_t n_consts_vars;  // n_vars --> n_vars + n_consts -1 
   uint64_t prev_unary_pointer;
@@ -208,6 +210,7 @@ protected:
   std::vector<smt::Term> & predicate_list_btor_; // how many in conjunctions and each pos
   std::vector<smt::Term> & predicate_list_btor_next_; // how many in conjunctions and each pos
   std::vector<smt::Term> & predicate_list_msat_; // how many in conjunctions and each pos
+  std::unordered_set<std::string> & predicate_set_btor_;
   enum_status & SetUpEnumStatus();
 
   void PopulateTermTableWithConstants(width_term_table_t & table); //  initial population of tables 

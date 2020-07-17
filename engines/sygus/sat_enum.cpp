@@ -331,7 +331,8 @@ Enumerator::Enumerator(
       curr_conjunction_depth(enum_status_.curr_conjunction_depth),
       predicate_list_btor_(enum_status_.predicate_list_btor),
       predicate_list_btor_next_(enum_status_.predicate_list_btor_next),
-      predicate_list_msat_(enum_status_.predicate_list_msat)
+      predicate_list_msat_(enum_status_.predicate_list_msat),
+      predicate_set_btor_(enum_status_.predicate_set_btor)
 {
   // SetupInitialPredicateListAndEnumStatus
   // term table dump
@@ -434,7 +435,7 @@ void Enumerator::PopulateTermTableWithConstants(width_term_table_t & table) {
         sygus::smt_string_to_const_term(c, solver_),
         sygus::smt_string_to_const_term(c, msat_solver_)
         ));
-      table[width].consts_string.insert(
+      table[width].term_strings.insert(
         table[width].terms.back().first->to_string());
     }
   }
@@ -463,14 +464,17 @@ void Enumerator::PopulateTermTableWithUnaryOp(width_term_table_t & terms_table) 
       auto smt_op = smt::Op(op);
       for(auto idx = start; idx < end; ++ idx) {
         auto btor_new_term = solver_->make_term(smt_op, terms.terms.at(idx).first);
-        if (btor_new_term->is_value()) {
-            auto v = btor_new_term->to_string();
-            if (terms.consts_string.find(v) != terms.consts_string.end())
-              continue; // skip this
-            terms.consts_string.insert(v);
-          }
-        else if (btor_new_term->is_symbolic_const())
-          continue; // will not add vars
+        //if (btor_new_term->is_value()) {
+        if (btor_new_term->is_symbolic_const())
+          continue;
+        // for op & value, let's do the check
+        auto v = btor_new_term->to_string();
+        if (terms.term_strings.find(v) != terms.term_strings.end())
+          continue; // skip this
+        terms.term_strings.insert(v);
+        //  }
+        //else if (btor_new_term->is_symbolic_const())
+        //  continue; // will not add vars
 
         terms.terms.push_back(
           std::make_pair(
@@ -510,14 +514,17 @@ void Enumerator::PopulateTermTableWithBinaryOp(width_term_table_t & terms_table)
           idx2 < end; ++ idx2) {
           assert(!( idx1 < prev_pos && idx2 < prev_pos )); // no repetition
           auto btor_new_term = solver_->make_term(smt_op, terms.terms.at(idx1).first, terms.terms.at(idx2).first);
-          if (btor_new_term->is_value()) {
-            auto v = btor_new_term->to_string();
-            if (terms.consts_string.find(v) != terms.consts_string.end())
-              continue; // skip this
-            terms.consts_string.insert(v);
-          }
-          else if (btor_new_term->is_symbolic_const())
+
+          if (btor_new_term->is_symbolic_const())
             continue; // will not add vars
+
+          //if (btor_new_term->is_value()) {
+          auto v = btor_new_term->to_string();
+          if (terms.term_strings.find(v) != terms.term_strings.end())
+            continue; // skip this
+          terms.term_strings.insert(v);
+          //}
+          //else 
             
           terms.terms.push_back(  
           std::make_pair(
@@ -545,6 +552,9 @@ void Enumerator::PopulateTermTableWithExtractOpAllWidthVars(width_term_table_t &
         std::make_pair(
           solver_->make_term(op, terms.terms.at(idx).first),
           msat_solver_->make_term(op, terms.terms.at(idx).second)));
+      
+      // TODO: need some work here! about the hash!
+
       } // for each var
     } // for diff extract
   } // for each width
@@ -859,12 +869,16 @@ void Enumerator::PopulatePredicateListsWithTermsIncr() {
 
 void Enumerator::insert_comp(smt::PrimOp smt_op, const btor_msat_term_pair_t & l, const btor_msat_term_pair_t & r) {
   auto pred_btor = solver_->make_term(smt::Op(smt_op), l.first, r.first);
+  auto pred_syntactic_hash = pred_btor->to_string();
+  if (IN(pred_syntactic_hash, predicate_set_btor_))
+    return; // duplicated predicates -- avoid
   if (is_predicate_const(pred_btor))
     return; // do nothing
   auto pred_msat = msat_solver_->make_term(smt::Op(smt_op), l.second, r.second);
   predicate_list_btor_.push_back(pred_btor);
   predicate_list_btor_next_.push_back(to_next_(pred_btor));
   predicate_list_msat_.push_back(pred_msat);
+  predicate_set_btor_.insert(pred_syntactic_hash);
 } // Enumerator::insert_comp
 
 
