@@ -40,21 +40,6 @@
 namespace cosa {
 
 
-smt::Term bv_to_bool_msat(const smt::Term & t, const smt::SmtSolver & itp_solver_ )
-{
-  smt::Sort sort = t->get_sort();
-  if (sort->get_sort_kind() == smt::BV) {
-    if (sort->get_width() != 1) {
-      throw CosaException("Can't convert non-width 1 bitvector to bool.");
-    }
-    return itp_solver_->make_term(
-        smt::Equal, t, itp_solver_->make_term(1, itp_solver_->make_sort(smt::BV, 1)));
-  } else {
-    return t;
-  }
-}
-
-
 ModelLemmaManager::ModelLemmaManager() { }
 
 ModelLemmaManager::~ModelLemmaManager() {

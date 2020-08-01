@@ -16,6 +16,7 @@
 
 
 #include "apdr.h"
+#include "sort_convert_util.h"
 
 #include "utils/container_shortcut.h"
 #include "utils/term_analysis.h"
@@ -94,7 +95,7 @@ Apdr::Apdr(const Property & p, smt::SmtSolver & s,
   to_itp_solver_(itp_solver_),
   to_btor_(solver_),
   ts_msat_(ts_, itp_solver, to_itp_solver_),
-  property_msat_(to_itp_solver_.transfer_term(p.prop(),false)),
+  property_msat_(bv_to_bool_msat(to_itp_solver_.transfer_term(p.prop(),false), itp_solver_)),
   sygus_symbol_(ts_msat_.states()),
   sygus_tf_buf_(ts_msat_, ts_),
   smtlib2parser(msat(), ts_msat_.symbols())
@@ -570,11 +571,22 @@ std::pair<smt::Term, smt::Term> Apdr::gen_lemma(
     reset_sygus_syntax( /*will use new op_extract*/ ); // use var-set to recompute
   }
 
+  uint64_t conj_depth_threshold_for_internal_sygus = GlobalAPdrConfig.STARTING_CONJ_DEPTH;
+  {
+    std::unordered_set<smt::Term> vars_in_itp;
+    if (itp_msat) {
+      get_free_symbols(itp_msat, vars_in_itp);
+      conj_depth_threshold_for_internal_sygus = vars_in_itp.size();
+    }
+    // conj_depth_threshold_for_internal_sygus = std::max(vars_in_itp.size(), conj_depth_threshold_for_internal_sygus);
+  }
+
   // gen exec and extract
   smt::Term lemma_msat = do_sygus(prevF_msat,  prevF_btor,
     prop_msat, prop_btor,
     // cexs.empty() ? prop_msat : nullptr, // depends on whether we use cexs or not
-    cexs, facts, false /*assert inv in previous frame*/);
+    cexs, facts, false /*assert inv in previous frame*/,
+    conj_depth_threshold_for_internal_sygus);
 
   if (lemma_msat != nullptr) {
     D(2, "         [lemma-gen] sygus: {}", lemma_msat->to_string());
@@ -1054,7 +1066,7 @@ void Apdr::push_lemma_from_frame(unsigned fidx) {
       push_status += '.';
       continue; 
     }
-    // 3.1 if subsume, then we don't need to worry about
+    // 3.1 if cex is subsumed, then we don't need to worry about this one
     if (lemma->subsume_by_frame(fidx + 1, *this)) {
       push_status += '.';
       continue;

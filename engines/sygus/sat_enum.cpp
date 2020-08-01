@@ -436,7 +436,7 @@ void Enumerator::PopulateTermTableWithConstants(width_term_table_t & table) {
         sygus::smt_string_to_const_term(c, msat_solver_)
         ));
       table[width].term_strings.insert(
-        table[width].terms.back().first->to_string());
+        table[width].terms.back().first->to_raw_string());
     }
   }
 
@@ -468,7 +468,7 @@ void Enumerator::PopulateTermTableWithUnaryOp(width_term_table_t & terms_table) 
         if (btor_new_term->is_symbolic_const())
           continue;
         // for op & value, let's do the check
-        auto v = btor_new_term->to_string();
+        auto v = btor_new_term->to_raw_string();
         if (terms.term_strings.find(v) != terms.term_strings.end())
           continue; // skip this
         terms.term_strings.insert(v);
@@ -519,7 +519,7 @@ void Enumerator::PopulateTermTableWithBinaryOp(width_term_table_t & terms_table)
             continue; // will not add vars
 
           //if (btor_new_term->is_value()) {
-          auto v = btor_new_term->to_string();
+          auto v = btor_new_term->to_raw_string();
           if (terms.term_strings.find(v) != terms.term_strings.end())
             continue; // skip this
           terms.term_strings.insert(v);
@@ -578,7 +578,7 @@ void Enumerator::PopulateTermTableWithExtractOpSyntaxDependentVars(width_term_ta
 
 
 bool Enumerator::is_predicate_const(const smt::Term & t) {
-  auto term_string = t->to_string();
+  //auto term_string = t->to_raw_string();
   {
     //std::cout << "[is_predicate_const] Checking " << term_string << std::endl;
     solver_->push();
@@ -814,7 +814,7 @@ void Enumerator::PopulatePredicateListsWithTermsIncr() {
       for (size_t idx = terms.terms_val_under_cex.size() ; 
           idx < terms.terms.size(); ++ idx) {
         terms.terms_val_under_cex.push_back(eval_val(
-          solver_->get_value(terms.terms.at(idx).first)->to_string()));
+          solver_->get_value(terms.terms.at(idx).first)->to_raw_string()));
       }
       solver_->pop();
     } // finish eval new terms
@@ -869,7 +869,7 @@ void Enumerator::PopulatePredicateListsWithTermsIncr() {
 
 void Enumerator::insert_comp(smt::PrimOp smt_op, const btor_msat_term_pair_t & l, const btor_msat_term_pair_t & r) {
   auto pred_btor = solver_->make_term(smt::Op(smt_op), l.first, r.first);
-  auto pred_syntactic_hash = pred_btor->to_string();
+  auto pred_syntactic_hash = pred_btor->to_raw_string();
   if (IN(pred_syntactic_hash, predicate_set_btor_))
     return; // duplicated predicates -- avoid
   if (is_predicate_const(pred_btor))
@@ -882,15 +882,27 @@ void Enumerator::insert_comp(smt::PrimOp smt_op, const btor_msat_term_pair_t & l
 } // Enumerator::insert_comp
 
 
+void Enumerator::MoreTermPredicates() { // more terms & predicates
+  PopulateTermTableWithUnaryOp(width_term_table_);
+  PopulateTermTableWithBinaryOp(width_term_table_);
+  PopulatePredicateListsWithTermsIncr();
+  enum_status_.increase_predicate_num();
+}
+void Enumerator::MoreConjunctions() { // more conjunction
+  curr_conjunction_depth ++; 
+}
+void Enumerator::ResetConjunctionOne() { // restart from 1 conjunction
+  curr_conjunction_depth = 1;
+}
 
+/* // Old implementation -- not good -- need to expose to outside
 void Enumerator::MoveToNextLevel() { // more predicates more in conjunction
-
   if( curr_conjunction_depth == GlobalAPdrConfig.EXTRACT_DEGENERATE_THRESHOLD) {
     PopulateTermTableWithExtractOpAllWidthVars(width_term_table_);
     PopulatePredicateListsWithTermsIncr();
     enum_status_.increase_predicate_num();
     curr_conjunction_depth ++; 
-  } else if (curr_conjunction_depth < GlobalAPdrConfig.NESTED_TERMS_THRESHOLD) {
+  } else if (curr_conjunction_depth < GlobalAPdrConfig.NESTED_TERMS_THRESHOLD (deprected 3) ) {
     curr_conjunction_depth ++;
   } else {
     PopulateTermTableWithUnaryOp(width_term_table_);
@@ -900,6 +912,7 @@ void Enumerator::MoveToNextLevel() { // more predicates more in conjunction
     curr_conjunction_depth ++;
   }
 }
+*/
 
 std::pair<smt::Term, smt::Term> Enumerator::EnumCurrentLevel(uint64_t bnd) {
   uint64_t idx = 0;

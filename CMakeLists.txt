@@ -121,6 +121,7 @@ add_library(cosa2 "${COSA2_LIB_TYPE}"
   "${PROJECT_SOURCE_DIR}/engines/apdr/lemma.cpp"
   "${PROJECT_SOURCE_DIR}/engines/apdr/sygus_pdr.cpp"
   "${PROJECT_SOURCE_DIR}/engines/apdr/transferts.cpp"
+  "${PROJECT_SOURCE_DIR}/engines/apdr/sort_convert_util.cpp"
   )
 
 target_include_directories(cosa2 PUBLIC

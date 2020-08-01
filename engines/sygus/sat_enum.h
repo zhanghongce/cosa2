@@ -90,6 +90,10 @@ struct enum_status {
 
   void dump() const;
 
+  std::pair <uint64_t, uint64_t> get_conjdepth_predwidth() const {
+    return std::make_pair(curr_conjunction_depth, curr_predicate_num);
+  }
+
 protected:
   z3::expr and_of_predvs(const std::unordered_set<size_t> & pred_idxs);
   z3::expr or_of_predvs(const std::unordered_set<size_t> & pred_idxs);
@@ -248,7 +252,9 @@ public:
   // 
   std::pair<smt::Term, smt::Term> EnumCurrentLevel(uint64_t bnd = 0);
 
-  void MoveToNextLevel(); // more predicates more in conjunction
+  void MoreTermPredicates(); // more terms & predicates
+  void MoreConjunctions(); // more conjunction
+  void ResetConjunctionOne(); // restart from 1 conjunction
 
   // help to get an idea of what the status of enumeration is
   const enum_status & GetEnumStatus() const { return enum_status_; }

@@ -15,6 +15,7 @@
  **/
  
 #include "transferts.h"
+#include "sort_convert_util.h"
 
 #include <cassert>
 
@@ -33,6 +34,7 @@ TransferredTransitionSystem::TransferredTransitionSystem(
   // 1. translate states/inputs
   for (const auto & s : ts.states()) {
     auto local_s = translater_.transfer_term(s, true);
+    assert (local_s->get_sort()->get_sort_kind() == smt::SortKind::BV);
     states_.insert( local_s );
     symbol_map_ex2in.emplace( s, local_s );
     symbol_map_in2ex.emplace( local_s, s );
@@ -40,6 +42,7 @@ TransferredTransitionSystem::TransferredTransitionSystem(
 
   for (const auto & v : ts.inputs()) {
     auto local_v = translater_.transfer_term(v, true);
+    assert (local_v->get_sort()->get_sort_kind() == smt::SortKind::BV);
     inputs_.insert( local_v );
     symbol_map_ex2in.emplace( v, local_v );
     symbol_map_in2ex.emplace( local_v, v );
@@ -47,6 +50,7 @@ TransferredTransitionSystem::TransferredTransitionSystem(
 
   for (const auto & v : ts.next_states()) {
     auto local_v = translater_.transfer_term(v, true);
+    assert (local_v->get_sort()->get_sort_kind() == smt::SortKind::BV);
     next_states_.insert( local_v );
     symbol_map_ex2in.emplace( v, local_v );
     symbol_map_in2ex.emplace( local_v, v );
@@ -82,20 +86,20 @@ TransferredTransitionSystem::TransferredTransitionSystem(
   for (const auto & v_nxt_pair : ts.state_updates() ) {
     state_updates_.emplace(
       translater_.transfer_term(v_nxt_pair.first, false),
-      translater_.transfer_term(v_nxt_pair.second, false)
+      bool_to_bv_msat(translater_.transfer_term(v_nxt_pair.second, false), to_solver)
     );
   }
 
   for (const auto & vp_nxt_pair : ts.nxt_state_updates() ) {
     nxt_state_updates_.emplace(
       translater_.transfer_term(vp_nxt_pair.first, false),
-      translater_.transfer_term(vp_nxt_pair.second, false)
+      bool_to_bv_msat(translater_.transfer_term(vp_nxt_pair.second, false), to_solver)
     );
   }
 
-  init_ = translater_.transfer_term(ts.init(), false);
-  trans_ = translater_.transfer_term(ts.trans(), false);
-  constraint_ = translater_.transfer_term(ts.constraint(), false);
+  init_ = bv_to_bool_msat(translater_.transfer_term(ts.init(), false), to_solver);
+  trans_ = bv_to_bool_msat(translater_.transfer_term(ts.trans(), false), to_solver);
+  constraint_ =  bv_to_bool_msat(translater_.transfer_term(ts.constraint(), false), to_solver);
 
 } // end of constructor
 

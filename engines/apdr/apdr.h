@@ -160,7 +160,7 @@ protected:
   std::unique_ptr<sygus::SyGusQueryGen> sygus_query_gen_;
   Smtlib2Parser smtlib2parser;
   facts_t empty_fact_; // used by _get_fact
-  
+
 protected: // frame handling
   virtual smt::Term frame_prop_btor(unsigned fidx) const override;
   virtual smt::Term frame_prop_btor(unsigned fidx, unsigned not_include_lemmaIdx) const override;
@@ -184,7 +184,8 @@ protected: // sygus related
     const smt::Term & prop_msat,
     const smt::Term & prop_btor,
     const std::vector<Model *> & cexs, const std::vector<Model *> & facts,
-    bool assert_inv_in_prevF);
+    bool assert_inv_in_prevF,
+    uint64_t conj_depth_threshold_for_internal_sygus /* if possible use itp var num */ );
 
 protected:
   // member class

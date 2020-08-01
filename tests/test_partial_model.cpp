@@ -5,8 +5,6 @@
 
 #include "available_solvers.h"
 #include "core/fts.h"
-#include "engines/sygus/partial_model.h"
-#include "engines/sygus/opextract.h"
 #include "core/unroller.h"
 #include "gtest/gtest.h"
 #include "smt-switch/boolector_factory.h"
@@ -15,8 +13,11 @@
 #include "utils/container_shortcut.h"
 #include "frontends/btor2_encoder.h"
 #include "frontends/smtlib2parser.h"
-#include "sygus/gen_sygus_query.h"
-#include "sygus/sat_enum.h"
+#include "engines/apdr/transferts.h"
+#include "engines/sygus/partial_model.h"
+#include "engines/sygus/opextract.h"
+#include "engines/sygus/gen_sygus_query.h"
+#include "engines/sygus/sat_enum.h"
 #ifdef WITH_MSAT
   #include "smt-switch/msat_factory.h"
 #endif
@@ -344,12 +345,18 @@ TEST (SygusInternal, FromCex)  {
     btor->set_opt("incremental", "true");
     TermTranslator to_msat(msat);
 
-    FunctionalTransitionSystem fts_msat(msat);
-    BTOR2Encoder btor_enc_msat(fname, fts_msat);
-
     FunctionalTransitionSystem fts_btor(btor);
     BTOR2Encoder btor_enc_btor(fname, fts_btor);
     auto prop_btor = btor_enc_btor.propvec()[0];
+
+    TransferredTransitionSystem fts_msat(fts_btor, msat, to_msat);
+
+    // debug cache
+    std::cout << "to_msat cache debug:" << std::endl;
+    for (auto btort_msatt_pair : to_msat.get_cache()) {
+      std::cout << "Btor " << btort_msatt_pair.first->to_string() << " --> " 
+                << "Btor " << btort_msatt_pair.second->to_string() << std::endl;
+    }
 
     OpExtractor opext;
     opext.WalkBFS(fts_msat.trans());
@@ -373,7 +380,7 @@ TEST (SygusInternal, FromCex)  {
     // and then start the enumerator
 
     auto btor_var_to_msat_var = [&] (const smt::Term & v) -> smt::Term {
-      return to_msat.transfer_term(v, fts_msat.symbols());
+      return to_msat.transfer_term(v, false);
     };
     auto to_next = [&] (const smt::Term & v)  -> smt::Term {
       return fts_btor.next(v);
@@ -412,12 +419,11 @@ TEST (SygusInternal, FromProp)  {
     btor->set_opt("incremental", "true");
     TermTranslator to_msat(msat);
 
-    FunctionalTransitionSystem fts_msat(msat);
-    BTOR2Encoder btor_enc_msat(fname, fts_msat);
-
     FunctionalTransitionSystem fts_btor(btor);
     BTOR2Encoder btor_enc_btor(fname, fts_btor);
     auto prop_btor = btor_enc_btor.propvec()[0];
+
+    TransferredTransitionSystem fts_msat(fts_btor, msat, to_msat);
 
     OpExtractor opext;
     opext.WalkBFS(fts_msat.trans());
@@ -430,7 +436,7 @@ TEST (SygusInternal, FromProp)  {
     // and then start the enumerator
 
     auto btor_var_to_msat_var = [&] (const smt::Term & v) -> smt::Term {
-      return to_msat.transfer_term(v, fts_msat.symbols());
+      return to_msat.transfer_term(v, false);
     };
     auto to_next = [&] (const smt::Term & v)  -> smt::Term {
       return fts_btor.next(v);

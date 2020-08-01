@@ -63,8 +63,8 @@ namespace cosa {
     bool COMP_DEFAULT_OVERRIDE = true;
     bool COMP_DEFAULT_BVULTULE = true;
     uint64_t STARTING_CONJ_DEPTH = 3;
-    uint64_t EXTRACT_DEGENERATE_THRESHOLD = 3;
-    uint64_t NESTED_TERMS_THRESHOLD = 3;
+    uint64_t EXTRACT_DEGENERATE_THRESHOLD = 3; /* only used in enum.cpp*/
+
     enum SYGUS_MODE_T {
       NONE = 0,
       INTERNAL = 1,

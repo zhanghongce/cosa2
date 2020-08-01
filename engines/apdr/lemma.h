@@ -28,10 +28,6 @@ class ModelLemmaManager;
 class FrameCache;
 
 
- // for msat as it is not happy with bvcomp as bool
-smt::Term bv_to_bool_msat(const smt::Term & t, const smt::SmtSolver & itp_solver_ );
-
-
 class LemmaPDRInterface : public SignalPDRInterface {
 public:
   enum LemmaOrigin {ORIGIN_FROM_PROPERTY, ORIGIN_FROM_PUSH, ORIGIN_FROM_INIT};

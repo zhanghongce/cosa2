@@ -309,7 +309,7 @@ int main(int argc, char ** argv)
       GlobalAPdrConfig.COMP_DEFAULT_BVULTULE = ((bvcomp_mode & 0x4) || (bvcomp_mode & 0x2));
       GlobalAPdrConfig.COMP_DEFAULT_OVERRIDE = ((bvcomp_mode & 0x1));
 
-      s = BoolectorSolverFactory::create(true); // let's create it with a wrapper in case translation failed
+      s = BoolectorSolverFactory::create(false); // let's create it with a wrapper in case translation failed
       s->set_opt("produce-models", "true");
       s->set_opt("incremental", "true");
       Configurations::MsatInterpolatorConfiguration cfg;

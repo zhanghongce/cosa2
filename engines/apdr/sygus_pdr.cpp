@@ -94,7 +94,8 @@ smt::Term Apdr::do_sygus(const smt::Term & prevF_msat,
     const smt::Term & prop_msat,
     const smt::Term & prop_btor,
     const std::vector<Model *> & cexs, const std::vector<Model *> & facts,
-    bool assert_inv_in_prevF) {
+    bool assert_inv_in_prevF,
+    uint64_t conj_depth_threshold_for_internal_sygus /* use itp var size*/) {
   
   if (GlobalAPdrConfig.SYGUS_MODE & APdrConfig::SYGUS_MODE_T::INTERNAL) {
     // do it here
@@ -111,22 +112,40 @@ smt::Term Apdr::do_sygus(const smt::Term & prevF_msat,
       op_extract_->GetSyntaxConstruct()      
     );
 
-    INFO("ID {} --- Enum status before: ", sygus_enumerator.GetCexRefId());
-    sygus_enumerator.GetEnumStatus().dump();
-    INFO("\n--- Enum status end ");
-    auto ret = sygus_enumerator.EnumCurrentLevel();
-    INFO("--- Enum status after: ");
-    sygus_enumerator.GetEnumStatus().dump();
-    INFO("\n--- Enum status end ");
-    if (ret.second != nullptr)
-      return ret.second;
+    auto conjdepth_predwidth = sygus_enumerator.GetEnumStatus().get_conjdepth_predwidth();
+    do{
+      INFO("ID {} --- Enum status before: ", sygus_enumerator.GetCexRefId());
+      sygus_enumerator.GetEnumStatus().dump();
+      INFO("\n--- Enum status end ");
+      auto ret = sygus_enumerator.EnumCurrentLevel();
+      INFO("--- Enum status after: ");
+      sygus_enumerator.GetEnumStatus().dump();
+      INFO("\n--- Enum status end ");
+      if (ret.second != nullptr)
+        return ret.second;
   
-  // if use enum::Enumerator, you will not need to move to next level
-  #ifndef SYGUS_ENUM_NO_MOVE_TO_NEXT_LEVEL
-    // at this point, move to next level, because we run out of candidates
-    sygus_enumerator.MoveToNextLevel();
-  #endif
-  }
+      conjdepth_predwidth = sygus_enumerator.GetEnumStatus().get_conjdepth_predwidth();
+
+      // if use enum::Enumerator, you will not need to move to next level
+      #ifndef SYGUS_ENUM_NO_MOVE_TO_NEXT_LEVEL
+        // at this point, move to next level, because we run out of candidates
+        sygus_enumerator.MoreConjunctions();
+        if (conjdepth_predwidth.first >= conj_depth_threshold_for_internal_sygus) {
+          sygus_enumerator.MoreTermPredicates();
+          sygus_enumerator.ResetConjunctionOne();
+        }
+
+        // QUESION: When to use extract? Never?
+      #else
+        #error "TODO: modify enum.h and enum.cpp to make API the same."
+      #endif
+
+      
+    } while(conjdepth_predwidth.first <= conj_depth_threshold_for_internal_sygus);
+
+  } // end of sygus mode : INTERNAL
+
+  // -------------- SYGUS EXTERNAL MODE -------------------------- //
 
   if (GlobalAPdrConfig.SYGUS_MODE & APdrConfig::SYGUS_MODE_T::EXTERNAL) {
     // then execute 1. first try pbe, if fail try no-pbe
@@ -185,7 +204,7 @@ smt::Term Apdr::do_sygus(const smt::Term & prevF_msat,
     assert (!succ);
     INFO("SyGuS 1&2 both failed.");
     return nullptr;
-  }
+  } // end of sygus external mode
 
   return nullptr;
 } // do_sygus
