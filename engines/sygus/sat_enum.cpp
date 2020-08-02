@@ -43,6 +43,8 @@
   #define INFO(...) logger.log(1, __VA_ARGS__)
 #endif
 
+#define TERM_TABLE_DEBUG_LVL 0
+
 namespace cosa {
 
 namespace sat_enum {
@@ -337,7 +339,12 @@ Enumerator::Enumerator(
   // SetupInitialPredicateListAndEnumStatus
   // term table dump
   D(0, "[sat-enum] receive init {} , prop {}", (init_->to_string()), (prop_ == NULL ? "None": prop_->to_string())  );
+#if TERM_TABLE_DEBUG_LVL == 1
+  // a light weight dump function
+#endif
+#if TERM_TABLE_DEBUG_LVL == 2
   PrintWidthTermTable(width_term_table_);
+#endif
 
   if (enum_status_.is_uninit()) {
     PopulatePredicateListsWithTermsIncr();

@@ -26,6 +26,13 @@
 
 #define INFO(...) logger.log(1, __VA_ARGS__)
 
+#define DEBUG_DUMP_ENUM_STAT 1
+#ifdef DEBUG_DUMP_ENUM_STAT
+  #define ENUM_STAT_INFO(...) INFO(__VA_ARGS__)
+#else
+  #define ENUM_STAT_INFO(...) do{}while(0)
+#endif
+
 namespace cosa {
 
 static smt::Term EXEC_OP(const std::string & outfile, const std::string & infile, const std::string & text,
@@ -114,13 +121,17 @@ smt::Term Apdr::do_sygus(const smt::Term & prevF_msat,
 
     auto conjdepth_predwidth = sygus_enumerator.GetEnumStatus().get_conjdepth_predwidth();
     do{
-      INFO("ID {} --- Enum status before: ", sygus_enumerator.GetCexRefId());
+      ENUM_STAT_INFO("ID {} --- Enum status before: ", sygus_enumerator.GetCexRefId());
+#ifdef DEBUG_DUMP_ENUM_STAT
       sygus_enumerator.GetEnumStatus().dump();
-      INFO("\n--- Enum status end ");
+#endif
+      ENUM_STAT_INFO("\n--- Enum status end ");
       auto ret = sygus_enumerator.EnumCurrentLevel();
-      INFO("--- Enum status after: ");
+      ENUM_STAT_INFO("--- Enum status after: ");
+#ifdef DEBUG_DUMP_ENUM_STAT
       sygus_enumerator.GetEnumStatus().dump();
-      INFO("\n--- Enum status end ");
+#endif
+      ENUM_STAT_INFO("\n--- Enum status end ");
       if (ret.second != nullptr)
         return ret.second;
   
