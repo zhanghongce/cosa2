@@ -138,7 +138,8 @@ std::tuple<bool, bool, int, Model *> Lemma::try_strengthen(FrameCache &fc,
     }
     auto trans_result = pdr.solveTrans(src_fidx, expr_, expr_msat_,
       {}, {}, // no synthesis needed here
-      false /*rm prop*/, false /*init*/, false /*itp*/, false /*post_state*/, &fc);
+      false /*rm prop*/, false /*init*/, false /*itp*/,  true /*post_state*/, false /*post_state*/, &fc);
+    assert (trans_result.not_hold == (trans_result.prev_ex != NULL));
     prev_ex = trans_result.prev_ex; // update the cex
     -- bnd;
     if (bnd < 0) {
@@ -160,7 +161,8 @@ std::tuple<bool, bool, int, Model *> Lemma::try_strengthen(FrameCache &fc,
     for (Lemma * l : fc.get_frames().at(src_fidx)) {
       auto trans_result = pdr.solveTrans(src_fidx, expr_,  expr_msat_,
         {}, {}, // no synthesis needed here
-        false /*rm prop*/, false /*init*/, false /*itp*/, false /*post_state*/, &fc);
+        false /*rm prop*/, false /*init*/, false /*itp*/, true /*pre_state*/, false /*post_state*/, &fc);
+      assert (trans_result.not_hold == (trans_result.prev_ex != NULL));
       prev_ex =  trans_result.prev_ex; // update the cex
 
       if (prev_ex == NULL)

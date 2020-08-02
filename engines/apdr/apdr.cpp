@@ -115,6 +115,8 @@ void Apdr::initialize() {
   ts_msat_.setup_reverse_translator(to_btor_);
 
   has_assumptions = !is_valid(ts_.constraint());
+  config_push_stop_after_itp_push = 
+    GlobalAPdrConfig.LEMMA_GEN_MODE != APdrConfig::LEMMA_GEN_MODE_T::ITP_ONLY;
 
   // vars initialization
   for (auto && v : keep_vars_)
@@ -612,7 +614,8 @@ Apdr::solve_trans_result Apdr::solveTrans(
   unsigned prevFidx, const smt::Term & prop_btor_ptr, const smt::Term & prop_msat_ptr,
   const std::vector<Model *> & models_to_block, const std::vector<Model *> & models_fact,
   bool remove_prop_in_prev_frame,
-  bool use_init, bool findItp, bool get_post_state, FrameCache * fc ) {
+  bool use_init, bool findItp,
+  bool get_pre_state, bool get_post_state, FrameCache * fc ) {
   
   PUSH_STACK; SET_STATE(APdrConfig::APDR_WORKING_STATE_T::SOLVE_TRANS);
 
@@ -655,29 +658,32 @@ Apdr::solve_trans_result Apdr::solveTrans(
   solver_->assert_formula(F_to_check);
   auto result = solver_->check_sat();
   if (result.is_sat()) {
-    // now let's get the partial model
-    std::unordered_set<smt::Term> varlist;
-    // std::unordered_set<smt::Term> post_varlist; 
-    partial_model_getter.GetVarList(F_to_check, varlist, true);
-    //if (get_post_state) // FIXME: this may be a bug
-    //  put_vars_nxt( varlist , post_varlist);
-    D(3, "Before var cut: {}", new_model(varlist)->to_string());
-    cut_vars_cur(varlist);
-    Model * prev_ex = new_model(varlist);
-    Model * post_ex = NULL; // get_post_state ? new_model(post_varlist) : NULL; // FIXME: this may be a bug
-    solver_->pop();
+    if (get_pre_state) {
+      // now let's get the partial model
+      std::unordered_set<smt::Term> varlist;
+      // std::unordered_set<smt::Term> post_varlist; 
+      partial_model_getter.GetVarList(F_to_check, varlist, true);
+      //if (get_post_state) // FIXME: this may be a bug
+      //  put_vars_nxt( varlist , post_varlist);
+      D(3, "Before var cut: {}", new_model(varlist)->to_string());
+      cut_vars_cur(varlist);
+      Model * prev_ex = new_model(varlist);
+      Model * post_ex = NULL; // get_post_state ? new_model(post_varlist) : NULL; // FIXME: this may be a bug
+      solver_->pop();
 
-    if(!has_assumptions) {
-      CHECK_MODEL(solver_, F_to_check, prev_ex);
-    }
+      if(!has_assumptions) {
+        CHECK_MODEL(solver_, F_to_check, prev_ex);
+      }
 
-    POP_STACK;
-    return solve_trans_result(prev_ex, post_ex, smt::Term(NULL), smt::Term(NULL));
+      POP_STACK;
+      return solve_trans_result(true, prev_ex, post_ex, smt::Term(NULL), smt::Term(NULL));
+    } // else no pre-state
+    return solve_trans_result(true, NULL, NULL, smt::Term(NULL), smt::Term(NULL));
   } // else unsat
   solver_->pop();
   if (!findItp) {
     POP_STACK;
-    return solve_trans_result(NULL, NULL, smt::Term(NULL), smt::Term(NULL));
+    return solve_trans_result(false, NULL, NULL, smt::Term(NULL), smt::Term(NULL));
   }
 
   auto prevF_msat = frame_prop_msat(prevFidx);
@@ -693,14 +699,14 @@ Apdr::solve_trans_result Apdr::solveTrans(
   if (lemma_btor == nullptr || lemma_msat == nullptr ) {
     INFO("Failed to get ITP, use prop instead.");
     POP_STACK;
-    return solve_trans_result(NULL, NULL, prop_btor, prop_msat);
+    return solve_trans_result(false, NULL, NULL, prop_btor, prop_msat);
   }
 
   D(3,"      [solveTrans] get lemma : {}", lemma_btor->to_string());
 
   // transfer it back to current vars
   POP_STACK;
-  return solve_trans_result(NULL, NULL, lemma_btor, lemma_msat);
+  return solve_trans_result(false, NULL, NULL, lemma_btor, lemma_msat);
 } // solveTrans
 
 
@@ -717,7 +723,9 @@ Model * Apdr::get_bad_state_from_property_invalid_after_trans (
     //idx, prop_btor, prop_msat, {} /*models to block*/, {} /*facts to imply*/,
     idx, nullptr, nullptr, {cube} /*models to block*/, {} /*facts to imply*/,
     /*remove_prop_in_prev*/ false, use_init,
-    /*find itp*/ add_itp, /*post state*/ false, /*fc*/ NULL );
+    /*find itp*/ add_itp, /*pre state*/ true, /*post state*/ false, /*fc*/ NULL );
+  assert (trans_result.not_hold == (trans_result.prev_ex != NULL));
+
   if (trans_result.prev_ex == NULL && add_itp && trans_result.itp != NULL) {
     // only used in the INIT --T-->ITP => P
     Lemma * l = new_lemma(trans_result.itp, trans_result.itp_msat,
@@ -806,8 +814,10 @@ bool Apdr::do_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex
       nullptr, nullptr, // prop_btor & prop_msat 
       {cex}, _get_fact(fidx), // okay to use more fact
       GlobalAPdrConfig.RM_CEX_IN_PREV,
-      true /*use_init*/, true /*itp*/, false /*post state*/, NULL /*no fc*/ );
+      true /*use_init*/, true /*itp*/,
+      true /*pre state*/, false /*post state*/, NULL /*no fc*/ );
 
+    assert (trans_result.not_hold == (trans_result.prev_ex != NULL));
 
     if (trans_result.prev_ex == NULL) {
       // unsat -- no reachable
@@ -879,8 +889,9 @@ bool Apdr::try_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin ce
           l->expr(), l->expr_msat(),
           {}, {}, // not blocking / facts -- no synthesis needed here
           false /*rm prop in prev frame*/, false /*use_init*/, false /*itp*/,
+          false /*pre state*/,
           false /*post state*/, &frame_cache /*frame cache*/);
-        if (result.prev_ex == NULL) {
+        if (!result.not_hold) {
           D(2, "  [block-try F{}] Succeed in eager pushing",fidx);
           Lemma *lemma_nxt = l->direct_push(*this);
           frame_cache._add_lemma(lemma_nxt, fidx);
@@ -907,7 +918,8 @@ bool Apdr::try_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin ce
       nullptr, nullptr, 
       {cex}, _get_fact(fidx), // okay to use more fact
       GlobalAPdrConfig.RM_CEX_IN_PREV,
-      true /*use_init*/, true /*itp*/, false /*post state*/, & frame_cache );
+      true /*use_init*/, true /*itp*/, true  /*pre state*/, false /*post state*/, & frame_cache );
+    assert (trans_result.not_hold == (trans_result.prev_ex != NULL));
 
     if (trans_result.prev_ex == NULL) {
       // unsat -- no reachable
@@ -1047,6 +1059,7 @@ void Apdr::push_lemma_from_the_lowest_frame() {
 
 void Apdr::push_lemma_from_frame(unsigned fidx) {
   assert (frames.size() > fidx + 1);
+  
 #ifdef DEBUG
   if (frames.at(fidx).empty())
     dump_frames(std::cerr);
@@ -1085,9 +1098,11 @@ void Apdr::push_lemma_from_frame(unsigned fidx) {
       lemma->expr(), lemma->expr_msat(),
       {}, {}, // not blocking / facts -- no synthesis needed here
       false /*rm prop in prev frame*/, false /*use_init*/, false /*itp*/,
+      !config_push_stop_after_itp_push && GlobalAPdrConfig.BLOCK_CTG
+       /*pre state = no strengthening*/,
       false /*post state*/, NULL /*frame cache*/);
     assert (result.post_ex == NULL); // BUG not implemented yet
-    if (result.prev_ex == NULL) {
+    if (!result.not_hold) {
       D(2, "  [push_lemma F{}] Succeed in pushing l{}",
         fidx, lemmaIdx);
       _add_lemma(lemma->direct_push(*this), fidx+1);
@@ -1143,7 +1158,8 @@ void Apdr::push_lemma_from_frame(unsigned fidx) {
     // we are successful in pushing the cex
     // if we are using sygus in the lemma generation
     // then what else should we do? nothing
-    if (GlobalAPdrConfig.LEMMA_GEN_MODE != APdrConfig::LEMMA_GEN_MODE_T::ITP_ONLY) {
+    // config_push_stop_after_itp_push = GlobalAPdrConfig.LEMMA_GEN_MODE != APdrConfig::LEMMA_GEN_MODE_T::ITP_ONLY
+    if (config_push_stop_after_itp_push) {
       merge_frame_cache(itp_fc);
       push_status += 'C';
       continue;
@@ -1174,6 +1190,8 @@ void Apdr::push_lemma_from_frame(unsigned fidx) {
       FrameCache strengthen_fc(solver_, itp_solver_, *this);
 
       bool prop_succ, all_succ; int rmBnd; Model * unblockable_cube;
+      assert (prev_ex); // not null
+
       std::tie(prop_succ, all_succ, rmBnd, unblockable_cube) = 
         lemma->try_strengthen(strengthen_fc, 
           (lemma->origin() == Lemma::LemmaOrigin::ORIGIN_FROM_PROPERTY ?  /* strength effort determination */

@@ -32,12 +32,13 @@ class LemmaPDRInterface : public SignalPDRInterface {
 public:
   enum LemmaOrigin {ORIGIN_FROM_PROPERTY, ORIGIN_FROM_PUSH, ORIGIN_FROM_INIT};
   struct solve_trans_result {
+    bool not_hold;
     Model * prev_ex;
     Model * post_ex;
     smt::Term itp;
     smt::Term itp_msat;
-    solve_trans_result (Model * pre, Model * post, const smt::Term & itp_, const smt::Term & itp_msat_):
-      prev_ex(pre), post_ex (post), itp(itp_), itp_msat(itp_msat_) {}
+    solve_trans_result (bool sat_, Model * pre, Model * post, const smt::Term & itp_, const smt::Term & itp_msat_):
+      not_hold(sat_), prev_ex(pre), post_ex (post), itp(itp_), itp_msat(itp_msat_) {}
   };
 public:
   virtual bool is_valid(const smt::Term &) = 0;
@@ -51,7 +52,9 @@ public:
     const smt::Term & prop_btor, const smt::Term & prop_msat, // or the following
     const std::vector<Model *> & models_to_block, const std::vector<Model *> & models_fact,
     bool remove_prop_in_prev_frame,
-    bool use_init, bool findItp, bool get_post_state, FrameCache * fc ) = 0;
+    bool use_init, bool findItp,
+    bool get_pre_state,
+    bool get_post_state, FrameCache * fc ) = 0;
   virtual bool try_recursive_block(
     Model * cube, unsigned idx, LemmaOrigin cex_origin,
     FrameCache & frame_cache) = 0;

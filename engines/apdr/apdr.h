@@ -129,6 +129,7 @@ protected:
   smt::Term init_msat_nxt;
   smt::Term T_msat;
   bool has_assumptions;
+  bool config_push_stop_after_itp_push;
   void cut_vars_cur(std::unordered_set<smt::Term> & v);
   void put_vars_nxt(const std::unordered_set<smt::Term> & in, std::unordered_set<smt::Term> & out);
   // void cut_vars_nxt(std::unordered_set<smt::Term> & v);
@@ -220,7 +221,9 @@ public:
     const smt::Term & prop_btor_ptr, const smt::Term & prop_msat_ptr, // or the following
     const std::vector<Model *> & models_to_block, const std::vector<Model *> & models_fact,
     bool remove_prop_in_prev_frame,
-    bool use_init, bool findItp, bool get_post_state, FrameCache * fc ) override;
+    bool use_init, bool findItp, 
+    bool get_pre_state,
+    bool get_post_state, FrameCache * fc ) override;
   
   Model * get_bad_state_from_property_invalid_after_trans (
     const smt::Term & prop, const smt::Term & prop_msat, unsigned idx, bool use_init, bool add_itp,
