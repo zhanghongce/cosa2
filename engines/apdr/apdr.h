@@ -41,10 +41,16 @@ protected:
   smt::SmtSolver & btor_;
   smt::SmtSolver & msat_;
   ModelLemmaManager & mlm_;
+
+  Lemma * lemma_under_push;
+  unsigned lemma_under_push_fidx;
 public:
   FrameCache (smt::SmtSolver & btor, smt::SmtSolver & msat,
     ModelLemmaManager & mlm) :
-    btor_(btor), msat_(msat), mlm_(mlm) {}
+    btor_(btor), msat_(msat), mlm_(mlm), lemma_under_push(NULL) {}
+
+  void RegisterLemmaUnderPush(Lemma * l, unsigned fidx);
+  void UnregisterLemmaUnderPush();
 
   void _add_lemma(Lemma * lemma, unsigned fidx);
   void _add_pushed_lemma(Lemma * lemma, unsigned start, unsigned end);

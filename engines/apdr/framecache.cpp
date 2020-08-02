@@ -44,16 +44,47 @@ namespace cosa {
 // -----------------------------------------------------------------------
 // HERE begins FrameCache's function definitions
 
+
+void FrameCache::RegisterLemmaUnderPush(Lemma * l, unsigned fidx) { 
+  assert (lemma_under_push == NULL);
+  lemma_under_push = l;
+  lemma_under_push_fidx = fidx;
+}
+void FrameCache::UnregisterLemmaUnderPush() { 
+  lemma_under_push = NULL;
+  lemma_under_push_fidx = 0; 
+}
+
 void FrameCache::_add_lemma(Lemma * lemma, unsigned fidx) {
   if(!IN(fidx, frames))
     frames.insert(std::make_pair(fidx, frame_t()));
+  
+  if (lemma_under_push && (fidx <= lemma_under_push_fidx) && (lemma->to_string() == lemma_under_push->to_string()) ) {
+    return;
+  }
+
   frames.at(fidx).push_back(lemma);
 }
 void FrameCache::_add_pushed_lemma(Lemma * lemma, unsigned start, unsigned end) {
-  Lemma * l_prev = lemma->copy(mlm_);
-  l_prev->pushed = true;
-  for (size_t fidx = start; fidx <= end; ++ fidx)
-    _add_lemma(l_prev, fidx);
+
+  assert (start == 1);
+  if (lemma_under_push && 
+      (lemma->to_string() == lemma_under_push->to_string()) ) {
+    if (end + 1 > lemma_under_push_fidx) { // the actual lemma is at end + 1
+      lemma_under_push->pushed = true;
+      start = lemma_under_push_fidx + 1; // the current frame already has it, so + 1
+      lemma_under_push_fidx = end;
+    } else { // end <= lemma_under_push_fidx
+      assert (false); // should not happen, it should already enforce this
+    }
+  }
+  if (start <= end) {
+    Lemma * l_prev = lemma->copy(mlm_);
+    l_prev->pushed = true;
+    for (size_t fidx = start; fidx <= end; ++ fidx) {
+      _add_lemma(l_prev, fidx);
+    }
+  }
 }
 
 bool FrameCache::has_lemma_at_frame(unsigned fidx) const {

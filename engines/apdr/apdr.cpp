@@ -616,6 +616,7 @@ Apdr::solve_trans_result Apdr::solveTrans(
   
   PUSH_STACK; SET_STATE(APdrConfig::APDR_WORKING_STATE_T::SOLVE_TRANS);
 
+  assert ( get_post_state == false); // BUG: not implemented correctly
   assert ( (models_to_block.empty()) != (prop_btor_ptr ==nullptr) );
   assert ( (prop_msat_ptr ==nullptr) == (prop_btor_ptr==nullptr) );
   assert ( models_fact.empty() || (!models_to_block.empty()) );
@@ -656,14 +657,14 @@ Apdr::solve_trans_result Apdr::solveTrans(
   if (result.is_sat()) {
     // now let's get the partial model
     std::unordered_set<smt::Term> varlist;
-    std::unordered_set<smt::Term> post_varlist;
+    // std::unordered_set<smt::Term> post_varlist; 
     partial_model_getter.GetVarList(F_to_check, varlist, true);
-    if (get_post_state)
-      put_vars_nxt( varlist , post_varlist);
+    //if (get_post_state) // FIXME: this may be a bug
+    //  put_vars_nxt( varlist , post_varlist);
     D(3, "Before var cut: {}", new_model(varlist)->to_string());
     cut_vars_cur(varlist);
     Model * prev_ex = new_model(varlist);
-    Model * post_ex = get_post_state ? new_model(post_varlist) : NULL;
+    Model * post_ex = NULL; // get_post_state ? new_model(post_varlist) : NULL; // FIXME: this may be a bug
     solver_->pop();
 
     if(!has_assumptions) {
@@ -712,7 +713,9 @@ Model * Apdr::get_bad_state_from_property_invalid_after_trans (
   assert(idx >= 0);
   D(2, "    [F{} -> prop]", idx);
   auto trans_result = solveTrans(
-    idx, prop_btor, prop_msat, {} /*models to block*/, {} /*facts to imply*/,
+    // I think it is better to use prop rather than cex
+    //idx, prop_btor, prop_msat, {} /*models to block*/, {} /*facts to imply*/,
+    idx, nullptr, nullptr, {cube} /*models to block*/, {} /*facts to imply*/,
     /*remove_prop_in_prev*/ false, use_init,
     /*find itp*/ add_itp, /*post state*/ false, /*fc*/ NULL );
   if (trans_result.prev_ex == NULL && add_itp && trans_result.itp != NULL) {
@@ -733,7 +736,7 @@ bool Apdr::do_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex
 
   smt::Term prop_btor = NOT( cube->to_expr_btor(solver_) );
 
-  D(2, "      [block] Try @F{} : {}", idx, cube->to_string());
+  D(2, "      [block] Try @F{} id {} : {}", idx,  reinterpret_cast<long>(cube), cube->to_string());
 
   if (frame_implies(idx, prop_btor)) { // Fi => not cex
     D(3, "      [block] already blocked by F{}", idx);
@@ -819,7 +822,7 @@ bool Apdr::do_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex
     }
   } //  while there is cube to block
   // block succeeded
-  D(2, "      [block] succeed, return.");
+  D(2, "      [block] succeed in block goal: F{} id {} ", idx,  reinterpret_cast<long>(cube));
   POP_STACK;
   return true;
 }
@@ -831,7 +834,7 @@ bool Apdr::try_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin ce
 
   PUSH_STACK; SET_STATE(APdrConfig::APDR_WORKING_STATE_T::RECURSIVE_BLOCK_TRY);
 
-  D(2, "      [block-try] Try @F{} : {}", idx, cube->to_string());
+  D(2, "      [block-try] Try @F{} id {} : {}", idx, reinterpret_cast<long>(cube), cube->to_string());
 
   std::priority_queue<fcex_t, std::vector<fcex_t>, fcex_queue_comparator> priorityQueue;
 
@@ -843,6 +846,9 @@ bool Apdr::try_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin ce
   }
   
   priorityQueue.push(std::make_pair(idx, cube));
+  unsigned prev_idx = idx;
+  std::vector<Lemma *> lemma_for_batch_push;
+
   while(!priorityQueue.empty()) {
     auto head = priorityQueue.top();
     unsigned fidx = head.first;
@@ -856,6 +862,46 @@ bool Apdr::try_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin ce
       return false;
     }
 
+    bool any_eager_push_is_successful = false;
+    if (fidx > prev_idx) { 
+      assert (!lemma_for_batch_push.empty());
+      assert (fidx >= 2);
+      // this is the point we are moving forward to a newer frame
+      // for each lemma in the batch, try to push it to the next level
+      std::vector<Lemma *> temp_lemma_vec; // create a temp vec
+      temp_lemma_vec.swap(lemma_for_batch_push); // take old values
+      // lemma_for_batch_push.clear(); will already be cleared
+      for (Lemma * l : temp_lemma_vec) {
+        // if pushed add back to lemma_for_batch_push
+        // only if pushed, check subsume, if subsume, pop and continue
+        // TODO:
+        auto result = solveTrans(fidx-1, 
+          l->expr(), l->expr_msat(),
+          {}, {}, // not blocking / facts -- no synthesis needed here
+          false /*rm prop in prev frame*/, false /*use_init*/, false /*itp*/,
+          false /*post state*/, &frame_cache /*frame cache*/);
+        if (result.prev_ex == NULL) {
+          D(2, "  [block-try F{}] Succeed in eager pushing",fidx);
+          Lemma *lemma_nxt = l->direct_push(*this);
+          frame_cache._add_lemma(lemma_nxt, fidx);
+          lemma_for_batch_push.push_back(lemma_nxt);
+          any_eager_push_is_successful = true;
+        }
+      } // for each lemma in temp_lemma_vec
+    } // if fidx > prev_idx
+    prev_idx = fidx;
+    if (any_eager_push_is_successful) {
+      // TODO: 
+      D(2, "  [block-try F{}] Succeed in blocking after eager pushing",fidx);
+      smt::Term cex_prop_btor = NOT(cex->to_expr_btor(solver_));
+      if (frame_and_fc_implies(fidx, frame_cache, cex_prop_btor)) {
+        priorityQueue.pop();
+        continue;
+      }
+    }
+
+    D(3, "      [block-try] checked at F{} -> F{} : {}", fidx-1, fidx, cex->to_string());
+
     // check at F Fidx-1 -> F idx 
     auto trans_result = solveTrans(fidx-1, 
       nullptr, nullptr, 
@@ -863,22 +909,24 @@ bool Apdr::try_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin ce
       GlobalAPdrConfig.RM_CEX_IN_PREV,
       true /*use_init*/, true /*itp*/, false /*post state*/, & frame_cache );
 
-    D(3, "      [block-try] checked at F{} -> F{} : {}", fidx-1, fidx, cex->to_string());
-
     if (trans_result.prev_ex == NULL) {
       // unsat -- no reachable
       Lemma * lemma = new_lemma(trans_result.itp, trans_result.itp_msat,
         cex, cex_origin);
       frame_cache._add_lemma(lemma, fidx);
       frame_cache._add_pushed_lemma(lemma, 1, fidx -1 );
+      lemma_for_batch_push.push_back(lemma);
       priorityQueue.pop();
+
+      D(3, "      [block-try] checked at F{} -> F{} : {} is blocked", fidx-1, fidx, cex->to_string());
+
     } else {
       priorityQueue.push(std::make_pair(fidx-1, trans_result.prev_ex));
       D(3, "      [block-try] push to queue, F{} : {}", fidx-1,  trans_result.prev_ex->to_string());
     }
   } //  while there is cube to block
   // block succeeded
-  D(2, "      [block-try] succeed, return.");
+  D(2, "      [block-try] return. succeed for top-level block goal: F{} id {} : {}", idx, reinterpret_cast<long>(cube), cube->to_string());
 
   POP_STACK;
   return true;
@@ -1037,15 +1085,15 @@ void Apdr::push_lemma_from_frame(unsigned fidx) {
       lemma->expr(), lemma->expr_msat(),
       {}, {}, // not blocking / facts -- no synthesis needed here
       false /*rm prop in prev frame*/, false /*use_init*/, false /*itp*/,
-      true /*post state*/, NULL /*frame cache*/);
+      false /*post state*/, NULL /*frame cache*/);
+    assert (result.post_ex == NULL); // BUG not implemented yet
     if (result.prev_ex == NULL) {
-      assert (result.post_ex == NULL);
       D(2, "  [push_lemma F{}] Succeed in pushing l{}",
         fidx, lemmaIdx);
       _add_lemma(lemma->direct_push(*this), fidx+1);
     } else {
       unpushed_lemmas.push_back(std::make_tuple(
-        lemmaIdx, lemma, result.prev_ex, result.post_ex
+        lemmaIdx, lemma, result.prev_ex, result.post_ex /*NULL*/
       ));
     }
   } // try plain pushing
@@ -1058,8 +1106,8 @@ void Apdr::push_lemma_from_frame(unsigned fidx) {
   for (auto && unpushed_lemma : unpushed_lemmas) {
     unsigned lemmaIdx;
     Lemma * lemma;
-    Model * prev_ex, * post_ex;
-    std::tie(lemmaIdx, lemma, prev_ex, post_ex) = unpushed_lemma; // unpack
+    Model * prev_ex, * post_ex /*NULL*/;
+    std::tie(lemmaIdx, lemma, prev_ex, post_ex  /*NULL*/ ) = unpushed_lemma; // unpack
     if (lemma->cex() == NULL) {
       D(2, "  [push_lemma F{}] will give up on lemma as it blocks None, l{} : {}",
         fidx, lemmaIdx, lemma->to_string());
@@ -1076,13 +1124,16 @@ void Apdr::push_lemma_from_frame(unsigned fidx) {
     //       but the others the first
     //     - if it is not pushable, we don't need to try anymore
     //       just give up
+
+    // rationals of using frame cache: if cex is not pushable
+    // but there might be lemmas added in the previous frame
+    // that are used to block the cex, some of them could be incorrect
+    // we can add configuration of whether to add them also
     FrameCache itp_fc(solver_, itp_solver_, *this);
-    bool cex_failed; Lemma * itp;
 
     SET_STATE(APdrConfig::APDR_WORKING_STATE_T::PUSH_TRY_CEX);
-    std::tie(cex_failed, itp) = lemma->try_itp_push(itp_fc, fidx, *this);
+    bool cex_failed = lemma->try_itp_push(itp_fc, fidx, *this);
     if (cex_failed) {
-      assert (itp == NULL);
       D(2, "  [push_lemma F{}] skip pushing l{} : {} , as its cex cannot be push blocked.",
         fidx, lemmaIdx, lemma->to_string());
       push_status += 'x';
@@ -1105,7 +1156,7 @@ void Apdr::push_lemma_from_frame(unsigned fidx) {
       // if not the case : (is a push lemma and we don't repair push lemma)
       if (! (  lemma->origin() == Lemma::LemmaOrigin::ORIGIN_FROM_PUSH && 
                ! GlobalAPdrConfig.USE_SYGUS_REPAIR_LEMMA_MAY_BLOCK) )
-        sygus_hint = lemma->try_sygus_repair(fidx, lemmaIdx, post_ex, itp, *this, *this);
+        sygus_hint = lemma->try_sygus_repair(fidx, lemmaIdx, post_ex  /*NULL*/ , NULL /*itp not available*/, *this, *this);
       // can still result in sygus_hint == NULL
     }
     if (sygus_hint) {
@@ -1145,9 +1196,8 @@ void Apdr::push_lemma_from_frame(unsigned fidx) {
 
     // try strengthen, but unable to even strengthen the main prop 
     // in the given bound
-    D(2, "  [push_lemma F{}] unable to push l{} : {}", fidx, lemmaIdx, lemma->to_string());
-    D(2, "  [push_lemma F{}] use new itp l{}: {}", fidx, lemmaIdx, itp->to_string());
-
+    D(2, "  [push_lemma F{}] unable to push l{} : {}, use new itp", fidx, lemmaIdx, lemma->to_string());
+    
     merge_frame_cache(itp_fc);
     push_status += 'C';
   } // for each unpushe lemma

@@ -99,7 +99,7 @@ public:
   Lemma * direct_push(ModelLemmaManager & mfm);
   bool subsume_by_frame(unsigned fidx, LemmaPDRInterface & pdr);
   // cex_failed, and ITP
-  std::pair<bool, Lemma *> try_itp_push(FrameCache &fc, unsigned src_fidx, 
+  bool try_itp_push(FrameCache &fc, unsigned src_fidx, 
      LemmaPDRInterface & pdr);
   // prop_succ, all_succ, bmBnd, unblocked_cube
   std::tuple<bool, bool, int, Model *> try_strengthen(FrameCache &fc,
