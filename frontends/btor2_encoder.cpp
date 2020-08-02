@@ -368,6 +368,7 @@ void BTOR2Encoder::parse(const std::string& filename)
       }
     } else if (l_->tag == BTOR2_TAG_constraint) {
       Term constraint = bv_to_bool(termargs_[0]);
+      std::cout << "It has constraint: " << constraint->to_string() << std::endl;
       ts_.add_constraint(constraint);
       terms_[l_->id] = constraint;
     } else if (l_->tag == BTOR2_TAG_init) {
@@ -435,6 +436,7 @@ void BTOR2Encoder::parse(const std::string& filename)
       }
 
       if (need_witness) {
+        std::cout << "witness-replace, original prop NOT( " << (bad->to_string()) << ")\n";
         Term witness =
               ts_.make_state("witness_" + std::to_string(witness_id_++),
                            solver_->make_sort(BV, 1));
