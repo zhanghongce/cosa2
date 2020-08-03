@@ -678,6 +678,7 @@ Apdr::solve_trans_result Apdr::solveTrans(
       POP_STACK;
       return solve_trans_result(true, prev_ex, post_ex, smt::Term(NULL), smt::Term(NULL));
     } // else no pre-state
+    solver_->pop();
     return solve_trans_result(true, NULL, NULL, smt::Term(NULL), smt::Term(NULL));
   } // else unsat
   solver_->pop();

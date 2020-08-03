@@ -92,6 +92,8 @@ Lemma * Lemma::direct_push(ModelLemmaManager & mfm) {
 
 
 bool Lemma::subsume_by_frame(unsigned fidx, LemmaPDRInterface & pdr) {
+  //auto prop = IMPLY(pdr.frame_prop_btor(fidx), NOT(cex_->to_expr_btor(pdr.btor())) );
+  //std::cout << "DEBUG: fidx=" << fidx << ", prop=" << prop->to_string() << std::endl;
   if (!pdr.is_valid(IMPLY(pdr.frame_prop_btor(fidx), NOT(cex_->to_expr_btor(pdr.btor())) )  )) 
     return false;
   return true;
