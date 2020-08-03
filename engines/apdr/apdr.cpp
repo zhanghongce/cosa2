@@ -21,6 +21,7 @@
 #include "utils/container_shortcut.h"
 #include "utils/term_analysis.h"
 #include "utils/logger.h"
+#include "utils/multitimer.h"
 
 #include <cassert>
 #include <queue>
@@ -348,6 +349,8 @@ void Apdr::validate_inv() {
   smt::Term inv = get_inv();
   D(1, "INV: {}", inv->to_string());
   assert (is_safe_inductive_inv(inv));
+
+  print_time_stat();
 #endif
 }
 
@@ -510,7 +513,10 @@ std::pair<smt::Term, smt::Term> Apdr::gen_lemma(
     // A_msat = AND_msat(prevF_msat, T_msat);
     // B_msat = NOT_msat(prop_msat_nxt);
     // will use init anyway 
+    GlobalTimer.RegisterEventStart("APDR.interpolant",0);
     get_itp = itp_solver_->get_interpolant(A_msat,B_msat,itp_msat);
+    GlobalTimer.RegisterEventEnd("APDR.interpolant",1);
+
     if (get_itp) {
       itp_msat = ts_msat_.curr(bv_to_bool_msat(itp_msat, itp_solver_));
       itp_btor = to_btor_.transfer_term(itp_msat, false);
@@ -583,12 +589,14 @@ std::pair<smt::Term, smt::Term> Apdr::gen_lemma(
     // conj_depth_threshold_for_internal_sygus = std::max(vars_in_itp.size(), conj_depth_threshold_for_internal_sygus);
   }
 
+  GlobalTimer.RegisterEventStart("APDR.SyGuS", 0);
   // gen exec and extract
   smt::Term lemma_msat = do_sygus(prevF_msat,  prevF_btor,
     prop_msat, prop_btor,
     // cexs.empty() ? prop_msat : nullptr, // depends on whether we use cexs or not
     cexs, facts, false /*assert inv in previous frame*/,
     conj_depth_threshold_for_internal_sygus);
+  GlobalTimer.RegisterEventEnd("APDR.SyGuS", 1);
 
   if (lemma_msat != nullptr) {
     D(2, "         [lemma-gen] sygus: {}", lemma_msat->to_string());
@@ -970,6 +978,25 @@ void Apdr::print_frame_stat(const std::string & extra_info) const {
       output += std::to_string(frames.at(idx).size()) + ' ';
     output += extra_info;
     INFO(output, frames.size());
+  }
+}
+
+void Apdr::print_time_stat() const {
+  std::vector<std::string> stat_to_show = {
+    "Enum.Z3Query",
+    "Enum.PredicateGen",
+    "Enum.EnumPredConj",
+
+    "APDR.interpolant",
+    "APDR.SyGuS"
+  };
+
+  INFO("-----------Time Stat --------");
+  for(const auto & s : stat_to_show) {
+    if (GlobalTimer.EventExists(s)) {
+      auto [tm,quant,speed] = GlobalTimer.GetTotal(s);
+      INFO(s+"  {} / {}s = {}", quant,tm,speed);
+    }
   }
 }
 

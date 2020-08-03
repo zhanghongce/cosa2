@@ -19,6 +19,7 @@
 #include "utils/exec.h"
 #include "utils/logger.h"
 #include "utils/exceptions.h"
+#include "utils/multitimer.h"
 #include "frontends/smtlib2parser.h"
 
 #include <fstream>
@@ -107,6 +108,9 @@ smt::Term Apdr::do_sygus(const smt::Term & prevF_msat,
   if (GlobalAPdrConfig.SYGUS_MODE & APdrConfig::SYGUS_MODE_T::INTERNAL) {
     // do it here
     ENUM_STAT_INFO(" -- Building term & pred ...");
+    GlobalTimer.ClearEventFlag("Enum.PredicateGen");
+    GlobalTimer.ClearEventFlag("Enum.EnumPredConj");
+
     sat_enum::Enumerator sygus_enumerator(
       btor_var_to_msat_func_,
       to_next_func_,
@@ -119,6 +123,13 @@ smt::Term Apdr::do_sygus(const smt::Term & prevF_msat,
       op_extract_->GetSyntaxConstruct()      
     );
 
+#ifdef DEBUG_DUMP_ENUM_STAT
+    if (GlobalTimer.EventOccurSinceFlagClear("Enum.PredicateGen")) {
+      auto [tdiff, npred, speed] = GlobalTimer.GetStatus("Enum.PredicateGen");
+      ENUM_STAT_INFO("{} seconds, {} pred generated, speed: {}", tdiff, npred, speed );
+    }
+#endif
+
     auto conjdepth_predwidth = sygus_enumerator.GetEnumStatus().get_conjdepth_predwidth();
     do{
       ENUM_STAT_INFO("ID {} --- Enum status before: ", sygus_enumerator.GetCexRefId());
@@ -130,8 +141,18 @@ smt::Term Apdr::do_sygus(const smt::Term & prevF_msat,
       ENUM_STAT_INFO("--- Enum status after: ");
 #ifdef DEBUG_DUMP_ENUM_STAT
       sygus_enumerator.GetEnumStatus().dump();
+
+      if (GlobalTimer.EventOccurSinceFlagClear("Enum.EnumPredConj")) {
+        auto [tdiff, npred, speed] = GlobalTimer.GetStatus("Enum.EnumPredConj");
+        ENUM_STAT_INFO("Enum.EnumPredConj: {} seconds, {} pred tested, speed: {}", tdiff, npred, speed );
+      }
+      if (GlobalTimer.EventOccurSinceFlagClear("Enum.Z3Query")) {
+        auto [tdiff, npred, speed] = GlobalTimer.GetTotal("Enum.Z3Query");
+        ENUM_STAT_INFO("Enum.Z3Query (Total): {} seconds, #{} query, speed: {}", tdiff, npred, speed );
+      }
 #endif
       ENUM_STAT_INFO("--- Enum status end ");
+      
       if (ret.second != nullptr)
         return ret.second;
   
@@ -144,8 +165,15 @@ smt::Term Apdr::do_sygus(const smt::Term & prevF_msat,
         ENUM_STAT_INFO(" --increase conj");
         if (conjdepth_predwidth.first >= conj_depth_threshold_for_internal_sygus) {
           ENUM_STAT_INFO(" --more terms");
+          // GlobalTimer.ClearEvent("Enum.PredicateGen"); // no need to clear
+          
           sygus_enumerator.MoreTermPredicates();
           sygus_enumerator.ResetConjunctionOne();
+
+#ifdef DEBUG_DUMP_ENUM_STAT
+          auto [tdiff, npred, speed] = GlobalTimer.GetStatus("Enum.PredicateGen");
+          ENUM_STAT_INFO("{} seconds, {} pred generated, speed: {}", tdiff, npred, speed );
+#endif
         }
 
         // QUESION: When to use extract? Never?

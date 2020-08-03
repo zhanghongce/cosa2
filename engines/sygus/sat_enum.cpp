@@ -15,6 +15,7 @@
  **/
 
 #include "sat_enum.h"
+#include "utils/multitimer.h"
 #include "utils/term_analysis.h"
 #include "utils/str_util.h"
 #include "utils/container_shortcut.h"
@@ -241,7 +242,10 @@ bool enum_status::next_pred_assignment(size_t conjunction_depth) { // return fal
     sat_solver_.push();
     sat_solver_.add(num_of_true_pred_ <= sat_context_.int_val(conjunction_depth) );
   }
+  GlobalTimer.RegisterEventStart("Enum.Z3Query",0);
   auto psat = sat_solver_.check();
+  GlobalTimer.RegisterEventEnd("Enum.Z3Query",1);
+
   if (psat == z3::check_result::sat) {
     auto m = sat_solver_.get_model();
     for (size_t pidx = 0; pidx < pred_v_.size() ; ++ pidx) {
@@ -798,6 +802,8 @@ void Enumerator::PopulatePredicateListsWithTermsIncr() {
   assert (predicate_list_btor_.size() == predicate_list_msat_.size());
   assert (predicate_list_btor_.size() == predicate_list_btor_next_.size());
 
+  GlobalTimer.RegisterEventStart("Enum.PredicateGen", predicate_list_btor_.size());
+
   for (auto & width_term_pair : width_term_table_) {
     auto width = width_term_pair.first;
     auto & terms = width_term_pair.second;
@@ -871,6 +877,9 @@ void Enumerator::PopulatePredicateListsWithTermsIncr() {
   } // for each width
   assert (predicate_list_btor_.size() == predicate_list_msat_.size());
   assert (predicate_list_btor_.size() == predicate_list_btor_next_.size());
+  
+  GlobalTimer.RegisterEventEnd("Enum.PredicateGen", predicate_list_btor_.size());
+
 } // PopulatePredicateListsWithTermsIncr
 
 
@@ -924,15 +933,20 @@ void Enumerator::MoveToNextLevel() { // more predicates more in conjunction
 std::pair<smt::Term, smt::Term> Enumerator::EnumCurrentLevel(uint64_t bnd) {
   uint64_t idx = 0;
   D(0, "[sat-enum] receive init {} , prop {}", (init_->to_string()), (prop_ == NULL ? "None": prop_->to_string())  );
-  
+  GlobalTimer.RegisterEventStart("Enum.EnumPredConj", idx);
+
   while(true) {
-    if(bnd != 0 && idx > bnd)
+    if(bnd != 0 && idx > bnd) {
+      GlobalTimer.RegisterEventEnd("Enum.EnumPredConj", idx);
       return std::make_pair(nullptr,nullptr);
+    }
     ++ idx;
 
     bool cand_exists = enum_status_.next_pred_assignment(curr_conjunction_depth);
-    if (!cand_exists)
+    if (!cand_exists) {
+      GlobalTimer.RegisterEventEnd("Enum.EnumPredConj", idx);
       return std::make_pair(nullptr,nullptr);
+    }
     
     smt::Term raw_cand = enum_status_.GetCandidateBtor(solver_);
     smt::Term cand = NOT(raw_cand);
@@ -947,9 +961,13 @@ std::pair<smt::Term, smt::Term> Enumerator::EnumCurrentLevel(uint64_t bnd) {
     if (!F_T_and_P_imply_Pprime(cand, cand_next))
       continue;
     smt::Term cand_msat = NOT_msat(enum_status_.GetCandidateMsat(msat_solver_));
+
+    GlobalTimer.RegisterEventEnd("Enum.EnumPredConj", idx);
     return std::make_pair(cand, cand_msat);
   }
   assert (false); // nonreachable
+
+  GlobalTimer.RegisterEventEnd("Enum.EnumPredConj", idx);
   return std::make_pair(nullptr,nullptr);
 } // EnumCurrentLevel
 

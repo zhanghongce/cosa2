@@ -120,6 +120,7 @@ public:
   smt::TermTranslator & to_btor() override { return to_btor_; }
 
   void print_frame_stat(const std::string & extra_info) const;
+  void print_time_stat() const;
 
 protected:
   const std::unordered_set<smt::Term> keep_vars_;
