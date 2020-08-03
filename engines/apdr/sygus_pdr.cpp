@@ -106,7 +106,7 @@ smt::Term Apdr::do_sygus(const smt::Term & prevF_msat,
   
   if (GlobalAPdrConfig.SYGUS_MODE & APdrConfig::SYGUS_MODE_T::INTERNAL) {
     // do it here
-    
+    ENUM_STAT_INFO(" -- Building term & pred ...");
     sat_enum::Enumerator sygus_enumerator(
       btor_var_to_msat_func_,
       to_next_func_,
@@ -125,13 +125,13 @@ smt::Term Apdr::do_sygus(const smt::Term & prevF_msat,
 #ifdef DEBUG_DUMP_ENUM_STAT
       sygus_enumerator.GetEnumStatus().dump();
 #endif
-      ENUM_STAT_INFO("\n--- Enum status end ");
+      ENUM_STAT_INFO("--- Enum status end, enumerating... ");
       auto ret = sygus_enumerator.EnumCurrentLevel();
       ENUM_STAT_INFO("--- Enum status after: ");
 #ifdef DEBUG_DUMP_ENUM_STAT
       sygus_enumerator.GetEnumStatus().dump();
 #endif
-      ENUM_STAT_INFO("\n--- Enum status end ");
+      ENUM_STAT_INFO("--- Enum status end ");
       if (ret.second != nullptr)
         return ret.second;
   
@@ -141,7 +141,9 @@ smt::Term Apdr::do_sygus(const smt::Term & prevF_msat,
       #ifndef SYGUS_ENUM_NO_MOVE_TO_NEXT_LEVEL
         // at this point, move to next level, because we run out of candidates
         sygus_enumerator.MoreConjunctions();
+        ENUM_STAT_INFO(" --increase conj");
         if (conjdepth_predwidth.first >= conj_depth_threshold_for_internal_sygus) {
+          ENUM_STAT_INFO(" --more terms");
           sygus_enumerator.MoreTermPredicates();
           sygus_enumerator.ResetConjunctionOne();
         }
@@ -153,7 +155,7 @@ smt::Term Apdr::do_sygus(const smt::Term & prevF_msat,
 
       
     } while(conjdepth_predwidth.first <= conj_depth_threshold_for_internal_sygus);
-
+  ENUM_STAT_INFO(" --internal sygus fail");
   } // end of sygus mode : INTERNAL
 
   // -------------- SYGUS EXTERNAL MODE -------------------------- //
