@@ -252,7 +252,7 @@ public:
   // 
   std::pair<smt::Term, smt::Term> EnumCurrentLevel(uint64_t bnd = 0);
 
-  void MoreTermPredicates(); // more terms & predicates
+  bool MoreTermPredicates(); // more terms & predicates
   void MoreConjunctions(); // more conjunction
   void ResetConjunctionOne(); // restart from 1 conjunction
 
@@ -260,6 +260,7 @@ public:
   const enum_status & GetEnumStatus() const { return enum_status_; }
 
   static void PrintWidthTermTable(const width_term_table_t &);
+  void PrintWidthTermTableSimple(const width_term_table_t &);
   static void PrintEnumStatus(const enum_status &);
 
   static void ClearCache();  // must be called before solver destructors!!!

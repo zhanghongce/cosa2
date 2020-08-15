@@ -979,6 +979,9 @@ void Apdr::print_frame_stat(const std::string & extra_info) const {
     output += extra_info;
     INFO(output, frames.size());
   }
+#ifdef DEBUG
+  print_time_stat();
+#endif
 }
 
 void Apdr::print_time_stat() const {

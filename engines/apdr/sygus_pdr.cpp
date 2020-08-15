@@ -135,6 +135,15 @@ smt::Term Apdr::do_sygus(const smt::Term & prevF_msat,
       ENUM_STAT_INFO("ID {} --- Enum status before: ", sygus_enumerator.GetCexRefId());
 #ifdef DEBUG_DUMP_ENUM_STAT
       sygus_enumerator.GetEnumStatus().dump();
+
+      float ttotal_old; long long nquery_old; 
+      if (GlobalTimer.EventOccurSinceFlagClear("Enum.Z3Query")) {
+        auto [ttotal, nquery, speed] = GlobalTimer.GetTotal("Enum.Z3Query");
+        ttotal_old = ttotal;
+        nquery_old = nquery;
+      } else {
+        ttotal_old = 0; nquery_old = 0;
+      }
 #endif
       ENUM_STAT_INFO("--- Enum status end, enumerating... ");
       auto ret = sygus_enumerator.EnumCurrentLevel();
@@ -147,8 +156,12 @@ smt::Term Apdr::do_sygus(const smt::Term & prevF_msat,
         ENUM_STAT_INFO("Enum.EnumPredConj: {} seconds, {} pred tested, speed: {}", tdiff, npred, speed );
       }
       if (GlobalTimer.EventOccurSinceFlagClear("Enum.Z3Query")) {
-        auto [tdiff, npred, speed] = GlobalTimer.GetTotal("Enum.Z3Query");
-        ENUM_STAT_INFO("Enum.Z3Query (Total): {} seconds, #{} query, speed: {}", tdiff, npred, speed );
+        auto [tdiff, nquery, speed] = GlobalTimer.GetTotal("Enum.Z3Query");
+        ENUM_STAT_INFO("Enum.Z3Query (Total): {} seconds, #{} query, speed: {}", tdiff, nquery, speed );
+        tdiff -= ttotal_old;
+        nquery -= nquery_old;
+        speed = nquery/tdiff;
+        ENUM_STAT_INFO("Enum.Z3Query (Delta): {} seconds, #{} query, speed: {}", tdiff, nquery, speed );
       }
 #endif
       ENUM_STAT_INFO("--- Enum status end ");
@@ -163,11 +176,16 @@ smt::Term Apdr::do_sygus(const smt::Term & prevF_msat,
         // at this point, move to next level, because we run out of candidates
         sygus_enumerator.MoreConjunctions();
         ENUM_STAT_INFO(" --increase conj");
-        if (conjdepth_predwidth.first >= conj_depth_threshold_for_internal_sygus) {
+        // TODO: you need to decide what to do here ...
+        // whether it worth it to go higher
+        // and in what way, and maybe try <  and <= instead?
+        // and ... strategy needed here
+        if (conjdepth_predwidth.first > conj_depth_threshold_for_internal_sygus + 1) {
           ENUM_STAT_INFO(" --more terms");
           // GlobalTimer.ClearEvent("Enum.PredicateGen"); // no need to clear
           
-          sygus_enumerator.MoreTermPredicates();
+          if ( ! sygus_enumerator.MoreTermPredicates() )
+            break; // no more predicates, sygus failed
           sygus_enumerator.ResetConjunctionOne();
 
 #ifdef DEBUG_DUMP_ENUM_STAT

@@ -44,7 +44,7 @@
   #define INFO(...) logger.log(1, __VA_ARGS__)
 #endif
 
-#define TERM_TABLE_DEBUG_LVL 0
+#define TERM_TABLE_DEBUG_LVL 1
 
 namespace cosa {
 
@@ -345,6 +345,7 @@ Enumerator::Enumerator(
   D(0, "[sat-enum] receive init {} , prop {}", (init_->to_string()), (prop_ == NULL ? "None": prop_->to_string())  );
 #if TERM_TABLE_DEBUG_LVL == 1
   // a light weight dump function
+  PrintWidthTermTableSimple(width_term_table_);
 #endif
 #if TERM_TABLE_DEBUG_LVL == 2
   PrintWidthTermTable(width_term_table_);
@@ -753,7 +754,7 @@ bool Enumerator::F_T_and_P_imply_Pprime(const smt::Term & c, const smt::Term & c
           post_or.insert(pidx);
           assert(!IN(pidx, enum_status_.curr_true_pred()));
         }
-      } // for each pred
+      } // for each pred // QUESTION: temp impl? unless F is F0
       enum_status_.new_impl(enum_status_.curr_true_pred(), post_or);
     } // if not valid
   solver_->pop();
@@ -898,12 +899,27 @@ void Enumerator::insert_comp(smt::PrimOp smt_op, const btor_msat_term_pair_t & l
 } // Enumerator::insert_comp
 
 
-void Enumerator::MoreTermPredicates() { // more terms & predicates
+bool Enumerator::MoreTermPredicates() { // more terms & predicates
   PopulateTermTableWithUnaryOp(width_term_table_);
   PopulateTermTableWithBinaryOp(width_term_table_);
+
+#if TERM_TABLE_DEBUG_LVL == 1
+  // a light weight dump function
+  PrintWidthTermTableSimple(width_term_table_);
+#endif
+#if TERM_TABLE_DEBUG_LVL == 2
+  PrintWidthTermTable(width_term_table_);
+#endif
+
   PopulatePredicateListsWithTermsIncr();
+  if ( enum_status_.curr_predicate_num == enum_status_.predicate_list_btor.size() ) {
+    // no more terms can be added. SyGuS failed!
+    return false;
+  }
   enum_status_.increase_predicate_num();
+  return true;
 }
+
 void Enumerator::MoreConjunctions() { // more conjunction
   curr_conjunction_depth ++; 
 }
@@ -972,6 +988,87 @@ std::pair<smt::Term, smt::Term> Enumerator::EnumCurrentLevel(uint64_t bnd) {
 } // EnumCurrentLevel
 
 
+void Enumerator::PrintWidthTermTableSimple(const width_term_table_t & tb) {
+  for(const auto & width_terms_pair : tb) {
+    auto width = width_terms_pair.first;
+    const auto & terms_info = width_terms_pair.second;
+
+    auto nv = terms_info.n_vars;
+    auto nc = terms_info.n_consts_vars - terms_info.n_vars;
+    auto nt = terms_info.terms.size() - terms_info.n_consts_vars;
+
+    if(nv == 0 && (nt == 0) ) {
+      // if no vars and no consts
+      std::cout << "[Width = " << width << "]" 
+        << " V:" << nv ;
+      if (nc != 0) {
+        std::cout << " C:";
+        if (nc == 1)
+          std::cout << ((terms_info.terms.at(terms_info.n_vars).first)->to_string()) << " (1) ";
+        else
+          std::cout << ((terms_info.terms.at( terms_info.n_vars ).first)->to_string()) << " .. "
+                    << ((terms_info.terms.at( terms_info.n_consts_vars -1).first)->to_string()) <<  " (" << nc << ")";
+      }
+      std::cout << " T:" << nt 
+        << " , skip." << std::endl;
+      continue; // skip those without vars;
+    }
+
+    std::cout << "[Width = " << width << "]"
+              << "[PU @ " << terms_info.prev_unary_pointer 
+              << ", PB @ " << terms_info.prev_binary_pointer
+              << ", PC @ " << terms_info.prev_comp_pointer<< "]" << std::endl;
+
+    std::cout << "  V : ";
+    if (nv == 0)
+      std::cout << " (none) " << std::endl;
+    else if (nv == 1)
+      std::cout << ((terms_info.terms.at(0).first)->to_string()) << " (1) " << std::endl;
+    else
+      std::cout << ((terms_info.terms.at(0).first)->to_string()) << " .. "
+                << ((terms_info.terms.at( terms_info.n_vars - 1 ) .first)->to_string()) <<  "(" << nv << ")" << std::endl;
+    
+    std::cout << "  C : ";
+    if (nc == 0)
+      std::cout << " (none) " << std::endl;
+    else if (nc == 1)
+      std::cout << ((terms_info.terms.at(terms_info.n_vars).first)->to_string()) << " (1) "<< std::endl;
+    else
+      std::cout << ((terms_info.terms.at( terms_info.n_vars ).first)->to_string()) << " .. "
+                << ((terms_info.terms.at( terms_info.n_consts_vars -1).first)->to_string()) <<  " (" << nc << ")" << std::endl;
+    
+    std::cout << "  T : ";
+    if (nt == 0)
+      std::cout << " (none) " << std::endl;
+    else if (nt == 1)
+      std::cout << ((terms_info.terms.at(terms_info.n_consts_vars).first)->to_string()) << " (1) "<< std::endl;
+    else
+      std::cout << ((terms_info.terms.at(terms_info.n_consts_vars).first)->to_string()) << " .. "
+                << ((terms_info.terms.at(terms_info.terms.size()-1).first)->to_string()) <<  " (" << nt << ")" << std::endl;
+
+    { // end of estimate term num
+      size_t unary_op_num = 0, binary_op_num = 0, comp_op_num = 0;
+      auto pos = syntax_struct_.find(width);
+      if (pos != syntax_struct_.end()) {
+        unary_op_num = pos->second.op_unary.size();
+        binary_op_num = pos->second.op_binary.size();
+      }
+      const auto & comp_op = GetCompForWidth(width);
+      bool has_lt = IN(smt::PrimOp::BVUlt, comp_op) && width > 1; // 0 or 1, then eq/neq are good
+      bool has_le = IN(smt::PrimOp::BVUle, comp_op) && width > 1;
+      comp_op_num = 1 + (has_lt?1:0) + (has_le?1:0);
+      auto after_unary = (nv+nc)*(unary_op_num) + nv + nc;
+      auto after_binary = after_unary*(after_unary-1)*binary_op_num/2; // possibly symmetry
+      auto npred = after_binary*(after_binary-1)/2;
+      std::cout << "  #uop: " << unary_op_num << " #bop: " << binary_op_num << "  Estimate #T: " << after_binary << ", #pred: " << npred << std::endl;
+    } // end of estimate term num
+
+    // ops dump & estimate count
+    // estimate pred
+
+    // TODO: estimate 
+  }
+}
 
 void Enumerator::PrintWidthTermTable(const width_term_table_t & tb) {
   for(const auto & width_terms_pair : tb) {
