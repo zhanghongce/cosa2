@@ -494,6 +494,7 @@ const Apdr::facts_t & Apdr::_get_fact(unsigned fidx) const {
 
 // lemma_btor and lemma_msat
 std::pair<smt::Term, smt::Term> Apdr::gen_lemma(
+  unsigned fidx,
   const smt::Term & prevF_msat,
   const smt::Term & prevF_btor, 
   const smt::Term & prop_msat,
@@ -579,15 +580,7 @@ std::pair<smt::Term, smt::Term> Apdr::gen_lemma(
     reset_sygus_syntax( /*will use new op_extract*/ ); // use var-set to recompute
   }
 
-  uint64_t conj_depth_threshold_for_internal_sygus = GlobalAPdrConfig.STARTING_CONJ_DEPTH;
-  {
-    std::unordered_set<smt::Term> vars_in_itp;
-    if (itp_msat) {
-      get_free_symbols(itp_msat, vars_in_itp);
-      conj_depth_threshold_for_internal_sygus = vars_in_itp.size();
-    }
-    // conj_depth_threshold_for_internal_sygus = std::max(vars_in_itp.size(), conj_depth_threshold_for_internal_sygus);
-  }
+  sygus_info_helper_.SetItpForCurrentRound(itp_btor, fidx);
 
   GlobalTimer.RegisterEventStart("APDR.SyGuS", 0);
   // gen exec and extract
@@ -595,7 +588,7 @@ std::pair<smt::Term, smt::Term> Apdr::gen_lemma(
     prop_msat, prop_btor,
     // cexs.empty() ? prop_msat : nullptr, // depends on whether we use cexs or not
     cexs, facts, false /*assert inv in previous frame*/,
-    conj_depth_threshold_for_internal_sygus);
+    sygus_info_helper_);
   GlobalTimer.RegisterEventEnd("APDR.SyGuS", 1);
 
   if (lemma_msat != nullptr) {
@@ -695,6 +688,23 @@ Apdr::solve_trans_result Apdr::solveTrans(
     return solve_trans_result(false, NULL, NULL, smt::Term(NULL), smt::Term(NULL));
   }
 
+  std::vector<Model *> model_for_itp;
+  const std::vector<Model *> * models_to_block_for_itp = & models_to_block;
+  if (GlobalAPdrConfig.MSAT_INTERPOLANT_ENHANCE_AUTO_DROP && !models_to_block.empty()) {
+    Model * m_ptr = try_model_reduce(prevFidx, models_to_block, models_fact,
+      remove_prop_in_prev_frame, use_init, fc);
+    if (m_ptr) {
+      model_for_itp.push_back(m_ptr);
+      models_to_block_for_itp = &model_for_itp;
+    }
+
+    /*unsigned prevFidx, const smt::Term & prop_btor_ptr,
+    const std::vector<Model *> & models_to_block, const std::vector<Model *> & models_fact,
+    bool remove_prop_in_prev_frame,
+    bool use_init, FrameCache * fc*/
+  }
+
+
   auto prevF_msat = frame_prop_msat(prevFidx);
   if (remove_prop_in_prev_frame)
     prevF_msat = AND_msat(prevF_msat, prop_msat);
@@ -703,8 +713,8 @@ Apdr::solve_trans_result Apdr::solveTrans(
   }
   
   smt::Term lemma_btor, lemma_msat;
-  std::tie(lemma_btor, lemma_msat) = gen_lemma( prevF_msat, prevF_btor,
-    prop_msat, prop_btor, models_to_block, models_fact );
+  std::tie(lemma_btor, lemma_msat) = gen_lemma( prevFidx, prevF_msat, prevF_btor,
+    prop_msat, prop_btor, *models_to_block_for_itp, models_fact );
   if (lemma_btor == nullptr || lemma_msat == nullptr ) {
     INFO("Failed to get ITP, use prop instead.");
     POP_STACK;

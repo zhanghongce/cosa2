@@ -40,6 +40,8 @@ struct Model {
   Model() : expr_btor_(NULL), expr_msat_(NULL) {}
   // from get value from a solver
   Model(smt::SmtSolver & solver_, const std::unordered_set<smt::Term> & varset);
+  // return true, if it really exists
+  bool erase_var(const smt::Term & v);
 
   static smt::Term bool_to_bv(const smt::Term & t, smt::SmtSolver & solver_);
   static smt::Term bv_to_bool(const smt::Term & t, smt::SmtSolver & solver_);

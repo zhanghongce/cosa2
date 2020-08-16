@@ -392,9 +392,9 @@ Enumerator::width_term_table_t & Enumerator::SetupInitTermList() {
       w_term_pair.second.n_vars = w_term_pair.second.terms.size();
 
     PopulateTermTableWithConstants(w2symbols);
-    PopulateTermTableWithUnaryOp(w2symbols);
-    PopulateTermTableWithBinaryOp(w2symbols);
-    PopulateTermTableWithExtractOpSyntaxDependentVars(w2symbols); // no use now
+    // PopulateTermTableWithUnaryOp(w2symbols);
+    // PopulateTermTableWithBinaryOp(w2symbols);
+    // PopulateTermTableWithExtractOpSyntaxDependentVars(w2symbols); // no use now
     
 
     return w2symbols;
@@ -415,9 +415,9 @@ Enumerator::width_term_table_t & Enumerator::SetupInitTermList() {
       w_term_pair.second.n_vars = w_term_pair.second.terms.size();
 
     PopulateTermTableWithConstants(w2symbols);
-    PopulateTermTableWithUnaryOp(w2symbols);
-    PopulateTermTableWithBinaryOp(w2symbols);
-    PopulateTermTableWithExtractOpSyntaxDependentVars(w2symbols); // no use now
+    // PopulateTermTableWithUnaryOp(w2symbols);
+    // PopulateTermTableWithBinaryOp(w2symbols);
+    // PopulateTermTableWithExtractOpSyntaxDependentVars(w2symbols); // no use now
     return w2symbols;
   }
   assert (false); // should not be reachable
@@ -913,7 +913,7 @@ bool Enumerator::MoreTermPredicates() { // more terms & predicates
 
   PopulatePredicateListsWithTermsIncr();
   if ( enum_status_.curr_predicate_num == enum_status_.predicate_list_btor.size() ) {
-    // no more terms can be added. SyGuS failed!
+    // no more predicates can be added.
     return false;
   }
   enum_status_.increase_predicate_num();

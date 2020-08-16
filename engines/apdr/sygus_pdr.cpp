@@ -20,6 +20,7 @@
 #include "utils/logger.h"
 #include "utils/exceptions.h"
 #include "utils/multitimer.h"
+#include "utils/term_analysis.h"
 #include "frontends/smtlib2parser.h"
 
 #include <fstream>
@@ -27,7 +28,7 @@
 
 #define INFO(...) logger.log(1, __VA_ARGS__)
 
-#define DEBUG_DUMP_ENUM_STAT 1
+// #define DEBUG_DUMP_ENUM_STAT 1
 #ifdef DEBUG_DUMP_ENUM_STAT
   #define ENUM_STAT_INFO(...) INFO(__VA_ARGS__)
 #else
@@ -35,6 +36,24 @@
 #endif
 
 namespace cosa {
+
+#define MAX(a,b) ((a)>(b) ? (a) : (b))
+// extracting information from interpolant of certain round
+void ApdrSygusHelper::SetItpForCurrentRound(const smt::Term & itp, unsigned fidx_prev) {
+  itp_btor = itp; fidx = fidx_prev; max_var_width = 0;
+  itp_vars.clear();
+  conj_depth_threshold_for_internal_sygus = GlobalAPdrConfig.STARTING_CONJ_DEPTH;
+
+  if (itp_btor) {
+    get_free_symbols(itp_btor, itp_vars);
+    for (auto && p : itp_vars)
+      max_var_width = MAX(max_var_width, p->get_sort()->get_width());
+    conj_depth_threshold_for_internal_sygus = itp_vars.size();
+  }
+}
+#undef MAX
+
+
 
 static smt::Term EXEC_OP(const std::string & outfile, const std::string & infile, const std::string & text,
   bool assert_in_prev, bool use_syntax, unsigned time_limit, const std::vector<std::string> & cmd_args,
@@ -103,8 +122,11 @@ smt::Term Apdr::do_sygus(const smt::Term & prevF_msat,
     const smt::Term & prop_btor,
     const std::vector<Model *> & cexs, const std::vector<Model *> & facts,
     bool assert_inv_in_prevF,
-    uint64_t conj_depth_threshold_for_internal_sygus /* use itp var size*/) {
+    ApdrSygusHelper & sygus_info /* use itp var size*/) {
   
+  if (sygus_info.itp_btor != NULL && sygus_info.max_var_width < GlobalAPdrConfig.NO_SYGUS_IF_ITP_VARWIDTH_LESS_THAN)
+    return nullptr; // no need for sygus
+
   if (GlobalAPdrConfig.SYGUS_MODE & APdrConfig::SYGUS_MODE_T::INTERNAL) {
     // do it here
     ENUM_STAT_INFO(" -- Building term & pred ...");
@@ -123,6 +145,36 @@ smt::Term Apdr::do_sygus(const smt::Term & prevF_msat,
       op_extract_->GetSyntaxConstruct()      
     );
 
+    // initially, you only have variables and constants for each var
+    // for each width, estimate #pred and decide if
+
+    //   0. use itp's vars & syntax's op, =, =/=, <, <=
+    //   1. use vars, consts =, =/=
+    //   15. vars, consts, unary and binary ops, =, =/= 
+    //   2. use vars, consts =, =/=, < , <=
+    //   4. all terms & preds containing those vars and level <= 3
+    //   don't add that many terms that early
+    //   fail as needed don't try too hard.
+    //
+    //   conj grow to conj_depth_threshold_for_internal_sygus + 1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #ifdef DEBUG_DUMP_ENUM_STAT
     if (GlobalTimer.EventOccurSinceFlagClear("Enum.PredicateGen")) {
       auto [tdiff, npred, speed] = GlobalTimer.GetStatus("Enum.PredicateGen");
@@ -133,6 +185,7 @@ smt::Term Apdr::do_sygus(const smt::Term & prevF_msat,
     auto conjdepth_predwidth = sygus_enumerator.GetEnumStatus().get_conjdepth_predwidth();
     do{
       ENUM_STAT_INFO("ID {} --- Enum status before: ", sygus_enumerator.GetCexRefId());
+
 #ifdef DEBUG_DUMP_ENUM_STAT
       sygus_enumerator.GetEnumStatus().dump();
 

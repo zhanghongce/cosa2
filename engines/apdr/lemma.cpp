@@ -54,6 +54,10 @@ Model * ModelLemmaManager::new_model() {
   return cube_allocation_pool.back();
 }
 
+void ModelLemmaManager::register_new_model(Model * m) {
+  cube_allocation_pool.push_back(m);
+}
+
 
 Model * ModelLemmaManager::new_model(const std::unordered_set<smt::Term> & varset) {
   cube_allocation_pool.push_back(new Model(solver() , varset));

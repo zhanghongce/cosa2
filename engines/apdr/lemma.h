@@ -151,6 +151,7 @@ public:
 
 protected:
   Model * new_model();
+  void register_new_model(Model *);
   Model * new_model(const std::unordered_set<smt::Term> & varset);
 
   Lemma * new_lemma(

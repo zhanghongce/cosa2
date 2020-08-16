@@ -26,6 +26,7 @@
 #include "config.h"
 #include "lemma.h"
 #include "transferts.h"
+#include "sygus_pdr.h"
 
 namespace cosa {
 
@@ -169,6 +170,9 @@ protected:
   Smtlib2Parser smtlib2parser;
   facts_t empty_fact_; // used by _get_fact
 
+  // use by internal sygus
+  ApdrSygusHelper sygus_info_helper_;
+
 protected: // frame handling
   virtual smt::Term frame_prop_btor(unsigned fidx) const override;
   virtual smt::Term frame_prop_btor(unsigned fidx, unsigned not_include_lemmaIdx) const override;
@@ -193,7 +197,11 @@ protected: // sygus related
     const smt::Term & prop_btor,
     const std::vector<Model *> & cexs, const std::vector<Model *> & facts,
     bool assert_inv_in_prevF,
-    uint64_t conj_depth_threshold_for_internal_sygus /* if possible use itp var num */ );
+    ApdrSygusHelper & sygus_info /* if possible use itp var num */ );
+  // try model reduce here
+  Model * try_model_reduce(unsigned prevFidx,
+    const std::vector<Model *> & models_to_block, const std::vector<Model *> & models_fact,
+    bool remove_prop_in_prev_frame, bool use_init, FrameCache * fc);
 
 protected:
   // member class
@@ -211,6 +219,7 @@ public:
   virtual void dump_frames(std::ostream & os) const override;
   
   std::pair<smt::Term, smt::Term> gen_lemma(
+    unsigned fidx,
     const smt::Term & Fprev_msat, 
     const smt::Term & Fprev_btor, 
     const smt::Term & prop_msat,

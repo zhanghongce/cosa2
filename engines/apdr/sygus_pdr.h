@@ -22,9 +22,14 @@
 namespace cosa {
 
 struct ApdrSygusHelper {
+  unsigned fidx;
   smt::Term itp_btor;
   std::unordered_set<smt::Term> itp_vars;
-  std::unordered_set<smt::Term> vars;
+  unsigned max_var_width;
+  unsigned conj_depth_threshold_for_internal_sygus;
+  // std::unordered_set<smt::Term> vars;
+
+  void SetItpForCurrentRound(const smt::Term & itp, unsigned fidx_prev);
 };
 
 } // namespace cosa

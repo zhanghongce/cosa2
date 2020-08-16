@@ -56,6 +56,18 @@ Model::Model(smt::SmtSolver & solver_, const std::unordered_set<smt::Term> & var
   }
 }
 
+bool Model::erase_var(const smt::Term & v) {
+  if (cube.size() == 1)
+    return false; // will not erase it in this case
+
+  size_t erased = cube.erase(v);
+  if (erased == 1) {
+    expr_btor_ = NULL;
+    expr_msat_ = NULL;
+  }
+  return erased == 1;
+}
+
 #define NOT(x)    (solver_->make_term(smt::Not, (x)))
 #define EQ(x, y)  (solver_->make_term(smt::Equal, (x), (y)))
 #define AND(x, y) (solver_->make_term(smt::And, (x), (y)))
