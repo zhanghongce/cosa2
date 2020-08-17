@@ -18,6 +18,7 @@
 
 #include "syntax.h"
 #include "partial_model.h"
+#include "../apdr/sygus_pdr.h"
 
 #include "smt-switch/smt.h"
 
@@ -28,7 +29,39 @@
 
 namespace cosa {
 
-namespace sat_enum {
+namespace policy_sat_enum {
+
+enum class term_policy_action_t {
+  V_C_EQ,
+
+  ITP_V_C_EQ,
+  ITP_V_C_CMP_LT,
+  ITP_V_C_CMP_LE,
+  
+  ITP_V_C_OP_EQ,
+  ITP_V_C_OP_CMP_LT,
+  ITP_V_C_OP_CMP_LE,
+
+  V_C_CMP_LT,
+  V_C_CMP_LE,
+
+  V_C_OP_EQ,
+  V_C_OP_CMP_LT,
+  V_C_OP_CMP_LE,
+
+  TERM_3_EQ,
+  TERM_3_CMP_LT,
+  TERM_3_CMP_LE,
+
+  FAILED
+};
+
+class term_estimator {
+public:
+  static uint64_t estimate_predicate_num_for_V_C(unsigned nV, unsigned nC);
+  static uint64_t estimate_predicate_num_delta_V_C_TO_CMP_LT(unsigned nV, unsigned nC);
+  static uint64_t estimate_predicate_num_delta_V_C_TO_CMP_LE(unsigned nV, unsigned nC);
+}; // move to estimator.h and include in .cc to get them inline
 
 struct enum_status {
   //struct implication_relation { 
@@ -140,34 +173,64 @@ struct eval_val_hash {
 
 
 struct term_table_t {
+  // ----------------------- Types ---------------------------- //
   typedef std::pair<smt::Term,smt::Term> btor_msat_term_pair_t;
+
+  // ----------------------- Members ---------------------------- //
   std::vector<btor_msat_term_pair_t> terms;
   std::vector<eval_val> terms_val_under_cex;
-  std::unordered_set<std::string> term_strings; // to help eliminate redundant constants
+  std::unordered_set<std::string> term_strings; // to help eliminate redundant terms (no need to clear)
   uint64_t n_vars;    // 0 --> n_vars - 1
   uint64_t n_consts_vars;  // n_vars --> n_vars + n_consts -1 
   uint64_t prev_unary_pointer;
   uint64_t prev_binary_pointer;
   uint64_t prev_ternary_pointer_same_width;
   uint64_t prev_ternary_pointer_bool;
-  uint64_t prev_comp_pointer;
+  uint64_t prev_eq_pointer;
+  uint64_t prev_comp_lt_pointer;
+  uint64_t prev_comp_le_pointer;
+  term_policy_action_t term_policy_action;
+
+  // ----------------------- Member Functions ---------------------------- //
+  void set_all_comp_pointers(uint64_t ptr);
+  std::tuple<bool, bool, bool> reg_comp_idxs(size_t idx1, size_t idx2, uint64_t width);
+  void reset(term_policy_action_t action);
   
   term_table_t() : n_vars(0), n_consts_vars(0), 
     prev_unary_pointer(0), prev_binary_pointer(0),
     prev_ternary_pointer_same_width(0), prev_ternary_pointer_bool(0),
-    prev_comp_pointer(0) {}
+    prev_eq_pointer(0), prev_comp_lt_pointer(0), prev_comp_le_pointer(0),
+    term_policy_action(term_policy_action_t::V_C_EQ) {}
 };
 
+
+struct term_policy {
+  enum class term_action_t {NONE, OP, TERM_3, CMP} ;
+
+  uint64_t op_start;
+  uint64_t op_end;
+  uint64_t cmp_start;
+  uint64_t cmp_end;
+  term_action_t term_op;
+  term_policy_action_t action;
+
+  term_policy() : op_start(0), op_end(0), cmp_start(0), cmp_end(0),
+    term_op(term_action_t::NONE),  action(term_policy_action_t::FAILED) {} 
+    // FAILED here means do nothing
+};
 
 class Enumerator {
 
 public:
+  enum class MoreTermPredResult {NO_NEW_POLICY, TRY_AGAIN, SUCCEEDED};
   using btor_msat_term_pair_t = term_table_t::btor_msat_term_pair_t;
   typedef std::unordered_map<smt::Term, enum_status> prop_pos_buf_t; // of a property
   typedef std::unordered_map<Model *, enum_status>   cex_pos_buf_t; // the enumeration position of a cex
   typedef std::unordered_map<uint64_t,  // width -> //(btor_term ,  msat_term)
-    term_table_t> 
-    width_term_table_t;
+    term_table_t> width_term_table_t;
+  typedef std::unordered_map<uint64_t,term_policy> width_term_policy_table_t;
+  typedef std::unordered_map<uint64_t,std::unordered_set<smt::Term>> width_new_terms_t;
+
   typedef std::unordered_map<smt::Term, width_term_table_t> prop_term_map_t; // of a property
   typedef std::unordered_map<Model *, width_term_table_t>   cex_term_map_t; // the enumeration position of a cex
   // typedef std::unordered_map<smt::Term, smt::Term>  btor_var_to_msat_var_map_t;
@@ -188,6 +251,7 @@ protected:
   smt::Term prop_;
   const sygus::SyntaxStructure & syntax_;  
   const sygus::SyntaxStructure::SyntaxT & syntax_struct_;
+  const ApdrSygusHelper & itp_info_;
   // do you need the keep vars? no I don't think so.
   
   static prop_pos_buf_t prop_enum_buf_;
@@ -196,12 +260,8 @@ protected:
   static prop_term_map_t prop_term_map_;
   static cex_term_map_t  cex_term_map_;
   
-  // Terms to predicates: initial and later
-  void PopulatePredicateListsWithTermsIncr(); // Level 1
-  void insert_comp(smt::PrimOp, const btor_msat_term_pair_t & l, const btor_msat_term_pair_t & r);
 
-  
-  
+  void insert_comp(smt::PrimOp, const btor_msat_term_pair_t & l, const btor_msat_term_pair_t & r);  
   bool is_valid(const smt::Term & e);
   bool a_implies_b(const smt::Term & a, const smt::Term & b);
   
@@ -217,13 +277,13 @@ protected:
   std::unordered_set<std::string> & predicate_set_btor_;
   enum_status & SetUpEnumStatus();
 
-  void PopulateTermTableWithConstants(width_term_table_t & table); //  initial population of tables 
-  void PopulateTermTableWithUnaryOp(width_term_table_t & table);
-  
-  void PopulateTermTableWithBinaryOp(width_term_table_t & table);
+  void PopulateTermTableWithSyntaxVars(width_term_table_t & table) const;
+  void PopulateTermTableWithConstants(width_term_table_t & table) const; //  initial population of tables 
+  void PopulateTermTableWithUnaryOp(uint64_t width, term_table_t & terms, uint64_t start, uint64_t end);
+  void PopulateTermTableWithBinaryOp(uint64_t width, term_table_t & terms, uint64_t start, uint64_t end);
 
-  void PopulateTermTableWithExtractOpAllWidthVars(width_term_table_t & table); // only one shot?
-  void PopulateTermTableWithExtractOpSyntaxDependentVars(width_term_table_t & table); // only one shot?
+  // term to predicates // per width
+  void PopulatePredicateListsWithTermsIncr(uint64_t width, term_table_t & terms, uint64_t start, uint64_t end);
 
 
   // smt::Term btor_var_to_msat(const smt::Term & btor_var) const;
@@ -245,14 +305,15 @@ public:
     const smt::Term & T_btor, const smt::Term & Init_btor, const smt::Term & Fprev_btor,
     const std::vector<Model *> & cexs, const std::vector<Model *> & facts,
     const smt::Term & prop_btor,
-    const sygus::SyntaxStructure & syntax );
+    const sygus::SyntaxStructure & syntax,
+    const ApdrSygusHelper & itp_info );
 
-  // get predicate**depth 
-  uint64_t GetCurrentLevelMaxEffort() const;
   // 
   std::pair<smt::Term, smt::Term> EnumCurrentLevel(uint64_t bnd = 0);
 
-  bool MoreTermPredicates(); // more terms & predicates
+  bool MoreTermPredicateGetPolicy(width_term_policy_table_t &);
+  MoreTermPredResult MoreTermPredicates(); // more terms & predicates
+
   void MoreConjunctions(); // more conjunction
   void ResetConjunctionOne(); // restart from 1 conjunction
 
@@ -268,7 +329,7 @@ public:
   uint64_t GetCexRefId() const { return (use_cex_? (uint64_t)(cexs_.at(0)) : (uint64_t)(prop_.get())); }
 }; // class Enumerator
 
-} // namespace sat_enum
+} // namespace policy_policy_sat_enum
 
 } // namespace cosa
 

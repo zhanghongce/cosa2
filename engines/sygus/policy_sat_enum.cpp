@@ -9,12 +9,12 @@
  ** All rights reserved.  See the file LICENSE in the top-level source
  ** directory for licensing information.\endverbatim
  **
- ** \brief The SAT-based Enumerator
+ ** \brief The SAT-based Enumerator with Policy
  **
  ** 
  **/
 
-#include "sat_enum.h"
+#include "policy_sat_enum.h"
 #include "utils/multitimer.h"
 #include "utils/term_analysis.h"
 #include "utils/str_util.h"
@@ -48,7 +48,7 @@
 
 namespace cosa {
 
-namespace sat_enum {
+namespace policy_sat_enum {
 
 // --------------------  eval_val ----------------
 
@@ -282,7 +282,90 @@ bool enum_status::next_pred_assignment(size_t conjunction_depth) { // return fal
 } // next_pred_assignment
 
 
-// --------------------  Enumerator ----------------
+// ----------------------------------------------------------------
+//
+//                         Term Table
+//
+//                       Member Functions
+//
+// ----------------------------------------------------------------
+
+#define IS_LE(x) \
+  ((x) == term_policy_action_t::ITP_V_C_CMP_LE || \
+   (x) == term_policy_action_t::V_C_CMP_LE || \
+   (x) == term_policy_action_t::V_C_OP_CMP_LE || \
+   (x) == term_policy_action_t::TERM_3_CMP_LE || \
+   (x) == term_policy_action_t::ITP_V_C_OP_CMP_LE) 
+
+#define IS_LT(x) \
+  ((x) == term_policy_action_t::ITP_V_C_CMP_LT || \
+   (x) == term_policy_action_t::V_C_CMP_LT || \
+   (x) == term_policy_action_t::V_C_OP_CMP_LT || \
+   (x) == term_policy_action_t::TERM_3_CMP_LT || \
+   (x) == term_policy_action_t::ITP_V_C_OP_CMP_LT) 
+
+#define IS_EQ(x) \
+  ((x) == term_policy_action_t::ITP_V_C_EQ || \
+   (x) == term_policy_action_t::V_C_EQ || \
+   (x) == term_policy_action_t::V_C_OP_EQ || \
+   (x) == term_policy_action_t::TERM_3_EQ || \
+   (x) == term_policy_action_t::ITP_V_C_OP_EQ) 
+
+
+void term_table_t::set_all_comp_pointers(uint64_t ptr) {
+  if ( IS_LE(term_policy_action) ) {
+      prev_eq_pointer = prev_comp_lt_pointer = prev_comp_le_pointer = ptr;
+  } else if ( IS_LT(term_policy_action)  ) {
+    prev_eq_pointer = prev_comp_lt_pointer = ptr;
+  } else {
+    prev_eq_pointer = ptr;
+  }
+}
+
+void term_table_t::reset(term_policy_action_t action) {
+  terms.clear();
+  terms_val_under_cex.clear();
+  // term_strings will not clear
+  n_vars = n_consts_vars = prev_unary_pointer = prev_binary_pointer =
+    prev_ternary_pointer_same_width = prev_ternary_pointer_bool = 
+    prev_eq_pointer = prev_comp_lt_pointer = prev_comp_le_pointer = 0;
+
+  term_policy_action = action;
+}
+
+std::tuple<bool, bool, bool> term_table_t::reg_comp_idxs(size_t idx1, size_t idx2, uint64_t width) {
+  bool has_le = false, has_lt = false, has_eq = false;
+  if ( IS_LE(term_policy_action) ) 
+    has_le = has_lt = has_eq = true;
+  else if ( IS_LT(term_policy_action) )
+    has_lt = has_eq = true;
+  else
+    has_eq = true;
+
+  if (has_le)
+    has_le = !(idx1 < prev_comp_le_pointer && idx2 < prev_comp_le_pointer);
+
+  if (has_lt) 
+    has_lt = !(idx1 < prev_comp_lt_pointer && idx2 < prev_comp_lt_pointer);
+
+  if (has_eq)
+    has_eq = !(idx1 < prev_eq_pointer && idx2 < prev_eq_pointer);
+  
+  return std::make_tuple(has_le, has_lt, has_eq);
+}
+
+#undef IS_LE
+#undef IS_LT
+#undef IS_EQ
+
+
+// ----------------------------------------------------------------
+//
+//                         Enumerator
+//
+//                       Helper Functions
+//
+// ----------------------------------------------------------------
 
 Enumerator::prop_pos_buf_t Enumerator::prop_enum_buf_;
 Enumerator::cex_pos_buf_t  Enumerator::cex_enum_buf_;
@@ -297,12 +380,6 @@ void Enumerator::ClearCache() {
   cex_term_map_.clear();
 }
 
-uint64_t Enumerator::GetCurrentLevelMaxEffort() const {
-  std::cout << "(" << enum_status_.curr_predicate_num << " ^ " << curr_conjunction_depth << ")" << std::endl;
-  return (
-    std::pow(enum_status_.curr_predicate_num, curr_conjunction_depth)
-  ); // just an estimation
-}
 
 bool Enumerator::is_valid(const smt::Term & e) {
   solver_->push();
@@ -315,278 +392,6 @@ bool Enumerator::is_valid(const smt::Term & e) {
 bool Enumerator::a_implies_b(const smt::Term & a, const smt::Term & b) {
   return is_valid(IMPLY(a,b));
 }
-  
-Enumerator::Enumerator(
-    btor_var_to_msat_t btor_var_to_msat_func,
-    to_next_t to_next_func,
-    smt::SmtSolver & btor_solver,
-    smt::SmtSolver & msat_solver,
-    const smt::Term & T_btor, const smt::Term & Init_btor, const smt::Term & Fprev_btor,
-    const std::vector<Model *> & cexs, const std::vector<Model *> & facts,
-    const smt::Term & prop_btor,
-    const sygus::SyntaxStructure & syntax ):
-      btor_var_to_msat_(btor_var_to_msat_func),
-      to_next_(to_next_func),
-      solver_(btor_solver), msat_solver_(msat_solver),
-      trans_(T_btor), init_(Init_btor), prev_(Fprev_btor),
-      cexs_(cexs), facts_(facts), prop_(prop_btor),
-      syntax_(syntax), syntax_struct_(syntax.GetSyntaxConstruct()),
-      use_cex_(!cexs.empty()),
-      width_term_table_(SetupInitTermList()),
-      enum_status_(SetUpEnumStatus()),
-      curr_conjunction_depth(enum_status_.curr_conjunction_depth),
-      predicate_list_btor_(enum_status_.predicate_list_btor),
-      predicate_list_btor_next_(enum_status_.predicate_list_btor_next),
-      predicate_list_msat_(enum_status_.predicate_list_msat),
-      predicate_set_btor_(enum_status_.predicate_set_btor)
-{
-  // SetupInitialPredicateListAndEnumStatus
-  // term table dump
-  D(0, "[sat-enum] receive init {} , prop {}", (init_->to_string()), (prop_ == NULL ? "None": prop_->to_string())  );
-#if TERM_TABLE_DEBUG_LVL == 1
-  // a light weight dump function
-  PrintWidthTermTableSimple(width_term_table_);
-#endif
-#if TERM_TABLE_DEBUG_LVL == 2
-  PrintWidthTermTable(width_term_table_);
-#endif
-
-  if (enum_status_.is_uninit()) {
-    PopulatePredicateListsWithTermsIncr();
-    enum_status_.init();
-  }
-  D(0, "[sat-enum] receive init {} , prop {}", (init_->to_string()), (prop_ == NULL ? "None": prop_->to_string())  );
-}
-
-
-enum_status & Enumerator::SetUpEnumStatus() {
-  if(use_cex_) {
-    assert(cexs_.size() == 1);
-    Model * cex = cexs_.at(0);
-    return cex_enum_buf_[cex];
-    // will create, but need to take care of the size of curr_s anyway
-  }
-  else {
-    return prop_enum_buf_[prop_];
-  }
-  assert (false); // should not be reachable
-} // Enumerator::SetUpEnumStatus()
-
-Enumerator::width_term_table_t & Enumerator::SetupInitTermList() {
-  if(use_cex_) {
-    assert(cexs_.size() == 1);
-    Model * cex = cexs_.at(0);
-    auto pos = cex_term_map_.find(cex);
-    if (pos != cex_term_map_.end())
-      return pos->second;
-    // now create the index
-    auto & w2symbols = cex_term_map_[cex];
-    // now collect symbols
-    for (auto && v_val : cex->cube ) {
-      const auto & v = v_val.first;
-      assert ( v->is_symbolic_const() );
-      uint64_t width = sygus::get_width_of_var(v);
-      w2symbols[width].terms.push_back(std::make_pair(v, btor_var_to_msat_(v)));
-    }
-    for (auto & w_term_pair : w2symbols)
-      w_term_pair.second.n_vars = w_term_pair.second.terms.size();
-
-    PopulateTermTableWithConstants(w2symbols);
-    // PopulateTermTableWithUnaryOp(w2symbols);
-    // PopulateTermTableWithBinaryOp(w2symbols);
-    // PopulateTermTableWithExtractOpSyntaxDependentVars(w2symbols); // no use now
-    
-
-    return w2symbols;
-  } else {
-    auto pos = prop_term_map_.find(prop_);
-    if (pos != prop_term_map_.end())
-      return pos->second;
-
-    smt::UnorderedTermSet all_symbols;
-    get_free_symbols(prop_, all_symbols);
-
-    width_term_table_t & w2symbols = prop_term_map_[prop_]; // will create
-    for (auto && v : all_symbols) {
-      uint64_t width = sygus::get_width_of_var(v);
-      w2symbols[width].terms.push_back(std::make_pair(v, btor_var_to_msat_(v))); // will create
-    }
-    for (auto & w_term_pair : w2symbols)
-      w_term_pair.second.n_vars = w_term_pair.second.terms.size();
-
-    PopulateTermTableWithConstants(w2symbols);
-    // PopulateTermTableWithUnaryOp(w2symbols);
-    // PopulateTermTableWithBinaryOp(w2symbols);
-    // PopulateTermTableWithExtractOpSyntaxDependentVars(w2symbols); // no use now
-    return w2symbols;
-  }
-  assert (false); // should not be reachable
-} // SetupInitTermList
-
- //  initial population of tables 
-void Enumerator::PopulateTermTableWithConstants(width_term_table_t & table) {
-  // width -> vars and constants and then apply comps on them
-  // output: predicate_list_btor_, predicate_list_btor_next_, predicate_list_msat_
-
-  // SetupInitTermList already set up vars
-  // add constants from grammar
-  std::unordered_set<std::string> bool_consts = {"true", "false"};
-  std::unordered_set<std::string> bv1_consts = {"#b0", "#b1"};
-  // you can add more enumeration if wanted
-
-  for (const auto & w_syntax : syntax_struct_ ) {
-    uint64_t width = w_syntax.first;
-    const auto & syntax = w_syntax.second;
-    const std::unordered_set<std::string> & cnsts_set
-      = (width == 0) ? bool_consts : (
-        (width == 1) ? bv1_consts  : (
-        syntax.constants));
-      
-    for (const auto & c: cnsts_set) {
-      table[width].terms.push_back(std::make_pair(
-        sygus::smt_string_to_const_term(c, solver_),
-        sygus::smt_string_to_const_term(c, msat_solver_)
-        ));
-      table[width].term_strings.insert(
-        table[width].terms.back().first->to_raw_string());
-    }
-  }
-
-  for (auto & w_term_pair : table)
-    w_term_pair.second.n_consts_vars = w_term_pair.second.terms.size();
-
-} // Enumerator::SetupInitialTermTable
-
-void Enumerator::PopulateTermTableWithUnaryOp(width_term_table_t & terms_table) {
-  for (auto && w_syntax : syntax_struct_ ) {
-    uint64_t width = w_syntax.first;
-    auto & syntax = w_syntax.second;
-    if (!IN(width, terms_table))
-      continue; // no such width, skip
-    auto & terms = terms_table.at(width);
-    auto start = terms.prev_unary_pointer;
-    auto end = terms.terms.size();
-
-    if(terms.n_vars == 0 && end == terms.n_consts_vars) {
-      terms.prev_unary_pointer = end;
-      continue; // no vars captured for this, and no other terms to work on
-    }
-
-    for (auto && op: syntax.op_unary) {
-      auto smt_op = smt::Op(op);
-      for(auto idx = start; idx < end; ++ idx) {
-        auto btor_new_term = solver_->make_term(smt_op, terms.terms.at(idx).first);
-        //if (btor_new_term->is_value()) {
-        if (btor_new_term->is_symbolic_const())
-          continue;
-        // for op & value, let's do the check
-        auto v = btor_new_term->to_raw_string();
-        if (terms.term_strings.find(v) != terms.term_strings.end())
-          continue; // skip this
-        terms.term_strings.insert(v);
-        //  }
-        //else if (btor_new_term->is_symbolic_const())
-        //  continue; // will not add vars
-
-        terms.terms.push_back(
-          std::make_pair(
-            btor_new_term, // btor_term
-            msat_solver_->make_term(smt_op, terms.terms.at(idx).second) // msat_term
-        ));
-      }
-    }
-    terms.prev_unary_pointer = terms.terms.size(); // no need to neg neg (double cancellation)
-  }  
-} // PopulateTermTableWithUnaryOp
-
-
-void Enumerator::PopulateTermTableWithBinaryOp(width_term_table_t & terms_table) {
-  for (auto && w_syntax : syntax_struct_ ) {
-    uint64_t width = w_syntax.first;
-    auto & syntax = w_syntax.second;
-    if (!IN(width, terms_table))
-      continue; // no such width, skip
-    auto & terms = terms_table.at(width);
-
-    uint64_t start = 0;
-    auto prev_pos = terms.prev_binary_pointer;
-    auto end = terms.terms.size();
-
-    if(terms.n_vars == 0 && end == terms.n_consts_vars) {
-      terms.prev_binary_pointer = end;
-      continue; // no vars capture for this
-    }
-
-    for (auto && op: syntax.op_binary) {
-      auto smt_op = smt::Op(op);
-      bool symmetry = sygus::is_primop_symmetry(op);
-      for(auto idx1 = start; idx1 < end; ++ idx1) { // a-b and b-a
-        for(auto idx2 = ( idx1 < prev_pos ? prev_pos : 
-            (symmetry ? idx1 : start)) ; 
-          idx2 < end; ++ idx2) {
-          assert(!( idx1 < prev_pos && idx2 < prev_pos )); // no repetition
-          auto btor_new_term = solver_->make_term(smt_op, terms.terms.at(idx1).first, terms.terms.at(idx2).first);
-
-          if (btor_new_term->is_symbolic_const())
-            continue; // will not add vars
-
-          //if (btor_new_term->is_value()) {
-          auto v = btor_new_term->to_raw_string();
-          if (terms.term_strings.find(v) != terms.term_strings.end())
-            continue; // skip this
-          terms.term_strings.insert(v);
-          //}
-          //else 
-            
-          terms.terms.push_back(  
-          std::make_pair(
-            btor_new_term,
-            msat_solver_->make_term(smt_op, terms.terms.at(idx1).second, terms.terms.at(idx2).second)));
-        } // for idx2
-      } // for idx1
-    } // for each op
-
-    terms.prev_binary_pointer = end;
-  } // for (auto && w_syntax : syntax_struct_ )
-} // PopulateTermTableWithBinaryOp
-
-// only one shot
-void Enumerator::PopulateTermTableWithExtractOpAllWidthVars(width_term_table_t & terms_table) {
-  for(auto && width_terms_pair : terms_table) {
-    auto width = width_terms_pair.first;
-    if(width == 0 || width == 1)
-      continue;
-    auto terms = width_terms_pair.second;
-    for (decltype(width) widx = 0; widx < width; ++widx) { // extract
-      auto op = smt::Op(smt::PrimOp::Extract,widx,widx);
-      for (size_t idx = 0; idx < terms.n_vars; ++idx) {
-        terms_table[1].terms.push_back(
-        std::make_pair(
-          solver_->make_term(op, terms.terms.at(idx).first),
-          msat_solver_->make_term(op, terms.terms.at(idx).second)));
-      
-      // TODO: need some work here! about the hash!
-
-      } // for each var
-    } // for diff extract
-  } // for each width
-} // PopulateTermTableWithExtractOpAllWidthVars
-
-
-// only one shot
-void Enumerator::PopulateTermTableWithExtractOpSyntaxDependentVars(width_term_table_t & terms_table) {
-  /* TODO:
-  for(auto && width_terms_pair : terms_table) {
-    auto width = width_terms_pair.first;
-    if(width == 0 || width == 1)
-      continue;
-    auto syntax_pos = syntax_struct_.find(width);
-    if (syntax_pos == syntax_struct_.end())
-      continue; // no need to 
-  } // for each width*/
-} // PopulateTermTableWithExtractOpSyntaxDependentVars
-
-
 
 
 bool Enumerator::is_predicate_const(const smt::Term & t) {
@@ -762,56 +567,309 @@ bool Enumerator::F_T_and_P_imply_Pprime(const smt::Term & c, const smt::Term & c
 } // F_T_and_P_imply_Pprime
 
 
-// is_const
-// predicate_implicable
+void Enumerator::insert_comp(smt::PrimOp smt_op, const btor_msat_term_pair_t & l, const btor_msat_term_pair_t & r) {
+  auto pred_btor = solver_->make_term(smt::Op(smt_op), l.first, r.first);
+  auto pred_syntactic_hash = pred_btor->to_raw_string();
+  if (IN(pred_syntactic_hash, predicate_set_btor_))
+    return; // duplicated predicates -- avoid
+  if (is_predicate_const(pred_btor))
+    return; // do nothing
+  auto pred_msat = msat_solver_->make_term(smt::Op(smt_op), l.second, r.second);
+  predicate_list_btor_.push_back(pred_btor);
+  predicate_list_btor_next_.push_back(to_next_(pred_btor));
+  predicate_list_msat_.push_back(pred_msat);
+  predicate_set_btor_.insert(pred_syntactic_hash);
+} // Enumerator::insert_comp
 
-const std::unordered_set<smt::PrimOp> &  Enumerator::GetCompForWidth(uint64_t w) {
- // TODO: decide what comp to include
 
- static const std::unordered_set<smt::PrimOp>  default_eq 
-  = {smt::PrimOp::Equal,  smt::PrimOp::Distinct}; //,
- static const std::unordered_set<smt::PrimOp>  default_eqlte 
-  = {smt::PrimOp::Equal,  smt::PrimOp::Distinct,
-     smt::PrimOp::BVUlt, smt::PrimOp::BVUle};
- static std::unordered_set<smt::PrimOp> custom_comp;
+// ----------------------------------------------------------------
+//
+//                         Enumerator
+//
+//                        Main Functions
+//
+// ----------------------------------------------------------------
 
-  const std::unordered_set<smt::PrimOp> & default_comp = 
-    GlobalAPdrConfig.COMP_DEFAULT_BVULTULE ? default_eqlte : default_eq;
-  
-  if(GlobalAPdrConfig.COMP_DEFAULT_OVERRIDE)
-    return default_comp;
-  
-  // extract from syntax
-  auto pos = syntax_struct_.find(w);
-  if (pos == syntax_struct_.end())
-    return default_comp;
-  custom_comp.clear();
-  custom_comp.insert(smt::PrimOp::Equal);
-  custom_comp.insert(smt::PrimOp::Distinct);
 
-  if (pos->second.op_comp.find(smt::PrimOp::BVUlt) != pos->second.op_comp.end())
-    custom_comp.insert(smt::PrimOp::BVUlt);
+Enumerator::Enumerator(
+    btor_var_to_msat_t btor_var_to_msat_func,
+    to_next_t to_next_func,
+    smt::SmtSolver & btor_solver,
+    smt::SmtSolver & msat_solver,
+    const smt::Term & T_btor, const smt::Term & Init_btor, const smt::Term & Fprev_btor,
+    const std::vector<Model *> & cexs, const std::vector<Model *> & facts,
+    const smt::Term & prop_btor,
+    const sygus::SyntaxStructure & syntax,
+    const ApdrSygusHelper & itp_info ):
+      btor_var_to_msat_(btor_var_to_msat_func),
+      to_next_(to_next_func),
+      solver_(btor_solver), msat_solver_(msat_solver),
+      trans_(T_btor), init_(Init_btor), prev_(Fprev_btor),
+      cexs_(cexs), facts_(facts), prop_(prop_btor),
+      syntax_(syntax), syntax_struct_(syntax.GetSyntaxConstruct()),
+      itp_info_(itp_info),
+      use_cex_(!cexs.empty()),
+      width_term_table_(SetupInitTermList()),
+      enum_status_(SetUpEnumStatus()),
+      curr_conjunction_depth(enum_status_.curr_conjunction_depth),
+      predicate_list_btor_(enum_status_.predicate_list_btor),
+      predicate_list_btor_next_(enum_status_.predicate_list_btor_next),
+      predicate_list_msat_(enum_status_.predicate_list_msat),
+      predicate_set_btor_(enum_status_.predicate_set_btor)
+{
+  // SetupInitialPredicateListAndEnumStatus
+  // term table dump
 
-  if (pos->second.op_comp.find(smt::PrimOp::BVUle) != pos->second.op_comp.end())
-    custom_comp.insert(smt::PrimOp::BVUle);
-
-  return (custom_comp);
+  if (enum_status_.is_uninit())
+    enum_status_.init(); // set initial predicate num
 }
 
+
+enum_status & Enumerator::SetUpEnumStatus() {
+  if(use_cex_) {
+    assert(cexs_.size() == 1);
+    Model * cex = cexs_.at(0);
+    return cex_enum_buf_[cex];
+    // will create, but need to take care of the size of curr_s anyway
+  }
+  else {
+    return prop_enum_buf_[prop_];
+  }
+  assert (false); // should not be reachable
+} // Enumerator::SetUpEnumStatus()
+
+Enumerator::width_term_table_t & Enumerator::SetupInitTermList() {
+  width_term_table_t * w2symbols_ptr;
+  if(use_cex_) {
+    assert(cexs_.size() == 1);
+    Model * cex = cexs_.at(0);
+    auto pos = cex_term_map_.find(cex);
+    if (pos != cex_term_map_.end())
+      return pos->second;
+    // now create the index
+    w2symbols_ptr = &cex_term_map_[cex];
+    PopulateTermTableWithSyntaxVars(*w2symbols_ptr);
+    // estimate the numbers here
+  } else {
+    auto pos = prop_term_map_.find(prop_);
+    if (pos != prop_term_map_.end())
+      return pos->second;
+
+    w2symbols_ptr = &prop_term_map_[prop_]; // will create
+    PopulateTermTableWithSyntaxVars(*w2symbols_ptr);
+  }
+
+  PopulateTermTableWithConstants(*w2symbols_ptr);
+
+#if TERM_TABLE_DEBUG_LVL == 1
+  // a light weight dump function
+  PrintWidthTermTableSimple(width_term_table_);
+#endif
+#if TERM_TABLE_DEBUG_LVL == 2
+  PrintWidthTermTable(width_term_table_);
+#endif
+
+  for (auto & w_term_pair : *w2symbols_ptr) {
+    auto npred = term_estimator:: estimate_predicate_num_for_V_C( 
+      w_term_pair.second.n_vars /*nV*/ ,
+      w_term_pair.second.n_consts_vars - w_term_pair.second.n_vars  /*nC*/ );
+    if (npred > GlobalAPdrConfig.SYGUS_PREDICATE_EFFORTS) {
+      w_term_pair.second.term_policy_action = term_policy_action_t::ITP_V_C_EQ;
+      ReplaceTermWithItpVC(w_term_pair.first, w_term_pair.second);
+    } else {
+      w_term_pair.second.term_policy_action = term_policy_action_t::V_C_EQ;
+    }
+    // init policy for predicates
+    
+    PopulatePredicateListsWithTermsIncr(w_term_pair.first, w_term_pair.second, 0, 0); // default start end (all)
+  }
+
+  return *w2symbols_ptr;
+} // SetupInitTermList
+
+// Member used: use_cex_, cexs_, prop_
+// Update parameter: table
+void Enumerator::PopulateTermTableWithSyntaxVars(width_term_table_t & table) const {
+  if(use_cex_) {
+    assert(cexs_.size() == 1);
+    Model * cex = cexs_.at(0);
+    // now collect symbols
+    for (auto && v_val : cex->cube ) {
+      const auto & v = v_val.first;
+      assert ( v->is_symbolic_const() );
+      uint64_t width = sygus::get_width_of_var(v);
+      table[width].terms.push_back(std::make_pair(v, btor_var_to_msat_(v)));
+    }
+  } else {
+    smt::UnorderedTermSet all_symbols;
+    get_free_symbols(prop_, all_symbols);
+
+    for (auto && v : all_symbols) {
+      uint64_t width = sygus::get_width_of_var(v);
+      table[width].terms.push_back(std::make_pair(v, btor_var_to_msat_(v))); // will create
+    }
+  } // end of cex/prop
+  for (auto & w_term_pair : table)
+    w_term_pair.second.n_vars = w_term_pair.second.terms.size();
+} // end of PopulateTermTableWithSyntaxVars
+
+
+ //  initial population of tables 
+void Enumerator::PopulateTermTableWithConstants(width_term_table_t & table) const {
+  // width -> vars and constants and then apply comps on them
+  // output: predicate_list_btor_, predicate_list_btor_next_, predicate_list_msat_
+
+  // SetupInitTermList already set up vars
+  // add constants from grammar
+  std::unordered_set<std::string> bool_consts = {"true", "false"};
+  std::unordered_set<std::string> bv1_consts = {"#b0", "#b1"};
+  // you can add more enumeration if wanted
+
+  for (const auto & w_syntax : syntax_struct_ ) {
+    uint64_t width = w_syntax.first;
+    const auto & syntax = w_syntax.second;
+    const std::unordered_set<std::string> & cnsts_set
+      = (width == 0) ? bool_consts : (
+        (width == 1) ? bv1_consts  : (
+        syntax.constants));
+      
+    for (const auto & c: cnsts_set) {
+      table[width].terms.push_back(std::make_pair(
+        sygus::smt_string_to_const_term(c, solver_),
+        sygus::smt_string_to_const_term(c, msat_solver_)
+        ));
+      table[width].term_strings.insert(
+        table[width].terms.back().first->to_raw_string());
+    }
+  }
+
+  for (auto & w_term_pair : table)
+    w_term_pair.second.n_consts_vars = w_term_pair.second.terms.size();
+} // Enumerator::SetupInitialTermTable
+
+void Enumerator::PopulateTermTableWithUnaryOp(uint64_t width, term_table_t & terms, uint64_t start, uint64_t end) {
+
+  auto syntax_pos = syntax_struct_.find(width);
+  if (syntax_pos == syntax_struct_.end())
+    return;
+  const auto & op_unary = syntax_pos->second.op_unary;
+  if (op_unary.empty())
+    return;
+  
+  if (start == 0)
+    start = terms.prev_binary_pointer;
+  if (end == 0)
+    end = terms.terms.size();
+
+  assert (start <= end && end <= terms.terms.size());
+  if (start < terms.prev_unary_pointer)
+    D(1, "[Warning] Repeated unary op enumerated");
+
+  if(terms.n_vars == 0 && terms.terms.size() == terms.n_consts_vars) {
+    // no vars and no extra terms
+    terms.prev_unary_pointer = terms.terms.size();
+    return; // no vars captured for this, and no other terms to work on
+  }
+
+  for (auto && op: op_unary) {
+    auto smt_op = smt::Op(op);
+    for(auto idx = start; idx < end; ++ idx) {
+      auto btor_new_term = solver_->make_term(smt_op, terms.terms.at(idx).first);
+      //if (btor_new_term->is_value()) {
+      if (btor_new_term->is_symbolic_const())
+        continue;
+      // for op & value, let's do the check
+      auto v = btor_new_term->to_raw_string();
+      if (terms.term_strings.find(v) != terms.term_strings.end())
+        continue; // skip this
+      terms.term_strings.insert(v);
+
+      terms.terms.push_back(
+        std::make_pair(
+          btor_new_term, // btor_term
+          msat_solver_->make_term(smt_op, terms.terms.at(idx).second) // msat_term
+      ));
+    }
+  } // end for each op
+  if (end < terms.prev_unary_pointer )
+    D(1, "[Warning] Unary op enumeration is unwinded");
+  terms.prev_unary_pointer = end;
+
+} // PopulateTermTableWithUnaryOp
+
+
+void Enumerator::PopulateTermTableWithBinaryOp(uint64_t width, term_table_t & terms, uint64_t start, uint64_t end) {
+
+  auto syntax_pos = syntax_struct_.find(width);
+  if (syntax_pos == syntax_struct_.end())
+    return;
+  const auto & op_binary = syntax_pos->second.op_binary;
+  if (op_binary.empty())
+    return;
+  
+  if (start == 0)
+    start = terms.prev_binary_pointer;
+  if (end == 0)
+    end = terms.terms.size();
+
+  assert (start <= end && end <= terms.terms.size());
+  if (start < terms.prev_binary_pointer)
+    D(1, "[Warning] Repeated binary op enumerated");
+
+  if(terms.n_vars == 0 && terms.terms.size() == terms.n_consts_vars) {
+    // no vars and no extra terms
+    terms.prev_binary_pointer = terms.terms.size();
+    return; // no vars captured for this, and no other terms to work on
+  }
+
+  auto prev_pos = start;
+  for (auto && op: op_binary) {
+    auto smt_op = smt::Op(op);
+    bool symmetry = sygus::is_primop_symmetry(op);
+    for(auto idx1 = 0; idx1 < end; ++ idx1) { // a-b and b-a
+      for(auto idx2 = ( idx1 < prev_pos ? prev_pos : 
+          (symmetry ? idx1 : 0)) ; 
+        idx2 < end; ++ idx2) {
+        assert(!( idx1 < prev_pos && idx2 < prev_pos )); // no repetition
+        auto btor_new_term = solver_->make_term(smt_op, terms.terms.at(idx1).first, terms.terms.at(idx2).first);
+
+        if (btor_new_term->is_symbolic_const())
+          continue; // will not add vars
+
+        auto v = btor_new_term->to_raw_string();
+        if (terms.term_strings.find(v) != terms.term_strings.end())
+          continue; // skip this
+        terms.term_strings.insert(v);
+
+        terms.terms.push_back(  
+        std::make_pair(
+          btor_new_term,
+          msat_solver_->make_term(smt_op, terms.terms.at(idx1).second, terms.terms.at(idx2).second)));
+      } // for idx2
+    } // for idx1
+  } // for each op
+  if (end < terms.prev_binary_pointer )
+    D(1, "[Warning] Binary op enumeration is unwinded");
+  terms.prev_binary_pointer = end;
+
+} // PopulateTermTableWithBinaryOp
+
+
+
 // terms to predicates
-void Enumerator::PopulatePredicateListsWithTermsIncr() {
+void Enumerator::PopulatePredicateListsWithTermsIncr(uint64_t width, term_table_t & terms, uint64_t start, uint64_t end) {
   assert (predicate_list_btor_.size() == predicate_list_msat_.size());
   assert (predicate_list_btor_.size() == predicate_list_btor_next_.size());
 
+  // for each width, depends on the status, decide which pointer to use
+
   GlobalTimer.RegisterEventStart("Enum.PredicateGen", predicate_list_btor_.size());
 
-  for (auto & width_term_pair : width_term_table_) {
-    auto width = width_term_pair.first;
-    auto & terms = width_term_pair.second;
-    auto nterms = terms.terms.size();
+    auto nterms = end == 0 ? terms.terms.size() : end;
+
     if(terms.n_vars == 0 && (nterms - terms.n_consts_vars == 0) ) {
-      width_term_pair.second.prev_comp_pointer = nterms;
-      continue; // skip those without vars;
+      terms.set_all_comp_pointers(nterms);
+      return; // skip those without vars;
     }
     // interprete the variables based on the cex/prop
     // so that, based on values, you can decide what comparator to use
@@ -833,16 +891,15 @@ void Enumerator::PopulatePredicateListsWithTermsIncr() {
       solver_->pop();
     } // finish eval new terms
 
-    
-    // based on that evaluate all the terms
-    auto skip_pos = terms.prev_comp_pointer;
-    const auto & comp_op = GetCompForWidth(width);
-    bool has_lt = IN(smt::PrimOp::BVUlt, comp_op) && width > 1; // 0 or 1, then eq/neq are good
-    bool has_le = IN(smt::PrimOp::BVUle, comp_op) && width > 1;
+    for (size_t idx1 = 0; idx1 < nterms; ++idx1 ) { // will end at "end" if end != 0
+      for (size_t idx2 = idx1+1 ; idx2 < nterms; ++ idx2) {
+        if (idx1 < start && idx2 < start) // only if start > 0, this will work
+          continue;
 
-    for (size_t idx1 = 0; idx1 < nterms; ++idx1 ) {
-      for (size_t idx2 = (idx1 < skip_pos) ? skip_pos : idx1+1 ;
-            idx2 < nterms; ++ idx2) {
+        auto [has_le, has_lt, has_eq] = terms.reg_comp_idxs(idx1, idx2, width);
+        if (! has_le && !has_lt && !has_eq)
+          continue;
+
         // if (idx1 < skip_pos && idx2 < skip_pos)
         //  continue;
         // get the values and decide what to do
@@ -862,20 +919,23 @@ void Enumerator::PopulatePredicateListsWithTermsIncr() {
               insert_comp(smt::PrimOp::BVUle, terms.terms.at(idx2), terms.terms.at(idx1));
           } // has le
           // will always make not eq
-          insert_comp(smt::PrimOp::Distinct, terms.terms.at(idx1), terms.terms.at(idx2));
+          if (has_eq)
+            insert_comp(smt::PrimOp::Distinct, terms.terms.at(idx1), terms.terms.at(idx2));
         } else { // v1 == v2
           if (has_le) {
             insert_comp(smt::PrimOp::BVUle, terms.terms.at(idx1), terms.terms.at(idx2));
             insert_comp(smt::PrimOp::BVUle, terms.terms.at(idx2), terms.terms.at(idx1));
           } // has le
           // will always make eq
-          insert_comp(smt::PrimOp::Equal, terms.terms.at(idx1), terms.terms.at(idx2));
+          if (has_eq)
+            insert_comp(smt::PrimOp::Equal, terms.terms.at(idx1), terms.terms.at(idx2));
         } // v1 =?= v2
       } // for idx2
     } // for idx1 
 
-    width_term_pair.second.prev_comp_pointer = terms.terms.size();
-  } // for each width
+    terms.set_all_comp_pointers( terms.terms.size() );
+    
+
   assert (predicate_list_btor_.size() == predicate_list_msat_.size());
   assert (predicate_list_btor_.size() == predicate_list_btor_next_.size());
   
@@ -884,24 +944,30 @@ void Enumerator::PopulatePredicateListsWithTermsIncr() {
 } // PopulatePredicateListsWithTermsIncr
 
 
-void Enumerator::insert_comp(smt::PrimOp smt_op, const btor_msat_term_pair_t & l, const btor_msat_term_pair_t & r) {
-  auto pred_btor = solver_->make_term(smt::Op(smt_op), l.first, r.first);
-  auto pred_syntactic_hash = pred_btor->to_raw_string();
-  if (IN(pred_syntactic_hash, predicate_set_btor_))
-    return; // duplicated predicates -- avoid
-  if (is_predicate_const(pred_btor))
-    return; // do nothing
-  auto pred_msat = msat_solver_->make_term(smt::Op(smt_op), l.second, r.second);
-  predicate_list_btor_.push_back(pred_btor);
-  predicate_list_btor_next_.push_back(to_next_(pred_btor));
-  predicate_list_msat_.push_back(pred_msat);
-  predicate_set_btor_.insert(pred_syntactic_hash);
-} // Enumerator::insert_comp
+Enumerator::MoreTermPredResult Enumerator::MoreTermPredicates() { // more terms & predicates
+  // for each width decide the policy
+  width_term_policy_table_t policy; // we can decide the policy after one pass
+  bool new_policy = MoreTermPredicateGetPolicy(policy);
+  if (!new_policy) // if we have no strategy to proceed, then fail
+    return MoreTermPredResult::NO_NEW_POLICY;
 
+  width_new_terms_t new_terms_on_other_width;
+  for (auto & width_term_pair : width_term_table_) {
+    auto width = width_term_pair.first;
+    auto & terms = width_term_pair.second;
 
-bool Enumerator::MoreTermPredicates() { // more terms & predicates
-  PopulateTermTableWithUnaryOp(width_term_table_);
-  PopulateTermTableWithBinaryOp(width_term_table_);
+    auto policy_pos = policy.find(width);
+    if (policy_pos == policy.end())
+      continue;
+    
+    if (policy_pos->second.term_op == term_policy::term_action_t::OP) {
+      PopulateTermTableWithUnaryOp(width, terms, policy_pos->second.op_start, policy_pos->second.op_end );
+      PopulateTermTableWithBinaryOp(width, terms, policy_pos->second.op_start, policy_pos->second.op_end );
+      // if start == end == 0, then will use all
+    } else if (policy_pos->second.term_op == term_policy::term_action_t::TERM_3) {
+      ReplaceTermWithTrans3(width, terms, new_terms_on_other_width);
+    }
+  }
 
 #if TERM_TABLE_DEBUG_LVL == 1
   // a light weight dump function
@@ -911,14 +977,52 @@ bool Enumerator::MoreTermPredicates() { // more terms & predicates
   PrintWidthTermTable(width_term_table_);
 #endif
 
-  PopulatePredicateListsWithTermsIncr();
-  if ( enum_status_.curr_predicate_num == enum_status_.predicate_list_btor.size() ) {
-    // no more predicates can be added.
-    return false;
+  for (auto && width_term_pair : new_terms_on_other_width) {
+    auto width = width_term_pair.first;
+    auto & terms = width_term_pair.second; // this is just btor terms
+
+    auto existing_term_pos = width_term_table_.find(width);
+    if (existing_term_pos == width_term_table_.end()) {
+      // TODO: you need to create!
+      // remember to check term_string to avoid dup insert
+      // Populate consts if there is not -> const (per width)
+      // set nvars = 0
+      // set existing_term_pos
+      // add policy -> set 0
+    }
+    // add terms (and their translate)
+    
+
   }
+
+
+  // create predconjs
+  for (auto & width_term_pair : width_term_table_) {
+    auto width = width_term_pair.first;
+    auto & terms = width_term_pair.second;
+
+    auto policy_pos = policy.find(width);
+    if (policy_pos == policy.end()) {
+      // this is due to added terms
+      continue;
+    }
+
+    if (policy_pos->second.term_op != term_policy::term_action_t::NONE) {
+      // all of op term3 and comp needs to populate 
+      terms.term_policy_action = policy_pos->second.action;
+      PopulatePredicateListsWithTermsIncr(width, terms, 
+        policy_pos->second.cmp_start,policy_pos->second.cmp_end );
+    }
+  } // end of for each width
+
+
+  if (predicate_list_btor_.size() <= enum_status_.curr_predicate_num)
+    return MoreTermPredResult::TRY_AGAIN; // although we may come up with more terms, they do not make more preds
+
   enum_status_.increase_predicate_num();
-  return true;
-}
+  return MoreTermPredResult::SUCCEEDED;
+} // MoreTermPredicates
+
 
 void Enumerator::MoreConjunctions() { // more conjunction
   curr_conjunction_depth ++; 
@@ -927,24 +1031,6 @@ void Enumerator::ResetConjunctionOne() { // restart from 1 conjunction
   curr_conjunction_depth = 1;
 }
 
-/* // Old implementation -- not good -- need to expose to outside
-void Enumerator::MoveToNextLevel() { // more predicates more in conjunction
-  if( curr_conjunction_depth == GlobalAPdrConfig.EXTRACT_DEGENERATE_THRESHOLD) {
-    PopulateTermTableWithExtractOpAllWidthVars(width_term_table_);
-    PopulatePredicateListsWithTermsIncr();
-    enum_status_.increase_predicate_num();
-    curr_conjunction_depth ++; 
-  } else if (curr_conjunction_depth < GlobalAPdrConfig.NESTED_TERMS_THRESHOLD (deprected 3) ) {
-    curr_conjunction_depth ++;
-  } else {
-    PopulateTermTableWithUnaryOp(width_term_table_);
-    PopulateTermTableWithBinaryOp(width_term_table_);
-    PopulatePredicateListsWithTermsIncr();
-    enum_status_.increase_predicate_num();
-    curr_conjunction_depth ++;
-  }
-}
-*/
 
 std::pair<smt::Term, smt::Term> Enumerator::EnumCurrentLevel(uint64_t bnd) {
   uint64_t idx = 0;
@@ -1014,10 +1100,12 @@ void Enumerator::PrintWidthTermTableSimple(const width_term_table_t & tb) {
       continue; // skip those without vars;
     }
 
-    std::cout << "[Width = " << width << "]"
+    std::cout << "[Width = " << width << "] "
               << "[PU @ " << terms_info.prev_unary_pointer 
               << ", PB @ " << terms_info.prev_binary_pointer
-              << ", PC @ " << terms_info.prev_comp_pointer<< "]" << std::endl;
+              << ", PC @ " << terms_info.prev_eq_pointer << "," 
+                           << terms_info.prev_comp_lt_pointer << ","
+                           << terms_info.prev_comp_le_pointer << " ]" << std::endl;
 
     std::cout << "  V : ";
     if (nv == 0)
@@ -1065,10 +1153,8 @@ void Enumerator::PrintWidthTermTableSimple(const width_term_table_t & tb) {
 
     // ops dump & estimate count
     // estimate pred
-
-    // TODO: estimate 
   }
-}
+} // PrintWidthTermTableSimple
 
 void Enumerator::PrintWidthTermTable(const width_term_table_t & tb) {
   for(const auto & width_terms_pair : tb) {
@@ -1077,7 +1163,9 @@ void Enumerator::PrintWidthTermTable(const width_term_table_t & tb) {
     std::cout << "[Width = " << width << "]" << std::endl;
     std::cout << "[PU @ " << terms_info.prev_unary_pointer 
               << ", PB @ " << terms_info.prev_binary_pointer
-              << ", PC @ " << terms_info.prev_comp_pointer<< "]" << std::endl;
+              << ", PC @ " << terms_info.prev_eq_pointer << "," 
+                           << terms_info.prev_comp_lt_pointer << ","
+                           << terms_info.prev_comp_le_pointer << " ]" << std::endl;
     std::cout << "V : ";
     unsigned idx = 0;
     for (; idx < terms_info.n_vars; ++idx )
@@ -1095,7 +1183,7 @@ void Enumerator::PrintWidthTermTable(const width_term_table_t & tb) {
     std::cout << std::endl;
     std::cout << std::endl;
   }
-}
+} // PrintWidthTermTable
 
 void Enumerator::PrintEnumStatus(const enum_status & e) {
   e.dump();
@@ -1103,7 +1191,7 @@ void Enumerator::PrintEnumStatus(const enum_status & e) {
 
 
 
-} // namespace sat_enum
+} // namespace policy_sat_enum
 
 } // namespace cosa
 

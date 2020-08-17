@@ -22,6 +22,9 @@
 namespace cosa {
 
 struct ApdrSygusHelper {
+  // type definition
+  typedef std::function<smt::Term(const smt::Term &)> get_next_for_var_t;
+
   unsigned fidx;
   smt::Term itp_btor;
   std::unordered_set<smt::Term> itp_vars;
@@ -30,6 +33,12 @@ struct ApdrSygusHelper {
   // std::unordered_set<smt::Term> vars;
 
   void SetItpForCurrentRound(const smt::Term & itp, unsigned fidx_prev);
+  smt::Term GetNextTforV(const smt::Term &v) { return get_next_for_var_(v); }
+
+  ApdrSygusHelper(get_next_for_var_t next_) : get_next_for_var_(next_) { }
+
+protected:
+  get_next_for_var_t get_next_for_var_;
 };
 
 } // namespace cosa
