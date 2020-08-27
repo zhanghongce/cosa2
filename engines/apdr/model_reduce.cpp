@@ -15,13 +15,15 @@
  **/
 
 
-#include "apdr.h"
+#include "config.h"
+
+#include <queue>
 
 namespace cosa {
 
 class VarWidthLess {
 public:
-  bool operator() const (const smt::Term &l, const smt::Term &r) {
+  bool operator()  (const smt::Term &l, const smt::Term &r) const {
     return l->get_sort()->get_width() < r->get_sort()->get_width();
   }
 };
@@ -33,11 +35,11 @@ Model * Apdr::try_model_reduce(unsigned prevFidx,
   if (models_to_block.size() != 1) {
     return NULL;
   }
-  const Model::cube_t & c = models_to_block.at(0).cube;
+  const cube_t & c = models_to_block.at(0).cube;
 
   std::priority_queue<smt::Term, std::vector<smt::Term>, VarWidthLess> vars;
   for (auto && var_val_pair : c) {
-    if (var_val_pair.first->get_sort()->get_width() >= GlobalApdrConfig.MSAT_INTERPOLANT_ENHANCE_VAR_WIDTH_THRESHOLD)
+    if (var_val_pair.first->get_sort()->get_width() > GlobalApdrConfig.MSAT_INTERPOLANT_ENHANCE_VAR_WIDTH_THRESHOLD)
       vars.push(var_val_pair.first);
   }
 

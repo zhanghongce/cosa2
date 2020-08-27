@@ -16,7 +16,7 @@
 
 #pragma once
 
-#include "walker.h"
+#include "engines/sygus/ast_knob/walker.h"
 #include "smt-switch/smt.h"
 
 #include <vector>

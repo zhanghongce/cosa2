@@ -49,6 +49,7 @@ public:
   MultiChannelTimer() {}
   void RegisterEventStart(const std::string & event, const T & quant);
   void RegisterEventEnd(const std::string & event, const T & quant);
+  void RegisterEventCount(const std::string & event, const T & quant);
   // tdiff, quantdiff, quantdiff/tdiff
   bool EventExists(const std::string & event);
   bool EventOccurSinceFlagClear(const std::string & event);

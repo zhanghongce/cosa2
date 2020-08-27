@@ -133,16 +133,16 @@ smt::Term Apdr::do_sygus(const smt::Term & prevF_msat,
     GlobalTimer.ClearEventFlag("Enum.PredicateGen");
     GlobalTimer.ClearEventFlag("Enum.EnumPredConj");
 
-    sat_enum::Enumerator sygus_enumerator(
-      btor_var_to_msat_func_,
+
+    assert (prop_btor == nullptr);
+
+    unsat_enum::Enumerator sygus_enumerator(
       to_next_func_,
-      btor(),msat(),
+      btor(),
       ts_.trans(), ts_.init(),
       prevF_btor /*prevF*/, 
       cexs /*cexs \*/,
-      facts /*facts*/,
-      prop_btor /*prop_btor*/,
-      op_extract_->GetSyntaxConstruct()      
+      sygus_term_manager_   
     );
 
     // initially, you only have variables and constants for each var

@@ -166,19 +166,23 @@ void Apdr::initialize() {
 
   reset_sygus_syntax();
 
-  // cache the two lambda functions
-  btor_var_to_msat_func_ = [&] (const smt::Term & v) -> smt::Term {
-    return to_itp_solver_.transfer_term(v, false);
-  };
   to_next_func_ = [&] (const smt::Term & v) -> smt::Term {
     return ts_.next(v);
   };
 
-  sat_enum::Enumerator::ClearCache(); // initially clear cache
+  { // register terms to find exprs
+    for (auto && v_nxtexpr_pair : ts_.state_updates())
+      sygus_term_manager_.RegisterTermsToWalk(v_nxtexpr_pair.second);
+    sygus_term_manager_.RegisterTermsToWalk(ts_.init());
+    sygus_term_manager_.RegisterTermsToWalk(ts_.constraint());
+    sygus_term_manager_.RegisterTermsToWalk(property_.prop());
+  }
+
+  unsat_enum::Enumerator::ClearCache(); // initially clear cache
 }
 
 Apdr::~Apdr() {
-  sat_enum::Enumerator::ClearCache(); // finally: make sure terms are destructed first
+  unsat_enum::Enumerator::ClearCache(); // finally: make sure terms are destructed first
 }
 
 void Apdr::reset_sygus_syntax() {

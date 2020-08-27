@@ -15,7 +15,7 @@
 #include "frontends/smtlib2parser.h"
 #include "engines/apdr/transferts.h"
 #include "engines/sygus/partial_model.h"
-#include "engines/sygus/opextract.h"
+#include "engines/sygus/ast_knob/opextract.h"
 #include "engines/sygus/gen_sygus_query.h"
 #include "engines/sygus/sat_enum.h"
 #ifdef WITH_MSAT

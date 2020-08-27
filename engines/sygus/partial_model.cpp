@@ -16,9 +16,11 @@
 
 #include "utils/logger.h"
 #include "utils/container_shortcut.h"
+#include "utils/str_util.h"
 #include "partial_model.h"
 
 #include <cassert>
+#include <algorithm> 
 
 namespace cosa {
 
@@ -47,6 +49,21 @@ std::string Model::to_string() const {
     ret += " , ";
   }
   return ret;
+}
+
+std::string Model::vars_to_canonical_string() const {
+  std::vector<std::string> vars;
+  for (auto && v_val : cube) {
+    vars.push_back(v_val.first->to_string());
+  }
+  std::sort(vars.begin(), vars.end());
+  return ::cosa::sygus::Join(vars, "?<*>?"); // hope it won't appear in the the var names
+}
+
+void Model::get_varset(std::unordered_set<smt::Term> & varset) const {
+  for (auto && v_val : cube) {
+    varset.insert(v_val.first);
+  }
 }
 
 Model::Model(smt::SmtSolver & solver_, const std::unordered_set<smt::Term> & vars) {

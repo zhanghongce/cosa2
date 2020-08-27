@@ -18,7 +18,7 @@
  
 #include "apdr/config.h"
 #include "sygus/partial_model.h"
-#include "sygus/opextract.h"
+#include "sygus/ast_knob/opextract.h"
 #include <core/ts.h>
 
 #include <string_view> 

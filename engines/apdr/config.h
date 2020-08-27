@@ -62,6 +62,7 @@ namespace cosa {
     unsigned MSAT_INTERPOLANT_ENHANCE_VAR_WIDTH_THRESHOLD = 5;
     unsigned NO_SYGUS_IF_ITP_VARWIDTH_LESS_THAN = 5;
     unsigned SYGUS_PREDICATE_EFFORTS = 1000;
+    unsigned TERM_EXTRACT_DEPTH = 2;
 
     // ------------- Internal SyGuS Configuration ---------------------------------
     bool COMP_DEFAULT_OVERRIDE = true;

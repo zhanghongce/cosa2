@@ -48,6 +48,15 @@ void MultiChannelTimer<T>::RegisterEventEnd(const std::string & event, const T &
   pos->second.total_time += (std::chrono::duration_cast<milliseconds>( pos->second.tend - pos->second.tstart ).count() ) / 1000.0f;
 }
 
+
+template <class T> 
+void MultiChannelTimer<T>::RegisterEventCount(const std::string & event, const T & quant) {
+  auto & st = events_[event];
+  assert (!st.started);
+  st.run_at_least_once_flag = st.run_at_least_once_flag  || (quant > 0);
+  pos->second.total_quant += quant;
+}
+
 template <class T> 
 std::tuple<float, T, float> MultiChannelTimer<T>::GetStatus(const std::string & event) {
   auto pos = events_.find(event);

@@ -26,6 +26,8 @@ typedef std::unordered_map<smt::Term, smt::Term> cube_t;
 struct Model {
   cube_t cube;
   std::string to_string() const;
+  std::string vars_to_canonical_string() const;
+  void get_varset(std::unordered_set<smt::Term> & varset) const;
   smt::Term to_expr(smt::SmtSolver & solver_);
   static smt::Term to_expr(const cube_t & c, smt::SmtSolver & solver_);
   static smt::Term to_expr_translate(

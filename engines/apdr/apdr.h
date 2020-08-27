@@ -17,9 +17,9 @@
 #pragma once
 
 #include "engines/sygus/partial_model.h"
-#include "engines/sygus/opextract.h"
+#include "engines/sygus/ast_knob/opextract.h"
 #include "engines/sygus/gen_sygus_query.h"
-#include "engines/sygus/sat_enum.h"
+#include "engines/sygus/unsat_enum.h"
 #include "engines/prover.h"
 #include "frontends/smtlib2parser.h"
 
@@ -96,8 +96,7 @@ public:
       return l.first > r.first;
     } };
 
-  using btor_var_to_msat_t = sat_enum::Enumerator::btor_var_to_msat_t;
-  using to_next_t = sat_enum::Enumerator::to_next_t;
+  using to_next_t = unsat_enum::Enumerator::to_next_t;
   
 public:
   // inherited interfaces
@@ -158,7 +157,6 @@ protected:
   smt::Term property_msat_;
 
   // cache the two lambda function
-  btor_var_to_msat_t btor_var_to_msat_func_;
   to_next_t to_next_func_;
 
   // no need to cache trans result -- already cached
@@ -166,6 +164,7 @@ protected:
   std::unordered_set<std::string> sygus_symbol_names_;
   sygus::SyGuSTransBuffer sygus_tf_buf_;
   std::unique_ptr<OpExtractor> op_extract_;
+  unsat_enum::VarTermManager sygus_term_manager_;
   std::unique_ptr<sygus::SyGusQueryGen> sygus_query_gen_;
   Smtlib2Parser smtlib2parser;
   facts_t empty_fact_; // used by _get_fact
