@@ -64,7 +64,7 @@ namespace cosa {
     unsigned SYGUS_PREDICATE_EFFORTS = 1000;
 
     unsigned TERM_EXTRACT_DEPTH = 0; // 2; depth == 0 means all possible sol
-    bool UNSAT_CORE_RUN_MULITTIMES = false;
+    bool UNSAT_CORE_RUN_MULITTIMES = true;
 
     // ------------- Internal SyGuS Configuration ---------------------------------
     bool COMP_DEFAULT_OVERRIDE = true;

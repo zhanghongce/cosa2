@@ -601,6 +601,11 @@ std::pair<smt::Term, smt::Term> Apdr::gen_lemma(
 
   sygus_info_helper_.SetItpForCurrentRound(itp_btor, fidx);
 
+  if (sygus_info_helper_.itp_btor != NULL && sygus_info_helper_.max_var_width < GlobalAPdrConfig.NO_SYGUS_IF_ITP_VARWIDTH_LESS_THAN)
+  { 
+    return std::make_pair(itp_btor, itp_msat);
+  }
+
   GlobalTimer.RegisterEventStart("APDR.SyGuS", 0);
   // gen exec and extract
   smt::Term lemma_btor = do_sygus(prevF_msat,  prevF_btor,
@@ -677,8 +682,8 @@ Apdr::solve_trans_result Apdr::solveTrans(
       );
   }
 
-  D(3,"      [solveTrans] Property: {} , v=>v', useinit: {}", prop_btor->to_string(), use_init  );
-  D(4,"      [solveTrans] formula : {}", F_to_check->to_string());
+  //D(3,"      [solveTrans] Property: {} , v=>v', useinit: {}", prop_btor->to_string(), use_init  );
+  //D(4,"      [solveTrans] formula : {}", F_to_check->to_string());
 
   solver_->push();
   solver_->assert_formula(F_to_check);
@@ -923,11 +928,12 @@ bool Apdr::try_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin ce
     if (fidx > prev_idx) { 
       assert (!lemma_for_batch_push.empty());
       assert (fidx >= 2);
+      assert (prev_idx == fidx - 1);
       // this is the point we are moving forward to a newer frame
       // for each lemma in the batch, try to push it to the next level
       std::vector<Lemma *> temp_lemma_vec; // create a temp vec
       temp_lemma_vec.swap(lemma_for_batch_push); // take old values
-      // lemma_for_batch_push.clear(); will already be cleared
+      lemma_for_batch_push.clear(); // will already be cleared
       for (Lemma * l : temp_lemma_vec) {
         // if pushed add back to lemma_for_batch_push
         // only if pushed, check subsume, if subsume, pop and continue
@@ -939,7 +945,7 @@ bool Apdr::try_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin ce
           false /*pre state*/,
           false /*post state*/, &frame_cache /*frame cache*/);
         if (!result.not_hold) {
-          D(2, "  [block-try F{}] Succeed in eager pushing",fidx);
+          D(2, "  [block-try F{}] Succeed in eager pushing to F{}",fidx, fidx);
           Lemma *lemma_nxt = l->direct_push(*this);
           frame_cache._add_lemma(lemma_nxt, fidx);
           lemma_for_batch_push.push_back(lemma_nxt);
@@ -950,9 +956,9 @@ bool Apdr::try_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin ce
     prev_idx = fidx;
     if (any_eager_push_is_successful) {
       // TODO: 
-      D(2, "  [block-try F{}] Succeed in blocking after eager pushing",fidx);
       smt::Term cex_prop_btor = NOT(cex->to_expr_btor(solver_));
       if (frame_and_fc_implies(fidx, frame_cache, cex_prop_btor)) {
+        D(2, "  [block-try F{}] Succeed in blocking after eager pushing",fidx);
         priorityQueue.pop();
         continue;
       }
@@ -980,6 +986,7 @@ bool Apdr::try_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin ce
       D(3, "      [block-try] checked at F{} -> F{} : {} is blocked", fidx-1, fidx, cex->to_string());
 
     } else {
+      lemma_for_batch_push.clear();
       priorityQueue.push(std::make_pair(fidx-1, trans_result.prev_ex));
       D(3, "      [block-try] push to queue, F{} : {}", fidx-1,  trans_result.prev_ex->to_string());
     }

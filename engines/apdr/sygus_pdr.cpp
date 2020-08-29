@@ -45,7 +45,7 @@ void ApdrSygusHelper::SetItpForCurrentRound(const smt::Term & itp, unsigned fidx
   conj_depth_threshold_for_internal_sygus = GlobalAPdrConfig.STARTING_CONJ_DEPTH;
 
   if (itp_btor) {
-    get_free_symbols(itp_btor, itp_vars);
+    get_free_symbols(itp_btor, itp_vars); // TODO: CHANGE TO constants here
     for (auto && p : itp_vars)
       max_var_width = MAX(max_var_width, p->get_sort()->get_width()); // std::max does not fit here
     conj_depth_threshold_for_internal_sygus = itp_vars.size();

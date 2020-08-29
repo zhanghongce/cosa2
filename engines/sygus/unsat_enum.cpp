@@ -282,11 +282,12 @@ smt::Term Enumerator::GetCandidate() {
 
     solver_->push();
 
-    for(const auto & p: inpreds) {
-      D(0, "Assert pred: {}, sort: {}", p->to_string(), p->get_sort()->to_string());
-    }
+    // for(const auto & p: inpreds) {
+    //   D(0, "Assert pred: {}, sort: {}", p->to_string(), p->get_sort()->to_string());
+    // }
     
     ++ n_iter;
+    D(0, "Unsat enum iter #{}, core size {} ", n_iter, inpreds.size());
     auto res = solver_->check_sat_assuming(inpreds);
     if (res.is_sat()) {
       // we cannot find a good set of predicates
@@ -304,12 +305,17 @@ smt::Term Enumerator::GetCandidate() {
     solver_->get_unsat_core(unsat_core);
     solver_->pop();
 
+    assert (unsat_core.size() <= inpreds.size());
     assert (!unsat_core.empty());
     for(const auto & p: unsat_core) {
-      D(0, "Unsat pred: {}", p->to_raw_string());
+      if (p == base_term)
+        D(0, "Unsat base: (F/\\T)\\/INIT' ");
+      else
+        D(0, "Unsat pred: {}", p->to_raw_string());
     }
     
     if (unsat_core.size() == inpreds.size()) {
+      D(0, "Unsat enum done, iter {}, core size {}", n_iter, unsat_core.size());
       break;
     } // else continue
 
