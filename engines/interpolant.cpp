@@ -120,10 +120,13 @@ bool InterpolantMC::step(int i)
       Term int_transB = to_interpolator_.transfer_term(transB_);
       Term int_bad = to_interpolator_.transfer_term(bad_i);
       Term int_Ri;
-      got_interpolant = interpolator_->get_interpolant(
+
+      Result r = interpolator_->get_interpolant(
           interpolator_->make_term(And, int_R, int_transA),
           interpolator_->make_term(And, int_transB, int_bad),
           int_Ri);
+          
+      got_interpolant = r.is_unsat();
 
       if (got_interpolant) {
         Ri_ = to_solver_.transfer_term(int_Ri);

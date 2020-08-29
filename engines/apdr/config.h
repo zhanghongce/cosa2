@@ -58,11 +58,13 @@ namespace cosa {
 
     bool COI_CACHING_ENABLE = true;
     bool MSAT_INTERPOLANT_ENABLE = true;
-    bool MSAT_INTERPOLANT_ENHANCE_AUTO_DROP = true;
+    bool MSAT_INTERPOLANT_ENHANCE_AUTO_DROP = false;
     unsigned MSAT_INTERPOLANT_ENHANCE_VAR_WIDTH_THRESHOLD = 5;
     unsigned NO_SYGUS_IF_ITP_VARWIDTH_LESS_THAN = 5;
     unsigned SYGUS_PREDICATE_EFFORTS = 1000;
-    unsigned TERM_EXTRACT_DEPTH = 2;
+
+    unsigned TERM_EXTRACT_DEPTH = 0; // 2; depth == 0 means all possible sol
+    bool UNSAT_CORE_RUN_MULITTIMES = false;
 
     // ------------- Internal SyGuS Configuration ---------------------------------
     bool COMP_DEFAULT_OVERRIDE = true;

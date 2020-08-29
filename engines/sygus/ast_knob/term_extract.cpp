@@ -15,9 +15,20 @@
  **/
 
 #include "term_extract.h"
+#include "utils/logger.h"
 #include "utils/container_shortcut.h"
 
 #include <cassert>
+
+#define DEBUG
+#ifdef DEBUG
+  #define D(...) logger.log( __VA_ARGS__ )
+  #define INFO(...) D(0, __VA_ARGS__)
+#else
+  #define D(...) do {} while (0)
+  #define INFO(...) logger.log(1, __VA_ARGS__)
+#endif
+
 
 namespace cosa {
 
@@ -30,11 +41,13 @@ bool TermExtractor::Skip(const smt::Term & ast) {
 
 void TermExtractor::PreChild(const smt::Term & ast) {
   assert(!IN(ast, walked_nodes_));
-  walked_nodes_.insert(std::make_pair(ast, node_info_t() ));
+  //walked_nodes_.insert(std::make_pair(ast, node_info_t() ));
 }
 
 void TermExtractor::PostChild(const smt::Term & ast) {
   // check if it is leaf
+
+  walked_nodes_.insert(std::make_pair(ast, node_info_t() ));
 
   unsigned width;
   auto sort_kind = ast->get_sort()->get_sort_kind() ;
@@ -60,12 +73,23 @@ void TermExtractor::PostChild(const smt::Term & ast) {
   } else { // we will hope it is op
     unsigned max_level = 0;
     bool all_in = true;
+    D(0, "Walk : {} ", ast->to_raw_string());
+
     for(auto && p : *ast) { // for each of its child node
-      max_level = std::max( walked_nodes_[ast].level, max_level );
-      all_in &= walked_nodes_[ast].in;
+
+      D(0, "  - Child : {} , lv: {} , in: {}", p->to_raw_string(), walked_nodes_[p].level, walked_nodes_[p].in);
+      max_level = std::max( walked_nodes_[p].level, max_level );
+      all_in &= walked_nodes_[p].in;
     }
+
+    if (level_ > 0)
+      ++ max_level; // if given level_ > 0, then we will count lv, otherwise, we don't care
+
     walked_nodes_[ast].in = all_in;
     walked_nodes_[ast].level = max_level;
+
+    D(0, "Result lv: {} , in: {} ", max_level, all_in);
+
     if (max_level <= level_ && all_in) {
       width_to_terms_[width].push_back(ast);
     }

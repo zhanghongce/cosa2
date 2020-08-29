@@ -15,7 +15,7 @@
  **/
 
 
-#include "config.h"
+#include "apdr.h"
 
 #include <queue>
 
@@ -35,16 +35,19 @@ Model * Apdr::try_model_reduce(unsigned prevFidx,
   if (models_to_block.size() != 1) {
     return NULL;
   }
-  const cube_t & c = models_to_block.at(0).cube;
+  const cube_t & c = models_to_block.at(0)->cube;
+
+  if (c.size() == 1) // will not try if size == 1
+    return NULL;
 
   std::priority_queue<smt::Term, std::vector<smt::Term>, VarWidthLess> vars;
   for (auto && var_val_pair : c) {
-    if (var_val_pair.first->get_sort()->get_width() > GlobalApdrConfig.MSAT_INTERPOLANT_ENHANCE_VAR_WIDTH_THRESHOLD)
+    if (var_val_pair.first->get_sort()->get_width() > GlobalAPdrConfig.MSAT_INTERPOLANT_ENHANCE_VAR_WIDTH_THRESHOLD)
       vars.push(var_val_pair.first);
   }
 
   bool succ = false;
-  Model * prev_model = new Model(models_to_block.at(0));
+  Model * prev_model = new Model(*(models_to_block.at(0)));
   while(!vars.empty()) {
     // drop headv in new_model, clear model's cache
     // see solveTrans, if okay?
@@ -53,9 +56,12 @@ Model * Apdr::try_model_reduce(unsigned prevFidx,
     smt::Term headv = vars.top();
     vars.pop();
 
-    Model * new_model = new Model(prev_model);
+    Model * new_model = new Model(*(prev_model));
     bool erased = new_model->erase_var(headv);
-    assert( erased );
+    if ( ! erased ) {
+      delete new_model;
+      continue; // try next var
+    }
 
     auto res = solveTrans(prevFidx, NULL /*prop_btor*/, NULL /*prop_msat*/,
       {new_model}, models_fact, remove_prop_in_prev_frame, use_init,

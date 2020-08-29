@@ -54,7 +54,7 @@ void MultiChannelTimer<T>::RegisterEventCount(const std::string & event, const T
   auto & st = events_[event];
   assert (!st.started);
   st.run_at_least_once_flag = st.run_at_least_once_flag  || (quant > 0);
-  pos->second.total_quant += quant;
+  st.total_quant += quant;
 }
 
 template <class T> 

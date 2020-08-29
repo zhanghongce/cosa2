@@ -35,6 +35,7 @@ public:
   
   
   // ----------- CONSTRUCTOR --------------- //
+  // if level > 0, then we will count level, otherwise, we don't care about the levels
   TermExtractor(const std::unordered_set<smt::Term> & varset, bool collect_constants, unsigned level) :
     related_vars_(varset), collect_constants_(collect_constants), level_(level) { }
     

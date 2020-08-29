@@ -17,7 +17,7 @@
 #include "engines/sygus/partial_model.h"
 #include "engines/sygus/ast_knob/opextract.h"
 #include "engines/sygus/gen_sygus_query.h"
-#include "engines/sygus/sat_enum.h"
+#include "engines/sygus/unsat_enum.h"
 #ifdef WITH_MSAT
   #include "smt-switch/msat_factory.h"
 #endif
@@ -343,6 +343,7 @@ TEST (SygusInternal, FromCex)  {
     btor = BoolectorSolverFactory::create(false);
     btor->set_opt("produce-models", "true");
     btor->set_opt("incremental", "true");
+    btor->set_opt("produce-unsat-cores", "true");
     TermTranslator to_msat(msat);
 
     FunctionalTransitionSystem fts_btor(btor);
@@ -352,11 +353,11 @@ TEST (SygusInternal, FromCex)  {
     TransferredTransitionSystem fts_msat(fts_btor, msat, to_msat);
 
     // debug cache
-    std::cout << "to_msat cache debug:" << std::endl;
-    for (auto btort_msatt_pair : to_msat.get_cache()) {
-      std::cout << "Btor " << btort_msatt_pair.first->to_string() << " --> " 
-                << "Btor " << btort_msatt_pair.second->to_string() << std::endl;
-    }
+    // std::cout << "to_msat cache debug:" << std::endl;
+    // for (auto btort_msatt_pair : to_msat.get_cache()) {
+    //   std::cout << "Btor " << btort_msatt_pair.first->to_string() << " --> " 
+    //             << "Msat " << btort_msatt_pair.second->to_string() << std::endl;
+    // }
 
     OpExtractor opext;
     opext.WalkBFS(fts_msat.trans());
@@ -386,83 +387,33 @@ TEST (SygusInternal, FromCex)  {
       return fts_btor.next(v);
     };
 
+    unsat_enum::VarTermManager sygus_term_manager_;
+    { // register terms to find exprs
+      for (auto && v_nxtexpr_pair : fts_btor.state_updates())
+        sygus_term_manager_.RegisterTermsToWalk(v_nxtexpr_pair.second);
+      sygus_term_manager_.RegisterTermsToWalk(fts_btor.init());
+      sygus_term_manager_.RegisterTermsToWalk(fts_btor.constraint());
+      sygus_term_manager_.RegisterTermsToWalk(prop_btor);
+    }
     
-    sat_enum::Enumerator sygus_enumerator(
-      btor_var_to_msat_var,
+    
+    unsat_enum::Enumerator sygus_enumerator(
       to_next,
-      btor,msat,
+      btor,
       fts_btor.trans(), fts_btor.init(),
       fts_btor.init() /*prevF*/, 
       {&m} /*cexs \*/,
-      {} /*facts*/,
-      nullptr /*prop_btor*/,
-      lang_constructs      
+      sygus_term_manager_      
     );
 
     std::cout << "Cex : " << m.to_string() << std::endl;
-    std::cout << "Enum # = " << sygus_enumerator.GetCurrentLevelMaxEffort() << std::endl;
-    auto res = sygus_enumerator.EnumCurrentLevel();
+    auto res = sygus_enumerator.GetCandidate();
 
-    std::cout << "Result btor : " << res.first->to_string() << std::endl;
+    std::cout << "Result btor : " << res->to_string() << std::endl;
 
     sygus_enumerator.ClearCache();
 } // InternalSygus from cex
 
-
-TEST (SygusInternal, FromProp)  {
-    std::string fname = mktemp_btor();
-    SmtSolver msat;
-    SmtSolver btor;
-    msat = MsatSolverFactory::create_interpolating_solver();
-    btor = BoolectorSolverFactory::create(false);
-    btor->set_opt("produce-models", "true");
-    btor->set_opt("incremental", "true");
-    TermTranslator to_msat(msat);
-
-    FunctionalTransitionSystem fts_btor(btor);
-    BTOR2Encoder btor_enc_btor(fname, fts_btor);
-    auto prop_btor = btor_enc_btor.propvec()[0];
-
-    TransferredTransitionSystem fts_msat(fts_btor, msat, to_msat);
-
-    OpExtractor opext;
-    opext.WalkBFS(fts_msat.trans());
-    opext.WalkBFS(fts_msat.init());
-    opext.GetSyntaxConstruct().RemoveUnusedStructure();
-    const auto & lang_constructs = opext.GetSyntaxConstruct();
-
-    // you need to get cex
-    
-    // and then start the enumerator
-
-    auto btor_var_to_msat_var = [&] (const smt::Term & v) -> smt::Term {
-      return to_msat.transfer_term(v, false);
-    };
-    auto to_next = [&] (const smt::Term & v)  -> smt::Term {
-      return fts_btor.next(v);
-    };
-
-    
-    sat_enum::Enumerator sygus_enumerator(
-      btor_var_to_msat_var,
-      to_next,
-      btor,msat,
-      fts_btor.trans(), fts_btor.init(),
-      fts_btor.init() /*prevF*/, 
-      {} /*cexs \*/,
-      {} /*facts*/,
-      prop_btor /*prop_btor*/,
-      lang_constructs      
-    );
-
-    std::cout << "Prop : " << prop_btor -> to_string() << std::endl;
-    std::cout << "Enum # = " << sygus_enumerator.GetCurrentLevelMaxEffort() << std::endl;
-    auto res = sygus_enumerator.EnumCurrentLevel();
-
-    std::cout << "Result btor : " << res.first->to_string() << std::endl;
-
-    sygus_enumerator.ClearCache();
-} // InternalSygus
 
 #endif
 

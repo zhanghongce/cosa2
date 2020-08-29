@@ -13,11 +13,13 @@
  **
  ** 
  **/
+#include "engines/apdr/config.h"
 #include "unsat_enum.h"
 
 #include "utils/container_shortcut.h"
 #include "utils/term_analysis.h"
 #include "utils/logger.h"
+#include "utils/str_util.h"
 #include "utils/multitimer.h"
 
 #include <cassert>
@@ -30,7 +32,7 @@
 
 
 
-//#define DEBUG
+#define DEBUG
 #ifdef DEBUG
   #define D(...) logger.log( __VA_ARGS__ )
   #define INFO(...) D(0, __VA_ARGS__)
@@ -60,7 +62,7 @@ eval_val::eval_val(const std::string & val) {
     nv = 0;
   } else {
     try {
-      nv = sygus::StrToULongLong(val.substr(pos), 2);
+      nv = ::cosa::sygus::StrToULongLong(val.substr(pos), 2);
       type = type_t::NUM;      
     } catch (...) {
       type = type_t::STR;
@@ -118,7 +120,7 @@ Enumerator::Enumerator(
       solver_(btor_solver),
       trans_(T_btor), init_(Init_btor), prev_(Fprev_btor),
       cexs_(cexs), 
-      per_cex_info_(setup_cex_info())
+      per_cex_info_(setup_cex_info(var_term_extractor))
 {
   if(per_cex_info_.predicates_nxt.empty()){
     terms_to_predicates();
@@ -133,12 +135,11 @@ PerCexInfo & Enumerator::setup_cex_info(VarTermManager & var_term_extractor) {
     return cex_term_map_pos->second;
   }
 
-
   cex_term_map_.insert(
     std::make_pair(cex_ptr, 
       PerCexInfo( var_term_extractor.GetAllTermsForVarsInModel(cex_ptr) )));
 
-  PerCexInfo & per_cex_info = cex_term_map_.get(cex_ptr);
+  PerCexInfo & per_cex_info = cex_term_map_.at(cex_ptr);
 
   GlobalTimer.RegisterEventStart("Enum.TermEval", 0);
   unsigned nterm = 0;
@@ -152,22 +153,22 @@ PerCexInfo & Enumerator::setup_cex_info(VarTermManager & var_term_extractor) {
   for (auto & width_term_const_pair : per_cex_info.varset_info.terms) {
     for (auto && t: width_term_const_pair.second.terms) {
       per_cex_info.terms_val_under_cex.insert(
-        std::make_pair( t, eval_val( solver_->get_value(t) )));
+        std::make_pair( t, eval_val( solver_->get_value(t)->to_raw_string() )));
       ++ nterm;
     }
     for (auto && c : width_term_const_pair.second.constants) {
       per_cex_info.terms_val_under_cex.insert(
-        std::make_pair( t, t->to_raw_string() ));
+        std::make_pair( c, c->to_raw_string() ));
       ++ nterm;
     }
   } // eval terms on cex
 
   solver_->pop();
 
-  GlobalTimer.RegisterEventStart("Enum.TermEval", nterm);
+  GlobalTimer.RegisterEventEnd("Enum.TermEval", nterm);
   // finally return it
   return per_cex_info;
-}
+} // setup_cex_info
 
 void Enumerator::terms_to_predicates() {
 
@@ -195,7 +196,7 @@ void Enumerator::terms_to_predicates() {
                 << (terms_consts.constants.back()->to_string()) <<  " (" << nc << ")" << std::endl;
 #else
     for (auto && t : terms_consts.constants)
-      std::cout << t->to_raw_string() << ", "
+      std::cout << t->to_raw_string() << ", ";
     std::cout << " (" << nc << ")\n";
 #endif
     
@@ -210,7 +211,7 @@ void Enumerator::terms_to_predicates() {
                 << (terms_consts.terms.back()->to_string()) <<  " (" << nt << ")" << std::endl;
 #else
     for (auto && t : terms_consts.terms)
-      std::cout << t->to_raw_string() << ", "
+      std::cout << t->to_raw_string() << ", ";
     std::cout << " (" << nt << ")\n";
 #endif
     
@@ -228,13 +229,13 @@ void Enumerator::terms_to_predicates() {
       const auto & cval = per_cex_info_.terms_val_under_cex.at(c);
       for (const auto & t: terms_consts.terms) {
         const auto & tval = per_cex_info_.terms_val_under_cex.at(t);
-        if (cval == tval) {
-          // predicate insert eq
-          preds.push_back( EQ(c, t) );
-        } else {
-          // predicate insert not eq
-          preds.push_back( NEQ(c, t) );
-        }
+        
+        auto pred_curr = (cval == tval) ? EQ(c, t) : NEQ(c, t);
+        if (pred_curr->is_value())
+          continue;
+        auto pred_next = to_next_(pred_curr);
+        next_to_curr.insert(std::make_pair(pred_next, pred_curr));
+        preds.push_back(pred_next);
       }
     } // end of c-t
     
@@ -244,9 +245,11 @@ void Enumerator::terms_to_predicates() {
       const auto & t1 = terms.at(idx1);
       const auto & tval1 = per_cex_info_.terms_val_under_cex.at( t1 );
       for (size_t idx2 = idx1+1; idx2 < sz; ++idx2) {
-        const auto & t2 = terms.at(t2);
+        const auto & t2 = terms.at(idx2);
         const auto & tval2 = per_cex_info_.terms_val_under_cex.at( t2 );
         auto pred_curr = (tval1 == tval2) ? EQ(t1, t2) : NEQ(t1, t2);
+        if (pred_curr->is_value())
+          continue;
         auto pred_next = to_next_(pred_curr);
         next_to_curr.insert(std::make_pair(pred_next, pred_curr));
         preds.push_back(pred_next);
@@ -268,9 +271,10 @@ smt::Term Enumerator::GetCandidate() {
   // get unsat core
   smt::Term base_term = OR( AND(prev_, trans_) ,to_next_(init_) );
 
-  smt::TermVec inpreds = per_cex_info_.predicates_nxt;
+  smt::TermVec inpreds (per_cex_info_.predicates_nxt.begin(), per_cex_info_.predicates_nxt.end());
   inpreds.push_back(base_term);
 
+  D(0, "Enumerate: pred: {}", per_cex_info_.predicates_nxt.size());
   unsigned n_iter = 0;
   GlobalTimer.RegisterEventStart("Enum.SMTQuery", n_iter );
 
@@ -278,37 +282,47 @@ smt::Term Enumerator::GetCandidate() {
 
     solver_->push();
 
-    for(const auto & p: inpreds)
-      solver_->assert_formula(p);
+    for(const auto & p: inpreds) {
+      D(0, "Assert pred: {}, sort: {}", p->to_string(), p->get_sort()->to_string());
+    }
     
-    auto res = solver_->check_sat();
+    ++ n_iter;
+    auto res = solver_->check_sat_assuming(inpreds);
     if (res.is_sat()) {
       // we cannot find a good set of predicates
 #ifdef DEBUG
-      assert (n_iter == 0);
       DebugPredicates(inpreds, base_term, init_);
+      assert (n_iter == 1);
 #endif
       // debug  here
-      solver->pop();
+      solver_->pop();
 
       GlobalTimer.RegisterEventEnd("Enum.SMTQuery", n_iter );
       return nullptr; // no good candidates
     }
-    smt::TermVec unsat_core = solver_->get_unsat_core();
+    smt::UnorderedTermSet unsat_core;
+    solver_->get_unsat_core(unsat_core);
+    solver_->pop();
 
-    solver->pop();
-    
-    ++ n_iter;
+    assert (!unsat_core.empty());
+    for(const auto & p: unsat_core) {
+      D(0, "Unsat pred: {}", p->to_raw_string());
+    }
     
     if (unsat_core.size() == inpreds.size()) {
       break;
     } // else continue
-    inpreds = unsat_core;
-  } while(true);
+
+    inpreds.clear();
+    inpreds.insert(inpreds.begin(), unsat_core.begin(), unsat_core.end());
+  } while(GlobalAPdrConfig.UNSAT_CORE_RUN_MULITTIMES);
 
   GlobalTimer.RegisterEventEnd("Enum.SMTQuery", n_iter );
 
-  if (n_iter == 2) { // the second time is the same as first time
+  if (n_iter <= 2) { 
+    // the second time is the same as first time
+    // in case of GlobalAPdrConfig.UNSAT_CORE_RUN_MULITTIMES
+    // n_iter == 1, this is also no iter
     GlobalTimer.RegisterEventCount("Enum.UnsatNoIter", 1);
   } else 
     GlobalTimer.RegisterEventCount("Enum.UnsatIter", 1);
@@ -328,7 +342,6 @@ smt::Term Enumerator::GetCandidate() {
   }
   assert (base_term_in);
   assert (ret != nullptr);
-  solver->pop();
   return NOT(ret);
 
 } // GetCandidate
@@ -357,6 +370,50 @@ void Enumerator::DebugPredicates(const smt::TermVec & inpreds, const smt::Term &
   D(0, "The cex model related to this is: {}", cexs_.at(0)->to_string() );
 
   assert (base_term_in);
+
+  // -----------------------------------------------------------------
+  // see if any p can block m
+  solver_->pop();
+  solver_->push();
+  solver_->assert_formula(m.to_expr_btor(solver_));
+  auto res = solver_->check_sat();
+  assert(res.is_sat());
+  
+  D(0, "-------------------------------");
+  unsigned idx =0;
+  smt::TermVec preds_to_try;
+  for (const auto & p : inpreds) {
+    if (p == base) {
+      continue;
+    } else {
+      auto t_curr = per_cex_info_.pred_next_to_pred_curr.at(p);
+      auto pred_res = solver_->get_value(t_curr)->to_int();
+      if (pred_res == 1) {
+        preds_to_try.push_back(NOT(t_curr));
+        D(0, "NOT({}) on s: {} ", t_curr->to_raw_string(), "False");
+        idx ++;
+      }
+    }
+  }
+  D(0, "-------------Total : {} ------------------", idx);
+
+  // see if /\ not(p) will have something there
+  // -----------------------------------------------------------------
+  solver_->pop();
+  solver_->push();
+  
+  res = solver_->check_sat_assuming(preds_to_try);
+  D(0,"AND of (not p) sat? : {}", res.is_sat());
+  if (res.is_unsat()) {
+    smt::UnorderedTermSet unsatcore;
+    solver_->get_unsat_core(unsatcore);
+    D(0, "-------------Unsat core : {} ------------------", unsatcore.size());
+    for (const auto & p : unsatcore)
+      D(0, "{}", p->to_raw_string());
+    D(0, "-----------------------------------------------", unsatcore.size());    
+  }
+
+
 } // DebugPredicates
 
     

@@ -45,6 +45,7 @@ public:
   const PerVarsetInfo & GetAllTermsForVarsInModel(Model * m);
 
 protected:
+  std::unordered_set<std::string> constants_strings_;
   std::map<unsigned, std::vector<smt::Term>> width_to_constants_;  
   std::unordered_map<std::string, PerVarsetInfo> terms_cache_; // include constants here
   

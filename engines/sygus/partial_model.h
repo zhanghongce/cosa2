@@ -40,6 +40,7 @@ struct Model {
 
   // constructors
   Model() : expr_btor_(NULL), expr_msat_(NULL) {}
+  Model(const Model &m) : cube(m.cube), expr_btor_(m.expr_btor_), expr_msat_(m.expr_msat_) {}
   // from get value from a solver
   Model(smt::SmtSolver & solver_, const std::unordered_set<smt::Term> & varset);
   // return true, if it really exists

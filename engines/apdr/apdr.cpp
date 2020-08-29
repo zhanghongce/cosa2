@@ -99,7 +99,8 @@ Apdr::Apdr(const Property & p, smt::SmtSolver & s,
   property_msat_(bv_to_bool_msat(to_itp_solver_.transfer_term(p.prop(),false), itp_solver_)),
   sygus_symbol_(ts_msat_.states()),
   sygus_tf_buf_(ts_msat_, ts_),
-  smtlib2parser(msat(), ts_msat_.symbols())
+  smtlib2parser(msat(), ts_msat_.symbols()),
+  sygus_info_helper_()
   // cache the transition and init condition formula -- trans/init
   // no need actually.
   // - itp_solver_trans_term_(to_itp_solver_.transfer_term(ts_.trans())),
@@ -414,6 +415,19 @@ void Apdr::sanity_check_frame_monotone() {
   }
 }
 
+void Apdr::sanity_check_last_frame_nopushed() {
+  if (frames.size() <= 1)
+    return;
+  const auto & lastf = frames.back();
+  for (Lemma * l : lastf) {
+    if (l->pushed) {
+      dump_frames(std::cout);
+      D(0,"Last frame has pushed_lemma (why?) {} ", l->to_string());
+    }
+    assert (!l->pushed);
+  }
+}
+
 void Apdr::dump_frames(std::ostream & os) const {
   os << "---------- Frames DUMP ----------" << std::endl;
   for (size_t fidx = 0; fidx < frames.size() ; ++ fidx) {
@@ -519,8 +533,9 @@ std::pair<smt::Term, smt::Term> Apdr::gen_lemma(
     // B_msat = NOT_msat(prop_msat_nxt);
     // will use init anyway 
     GlobalTimer.RegisterEventStart("APDR.interpolant",0);
-    get_itp = itp_solver_->get_interpolant(A_msat,B_msat,itp_msat);
+    auto res = itp_solver_->get_interpolant(A_msat,B_msat,itp_msat);
     GlobalTimer.RegisterEventEnd("APDR.interpolant",1);
+    get_itp = res.is_unsat();
 
     if (get_itp) {
       itp_msat = ts_msat_.curr(bv_to_bool_msat(itp_msat, itp_solver_));
@@ -588,19 +603,25 @@ std::pair<smt::Term, smt::Term> Apdr::gen_lemma(
 
   GlobalTimer.RegisterEventStart("APDR.SyGuS", 0);
   // gen exec and extract
-  smt::Term lemma_msat = do_sygus(prevF_msat,  prevF_btor,
+  smt::Term lemma_btor = do_sygus(prevF_msat,  prevF_btor,
     prop_msat, prop_btor,
     // cexs.empty() ? prop_msat : nullptr, // depends on whether we use cexs or not
     cexs, facts, false /*assert inv in previous frame*/,
     sygus_info_helper_);
   GlobalTimer.RegisterEventEnd("APDR.SyGuS", 1);
 
-  if (lemma_msat != nullptr) {
-    D(2, "         [lemma-gen] sygus: {}", lemma_msat->to_string());
-    smt::Term lemma_btor = to_btor_.transfer_term(lemma_msat, false);
+  if (lemma_btor != nullptr) {
+    D(2, "         [lemma-gen] sygus: {}", lemma_btor->to_string());
+    smt::Term lemma_msat = bv_to_bool_msat(to_itp_solver_.transfer_term(lemma_btor, false), itp_solver_);
     GlobalAPdrConfig.STAT_LEMMA_USE_SYGUS ++;
     return std::make_pair(lemma_btor, lemma_msat);
+  } else {
+    dump_frames(std::cout);
+    if(itp_btor)
+      D(0, "Will use itp: {}", itp_btor->to_raw_string());
+    assert(false);
   }
+
   // at this point, sygus lemma gen has failed
   if (GlobalAPdrConfig.LEMMA_GEN_MODE != APdrConfig::LEMMA_GEN_MODE_T::SYGUS_ONLY) {
     if (get_itp && itp_msat != nullptr && itp_btor != nullptr) {
@@ -684,6 +705,7 @@ Apdr::solve_trans_result Apdr::solveTrans(
       return solve_trans_result(true, prev_ex, post_ex, smt::Term(NULL), smt::Term(NULL));
     } // else no pre-state
     solver_->pop();
+    POP_STACK;
     return solve_trans_result(true, NULL, NULL, smt::Term(NULL), smt::Term(NULL));
   } // else unsat
   solver_->pop();
@@ -744,7 +766,9 @@ Model * Apdr::get_bad_state_from_property_invalid_after_trans (
   auto trans_result = solveTrans(
     // I think it is better to use prop rather than cex
     //idx, prop_btor, prop_msat, {} /*models to block*/, {} /*facts to imply*/,
-    idx, nullptr, nullptr, {cube} /*models to block*/, {} /*facts to imply*/,
+    idx,
+    nullptr, nullptr, /*prop_btor and prop_msat*/
+    {cube} /*models to block*/, {} /*facts to imply*/,
     /*remove_prop_in_prev*/ false, use_init,
     /*find itp*/ add_itp, /*pre state*/ true, /*post state*/ false, /*fc*/ NULL );
   assert (trans_result.not_hold == (trans_result.prev_ex != NULL));
@@ -1032,6 +1056,7 @@ ProverResult Apdr::check_until(int k) {
     #ifdef DEBUG
       sanity_check_frame_monotone();
       sanity_check_imply();
+      // sanity_check_last_frame_nopushed();
     #endif
 
     Model * cube = frame_not_implies_model(frames.size() -1, property_.prop());

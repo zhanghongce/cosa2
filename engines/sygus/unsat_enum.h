@@ -16,7 +16,7 @@
  
 #pragma once
 
-#include "ast_knob/var_term_manager.h"
+#include "engines/sygus/ast_knob/var_term_manager.h"
 
 #include <vector>
 #include <functional>
@@ -79,16 +79,16 @@ protected:
   smt::Term trans_;
   smt::Term init_;
   smt::Term prev_;
-  std::vector<Model *> cexs_;
+  std::vector<Model *> cexs_; // the cexs to block
   
   static cex_term_map_t  cex_term_map_;
   
-  std::vector<Model *> cexs_; // the cexs to block
   
   PerCexInfo & per_cex_info_; // per var set info here
   PerCexInfo & setup_cex_info(VarTermManager & var_term_extractor);
   void terms_to_predicates();
   
+  void DebugPredicates(const smt::TermVec & inpreds, const smt::Term & base, const smt::Term & init) ;
 public:
   Enumerator(
     to_next_t to_next_func,

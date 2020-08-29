@@ -312,6 +312,7 @@ int main(int argc, char ** argv)
       s = BoolectorSolverFactory::create(false); // let's create it with a wrapper in case translation failed
       s->set_opt("produce-models", "true");
       s->set_opt("incremental", "true");
+      s->set_opt("produce-unsat-cores", "true");
       Configurations::MsatInterpolatorConfiguration cfg;
       cfg.interpolation_mode = std::to_string( std::min(itp_mode,4U) );
       second_solver = MsatSolverFactory::create_interpolating_solver(cfg);

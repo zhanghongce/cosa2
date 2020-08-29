@@ -214,6 +214,7 @@ public:
   bool is_safe_inductive_inv(const smt::Term & inv);
   void sanity_check_imply();
   void sanity_check_frame_monotone();
+  void sanity_check_last_frame_nopushed();
   smt::Result sanity_check_property_at_length_k(const smt::Term & btor_p, unsigned k);
   virtual void dump_frames(std::ostream & os) const override;
   

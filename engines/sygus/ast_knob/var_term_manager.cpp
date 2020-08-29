@@ -44,11 +44,25 @@ const PerVarsetInfo & VarTermManager::GetAllTermsForVarsInModel(Model * m) {
   for (auto && t : terms_to_check_)
     extractor.WalkBFS(t);
 
-  if (collect_constant)
-    width_to_constants_ = extractor.GetConstants();
+  if (collect_constant) {
+    const auto w_c_map = extractor.GetConstants();
+    for (const auto & width_constvec_pair : w_c_map) {
+      for (const auto & c : width_constvec_pair.second)  {
+        auto cnstr_str = c->to_raw_string();
+        if (!IN(cnstr_str, constants_strings_)) {
+          constants_strings_.insert(cnstr_str);
+          width_to_constants_[width_constvec_pair.first].push_back(c);
+        }
+      }
+    }
+  } // if collect constnats
 
   auto & term_cache_item = terms_cache_[var_string];
   const auto & terms = extractor.GetTerms();
+
+  assert(!varset.empty());
+  assert(!terms.empty());
+
   for (auto && w_t_pair : terms) {
     auto width = w_t_pair.first;
     const auto & tvec = w_t_pair.second;
@@ -73,7 +87,7 @@ const PerVarsetInfo & VarTermManager::GetAllTermsForVarsInModel(Model * m) {
     }
   } // end of for each width_constant_pair
 
-  GlobalTimer.RegisterEventStart("TermWalk", nterm_walked);
+  GlobalTimer.RegisterEventEnd("TermWalk", nterm_walked);
   return term_cache_item;
 } // GetAllTermsFor
 
