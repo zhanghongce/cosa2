@@ -88,7 +88,7 @@ protected:
   PerCexInfo & setup_cex_info(VarTermManager & var_term_extractor);
   void terms_to_predicates();
   
-  void DebugPredicates(const smt::TermVec & inpreds, const smt::Term & base, const smt::Term & init) ;
+  void DebugPredicates(const smt::UnorderedTermSet & inpreds, const smt::Term & base, const smt::Term & init) ;
 public:
   Enumerator(
     to_next_t to_next_func,

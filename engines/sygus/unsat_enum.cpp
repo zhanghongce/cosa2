@@ -271,8 +271,8 @@ smt::Term Enumerator::GetCandidate() {
   // get unsat core
   smt::Term base_term = OR( AND(prev_, trans_) ,to_next_(init_) );
 
-  smt::TermVec inpreds (per_cex_info_.predicates_nxt.begin(), per_cex_info_.predicates_nxt.end());
-  inpreds.push_back(base_term);
+  smt::UnorderedTermSet inpreds (per_cex_info_.predicates_nxt.begin(), per_cex_info_.predicates_nxt.end());
+  inpreds.insert(base_term);
 
   D(0, "Enumerate: pred: {}", per_cex_info_.predicates_nxt.size());
   unsigned n_iter = 0;
@@ -319,8 +319,8 @@ smt::Term Enumerator::GetCandidate() {
       break;
     } // else continue
 
-    inpreds.clear();
-    inpreds.insert(inpreds.begin(), unsat_core.begin(), unsat_core.end());
+    inpreds.swap(unsat_core); // unsat core will be destroyed anyway
+    //inpreds.insert(inpreds.begin(), unsat_core.begin(), unsat_core.end());
   } while(GlobalAPdrConfig.UNSAT_CORE_RUN_MULITTIMES);
 
   GlobalTimer.RegisterEventEnd("Enum.SMTQuery", n_iter );
@@ -352,7 +352,7 @@ smt::Term Enumerator::GetCandidate() {
 
 } // GetCandidate
 
-void Enumerator::DebugPredicates(const smt::TermVec & inpreds, const smt::Term & base, const smt::Term & init) {
+void Enumerator::DebugPredicates(const smt::UnorderedTermSet & inpreds, const smt::Term & base, const smt::Term & init) {
 
   bool base_term_in = false;
   for (const auto & p : inpreds) {
