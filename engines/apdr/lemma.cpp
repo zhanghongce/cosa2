@@ -98,103 +98,8 @@ Lemma * Lemma::direct_push(ModelLemmaManager & mfm) {
 bool Lemma::subsume_by_frame(unsigned fidx, LemmaPDRInterface & pdr) {
   //auto prop = IMPLY(pdr.frame_prop_btor(fidx), NOT(cex_->to_expr_btor(pdr.btor())) );
   //std::cout << "DEBUG: fidx=" << fidx << ", prop=" << prop->to_string() << std::endl;
-  if (!pdr.is_valid(IMPLY(pdr.frame_prop_btor(fidx), NOT(cex_->to_expr_btor(pdr.btor())) )  )) 
-    return false;
-  return true;
+  return (pdr.frame_implies(fidx, NOT(cex_->to_expr_btor(pdr.btor()))) );
 }
-
-// cex_failed? and ITP
-bool Lemma::try_itp_push(FrameCache &fc, unsigned src_fidx, 
-    LemmaPDRInterface & pdr) {
-
-  fc.RegisterLemmaUnderPush(this, src_fidx);
-  unsigned nl_at_f =  fc.n_lemma_at_frame(src_fidx+1);
-  bool blockable = pdr.try_recursive_block(cex_, src_fidx+1, origin_, fc);
-  fc.UnregisterLemmaUnderPush();
-
-  if (blockable) {
-    assert ( fc.n_lemma_at_frame(src_fidx+1) >= nl_at_f + 1);
-    stats_push_fail(false);
-
-    //const auto & frame = fc.get_frames().at(src_fidx+1);
-    //for (unsigned lidx = nl_at_f; lidx < frame.size(); ++ lidx) {
-    //  Lemma * l = frame.at(nl_at_f);
-    //  l->n_itp_push_failure = n_itp_push_failure;
-    //  l->n_itp_push_trial = n_itp_push_trial;
-    //}
-    // Lemma * l = fc.get_frames().at(src_fidx+1).back();
-    return false;
-  }
-  return true;
-} // try_itp_push
-
-// prop_succ, all_succ, bmBnd, unblocked_cube
-std::tuple<bool, bool, int, Model *> Lemma::try_strengthen(FrameCache &fc,
-  int bnd, unsigned src_fidx, Model * prev_ex, LemmaPDRInterface & pdr, ModelLemmaManager & mlm) {
-  
-  assert (prev_ex);
-  fc.RegisterLemmaUnderPush(this, src_fidx);
-
-  while (prev_ex) {
-    bool blockable = pdr.try_recursive_block(prev_ex, src_fidx, LemmaOrigin::ORIGIN_FROM_PUSH, fc);
-    if (!blockable) {
-      stats_push_fail(true);
-      fc.UnregisterLemmaUnderPush();
-      return std::make_tuple(false, false, bnd, prev_ex);
-    }
-    auto trans_result = pdr.solveTrans(src_fidx, expr_, expr_msat_,
-      {}, {}, // no synthesis needed here
-      false /*rm prop*/, false /*init*/, false /*itp*/,  true /*pre_state*/, false /*post_state*/, &fc);
-    assert (trans_result.not_hold == (trans_result.prev_ex != NULL));
-    prev_ex = trans_result.prev_ex; // update the cex
-    -- bnd;
-    if (bnd < 0) {
-      stats_push_fail(true);
-      fc.UnregisterLemmaUnderPush();
-      return std::make_tuple(false, false, bnd, prev_ex);
-    }
-  }
-  // okay, we know the current lemma holds on src_fidx+1
-  // add its direct push to fc next level
-  //  - prev_ex is None from this point
-  fc._add_lemma(direct_push(mlm), src_fidx+1);
-  fc.UnregisterLemmaUnderPush();
-  // but for the newly added lemma at src_fidx, we want them to be pushable as well
-  // there could be more lemma in earlier frames, but we don't bother them
-  //  - prop_succ = true from this point
-  // try block all lemmas on the current frame
-  if (fc.has_lemma_at_frame(src_fidx)) {
-    for (Lemma * l : fc.get_frames().at(src_fidx)) {
-      auto trans_result = pdr.solveTrans(src_fidx, expr_,  expr_msat_,
-        {}, {}, // no synthesis needed here
-        false /*rm prop*/, false /*init*/, false /*itp*/, true /*pre_state*/, false /*post_state*/, &fc);
-      assert (trans_result.not_hold == (trans_result.prev_ex != NULL));
-      prev_ex =  trans_result.prev_ex; // update the cex
-
-      if (prev_ex == NULL)
-        continue;
-      
-      bool prop_succ, all_succ; int rmBnd; Model * unblockable_cube;
-      std::tie(prop_succ, all_succ, rmBnd, unblockable_cube) = 
-        l->try_strengthen(fc, bnd, src_fidx, prev_ex, pdr, mlm);
-      bnd = rmBnd;
-      if (bnd < 0)
-        return std::make_tuple<bool, bool, int, Model *>(true, false, (int)bnd, (Model *) NULL);
-      if (! (all_succ || prop_succ)) {
-        assert (unblockable_cube);
-        return std::make_tuple(true, false, (int)bnd, unblockable_cube);
-      }
-    } // end each lemma @ src_fidx in fc
-  } // fc lemma
-
-  return std::make_tuple<bool, bool, int, Model *>(true, true, (int)bnd, (Model *) NULL);
-} // try_strengthen
-
-Lemma * Lemma::try_sygus_repair(unsigned fidx, unsigned lemmaIdx, Model * post_ex,
-  Lemma * new_itp, LemmaPDRInterface & pdr, ModelLemmaManager & mfm) {
-  // TO BE IMPLEMENTED
-  return NULL;
-} // try_sygus_repair
 
 
 // --------------------- DUMPs --------------------- //
@@ -212,7 +117,7 @@ void Lemma::stats_sygus_fail(bool failed) {
 }
 
 std::vector<std::string_view> origin2str = {
-  "prop", "push", "init"
+  "MUST", "MAY", "init"
 };
 
 std::string Lemma::origin_to_string(LemmaOrigin o) {

@@ -105,6 +105,10 @@ public:
 
   void GetVarList(const smt::Term & ast, 
     std::unordered_set<smt::Term> & out_vars, bool use_cache = true);
+
+  void GetVarListForAsts(const smt::TermVec & asts, 
+    smt::UnorderedTermSet & out_vars, bool use_cache = true);
+
   // get a partial model and put in the cube
   void GetPartialModel(const smt::Term & ast, cube_t & m, bool use_cache = true);
 

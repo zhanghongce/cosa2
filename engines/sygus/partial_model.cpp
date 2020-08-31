@@ -221,6 +221,16 @@ void PartialModelGen::GetVarList(const smt::Term & ast,
 }
 
 
+void PartialModelGen::GetVarListForAsts(const smt::TermVec & asts, 
+  smt::UnorderedTermSet & out_vars, bool use_cache ) {
+  dfs_walked_.clear();
+  dfs_vars_.clear();
+  use_cache_ = use_cache;
+  for (const auto & ast : asts)
+    dfs_walk(ast);
+  out_vars.insert(dfs_vars_.begin(), dfs_vars_.end());
+}
+
 static inline bool is_all_zero(const std::string & s)  {
   assert(s.substr(0, 2) == "#b");
   for (auto pos = s.begin()+2; pos != s.end(); ++ pos)
@@ -358,7 +368,24 @@ void PartialModelGen::dfs_walk(const smt::Term & ast ) {
         dfs_walk(left);
         dfs_walk(right);
       }
-    } else {
+    } else if (op.prim_op == smt::PrimOp::BVMul) {
+      ARG2(left,right)
+      auto cond_left = solver_->get_value(left);
+      auto cond_right = solver_->get_value(right);
+      assert(cond_left->is_value() && cond_right->is_value());
+      std::string left_val = cond_left->to_string();
+      std::string right_val = cond_right->to_string();
+
+      if (is_all_zero(left_val)) // if all ones
+        dfs_walk(left);
+      else if (is_all_zero(right_val)) {
+        dfs_walk(right);
+      } else { // it is not 0, so both matter
+        dfs_walk(left);
+        dfs_walk(right);
+      }
+    }
+    else {
       for (const auto & arg : *ast)
         dfs_walk(arg);
     }

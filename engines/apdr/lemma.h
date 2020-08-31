@@ -30,35 +30,53 @@ class FrameCache;
 
 class LemmaPDRInterface : public SignalPDRInterface {
 public:
-  enum LemmaOrigin {ORIGIN_FROM_PROPERTY, ORIGIN_FROM_PUSH, ORIGIN_FROM_INIT};
-  struct solve_trans_result {
+  enum LemmaOrigin {MUST_BLOCK, MAY_BLOCK, ORIGIN_FROM_INIT};
+  
+  struct solve_trans_result{
     bool not_hold;
+    bool not_hold_at_init;
     Model * prev_ex;
-    Model * post_ex;
-    smt::Term itp;
-    smt::Term itp_msat;
-    solve_trans_result (bool sat_, Model * pre, Model * post, const smt::Term & itp_, const smt::Term & itp_msat_):
-      not_hold(sat_), prev_ex(pre), post_ex (post), itp(itp_), itp_msat(itp_msat_) {}
+    solve_trans_result(bool sat, bool sat_at_init, Model * pre) :
+      not_hold(sat), not_hold_at_init(sat_at_init), prev_ex(pre) {}
+    // if sat at init, prev_ex = in cube (of course)
   };
+
+  struct solve_trans_lemma_result : solve_trans_result {
+    // if not hold == false and itp == empty
+    // then we know we don't have good syntax to gen a lemma
+    // at that point may_block should != NULL
+    smt::TermVec itp;
+    smt::TermVec itp_msat;
+    Model * may_block;
+    bool may_block_at_init;
+    solve_trans_lemma_result( const solve_trans_result & no_lemma) : 
+      solve_trans_result(no_lemma), may_block(NULL), may_block_at_init(false) {}
+    solve_trans_lemma_result (
+      bool sat_, bool sat_at_init, Model * pre, Model * mayblock, bool may_block_at_init_):
+      solve_trans_result(sat_, sat_at_init, pre) ,
+      may_block(mayblock), may_block_at_init(may_block_at_init_) {}
+
+    bool unblockable() const { return not_hold; }
+    bool no_good_syntax() const { return !not_hold && may_block; } // assert itp.empty
+    bool has_lemma() const { return !itp.empty(); } // assert !not_hold and may_block == empty
+  };
+
 public:
+  // some function units
   virtual bool is_valid(const smt::Term &) = 0;
   virtual smt::Term frame_prop_btor(unsigned fidx) const = 0;
-  virtual smt::Term frame_prop_btor(unsigned fidx, unsigned not_include_lemmaIdx) const = 0;
+  virtual bool frame_implies(unsigned fidx, const smt::Term &prop) = 0;
 
+  virtual solve_trans_result solveTrans( unsigned prevFidx, 
+    const smt::Term & prop_btor,
+    bool remove_prop_in_prev_frame,
+    bool use_init, bool get_pre_state) = 0;
+
+  virtual bool recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_origin) = 0;
+  
+  // getters
   virtual smt::SmtSolver & btor() = 0;
   virtual smt::SmtSolver & msat() = 0;
-  virtual solve_trans_result solveTrans(
-    unsigned prevFidx,
-    const smt::Term & prop_btor, const smt::Term & prop_msat, // or the following
-    const std::vector<Model *> & models_to_block, const std::vector<Model *> & models_fact,
-    bool remove_prop_in_prev_frame,
-    bool use_init, bool findItp,
-    bool get_pre_state,
-    bool get_post_state, FrameCache * fc ) = 0;
-  virtual bool try_recursive_block(
-    Model * cube, unsigned idx, LemmaOrigin cex_origin,
-    FrameCache & frame_cache) = 0;
-  
   virtual smt::Term next(const smt::Term &) const = 0;
   virtual smt::Term curr(const smt::Term &) const = 0;
   virtual bool is_curr_var(const smt::Term &) const = 0;
@@ -102,14 +120,6 @@ public:
   Lemma * direct_push(ModelLemmaManager & mfm);
   bool subsume_by_frame(unsigned fidx, LemmaPDRInterface & pdr);
   // cex_failed, and ITP
-  bool try_itp_push(FrameCache &fc, unsigned src_fidx, 
-     LemmaPDRInterface & pdr);
-  // prop_succ, all_succ, bmBnd, unblocked_cube
-  std::tuple<bool, bool, int, Model *> try_strengthen(FrameCache &fc,
-    int bnd, unsigned src_fidx, Model * prev_ex, LemmaPDRInterface & pdr, ModelLemmaManager & mlm);
-  Lemma * try_sygus_repair(unsigned fidx, unsigned lemmaIdx, Model * post_ex,
-    Lemma * new_itp, LemmaPDRInterface & pdr, ModelLemmaManager & mfm);
-
 
 
   static std::string origin_to_string(LemmaOrigin o) ;

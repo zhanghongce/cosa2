@@ -30,41 +30,6 @@
 
 namespace cosa {
 
-
-// a buffer of frame of lemmas
-// use to commit change all at 
-// once
-class FrameCache {
-public:
-  typedef std::vector<Lemma *> frame_t;
-protected:
-  std::unordered_map<unsigned, std::vector<Lemma *>> frames;
-  smt::SmtSolver & btor_;
-  smt::SmtSolver & msat_;
-  ModelLemmaManager & mlm_;
-
-  Lemma * lemma_under_push;
-  unsigned lemma_under_push_fidx;
-public:
-  FrameCache (smt::SmtSolver & btor, smt::SmtSolver & msat,
-    ModelLemmaManager & mlm) :
-    btor_(btor), msat_(msat), mlm_(mlm), lemma_under_push(NULL) {}
-
-  void RegisterLemmaUnderPush(Lemma * l, unsigned fidx);
-  void UnregisterLemmaUnderPush();
-
-  void _add_lemma(Lemma * lemma, unsigned fidx);
-  void _add_pushed_lemma(Lemma * lemma, unsigned start, unsigned end);
-
-  bool has_lemma_at_frame(unsigned fidx) const;
-  unsigned n_lemma_at_frame(unsigned fidx) const;
-  smt::Term conjoin_frame_for_props_btor(unsigned fidx);
-  smt::Term conjoin_frame_for_props_msat(unsigned fidx);
-
-  std::unordered_map<unsigned, std::vector<Lemma *>> & get_frames() { return frames; }
-}; // framecache
-
-
 /*
   Although inherited from Prover, I don't want to use the unroller,
   because we are not unrolling. So it is just for interface.
@@ -85,18 +50,24 @@ public:
 class Apdr : public Prover, public ModelLemmaManager, public LemmaPDRInterface {
 public:
   // type definition
-  using frame_t = FrameCache::frame_t;
+  typedef std::vector<Lemma *> frame_t;
   typedef std::unordered_set<smt::Term> varset_t;
   typedef std::vector<Model *> facts_t;
 
   // comparator for fidx, cex
-  typedef std::pair<unsigned, Model *> fcex_t;
-  struct fcex_queue_comparator {
-    bool operator() (const fcex_t & l, const fcex_t & r) {
-      return l.first > r.first;
-    } };
+  struct fcex_t{
+    unsigned fidx;
+    Model * cex;
+    bool can_transit_to_next;
+    Lemma::LemmaOrigin cex_origin;
+    fcex_t(unsigned fidx_, Model * cex_,  bool can_transit_to_next_, Lemma::LemmaOrigin origin) : 
+    fidx(fidx_), cex(cex_), can_transit_to_next(can_transit_to_next_), cex_origin(origin) {}
+  };
+  //typedef std::pair<unsigned, Model *> fcex_t;
+  // we don't need the comparator, just use vector
 
   using to_next_t = unsat_enum::Enumerator::to_next_t;
+  using extract_model_t = unsat_enum::Enumerator::extract_model_t;
   
 public:
   // inherited interfaces
@@ -130,19 +101,11 @@ protected:
   smt::Term init_msat_nxt;
   smt::Term T_msat;
   bool has_assumptions;
-  bool config_push_stop_after_itp_push;
   void cut_vars_cur(std::unordered_set<smt::Term> & v);
-  void put_vars_nxt(const std::unordered_set<smt::Term> & in, std::unordered_set<smt::Term> & out);
-  // void cut_vars_nxt(std::unordered_set<smt::Term> & v);
-  // we don't know the pre/post
 
   PartialModelGen partial_model_getter;
 
   std::vector<frame_t> frames;
-  std::unordered_map<unsigned, facts_t>  unblockable_fact;
-  std::unordered_map<unsigned, unsigned> frames_pushed_idxs_map;
-  std::unordered_map<unsigned, unsigned> facts_pushed_idxs_map;
-
 
   // the itp solver
   smt::SmtSolver & itp_solver_;
@@ -158,6 +121,9 @@ protected:
 
   // cache the two lambda function
   to_next_t to_next_func_;
+  extract_model_t extract_model_func_;
+  Model * extract_model_output_;
+
 
   // no need to cache trans result -- already cached
   smt::UnorderedTermSet sygus_symbol_;
@@ -166,26 +132,41 @@ protected:
   std::unique_ptr<OpExtractor> op_extract_;
   unsat_enum::VarTermManager sygus_term_manager_;
   std::unique_ptr<sygus::SyGusQueryGen> sygus_query_gen_;
-  Smtlib2Parser smtlib2parser;
-  facts_t empty_fact_; // used by _get_fact
 
   // use by internal sygus
   ApdrSygusHelper sygus_info_helper_;
 
-protected: // frame handling
-  virtual smt::Term frame_prop_btor(unsigned fidx) const override;
-  virtual smt::Term frame_prop_btor(unsigned fidx, unsigned not_include_lemmaIdx) const override;
-  smt::Term frame_prop_msat(unsigned fidx) const;
+protected:
+  bool is_valid(const smt::Term & e);
+  bool is_valid_imply(const smt::Term & pre, const smt::Term & post);
+  bool is_sat(const smt::Term & e);
+  Model * get_not_valid_model(const smt::Term & e);
+  Model * solve(const smt::Term & formula);
+
+public: // sanity and dumping
   smt::Term get_inv() const;
-  bool frame_implies(unsigned fidx, const smt::Term &prop);
-  bool frame_and_fc_implies(unsigned fidx, FrameCache &fc, const smt::Term &prop);
-  Model * frame_not_implies_model(unsigned fidx, const smt::Term &prop);
-  bool frame_compatible_w(unsigned fidx, const smt::Term &prop); 
+  void validate_inv(); // the same as following
+  bool is_safe_inductive_inv(const smt::Term & inv);
+
+  virtual void dump_frames(std::ostream & os) const override;
+  
+protected: // sanity and dumping
+  Model * frame_not_implies_model(unsigned fidx, const smt::Term &prop); // check fail dump
+  void sanity_check_imply(); // Fi /\ T => F'i+1
+  void sanity_check_frame_monotone(); // Fi => Fi+1
+  void sanity_check_last_frame_nopushed(); // lemmas at last frame are not pushed
+  smt::Result sanity_check_property_at_length_k(const smt::Term & btor_p, unsigned k); // in sat case, validate with BMC
+  void sanity_check_prop_fail(const std::vector<fcex_t> & path);
+
+
+protected: // essentials
+  bool is_last_two_frames_inductive() ;
+  virtual bool frame_implies(unsigned fidx, const smt::Term &prop) override;
+  virtual smt::Term frame_prop_btor(unsigned fidx) const override;
+  smt::Term frame_prop_msat(unsigned fidx) const;
 
   void _add_lemma(Lemma * lemma, unsigned fidx);
   void _add_pushed_lemma(Lemma * lemma, unsigned start, unsigned end);
-  void _add_fact(Model * fact, unsigned fidx);
-  const facts_t & _get_fact(unsigned fidx) const;
 
 protected: // sygus related
   void reset_sygus_syntax();  
@@ -197,62 +178,39 @@ protected: // sygus related
     const std::vector<Model *> & cexs, const std::vector<Model *> & facts,
     bool assert_inv_in_prevF,
     ApdrSygusHelper & sygus_info /* if possible use itp var num */ );
-  // try model reduce here
-  Model * try_model_reduce(unsigned prevFidx,
-    const std::vector<Model *> & models_to_block, const std::vector<Model *> & models_fact,
-    bool remove_prop_in_prev_frame, bool use_init, FrameCache * fc);
-
-protected:
-  // member class
-  virtual bool is_valid(const smt::Term & e) override;
-  bool is_sat(const smt::Term & e);
-  Model * get_not_valid_model(const smt::Term & e);
-  Model * solve(const smt::Term & formula);
 
 public:
-  bool is_last_two_frames_inductive() ;
-  bool is_safe_inductive_inv(const smt::Term & inv);
-  void sanity_check_imply();
-  void sanity_check_frame_monotone();
-  void sanity_check_last_frame_nopushed();
-  smt::Result sanity_check_property_at_length_k(const smt::Term & btor_p, unsigned k);
-  virtual void dump_frames(std::ostream & os) const override;
-  
+  void propose_new_lemma_to_block(fcex_t * pre, fcex_t * post);
+  // within pre/post, you have fidx
+
   std::pair<smt::Term, smt::Term> gen_lemma(
     unsigned fidx,
     const smt::Term & Fprev_msat, 
     const smt::Term & Fprev_btor, 
     const smt::Term & prop_msat,
     const smt::Term & prop_btor,
-    const std::vector<Model *> & cexs, const std::vector<Model *> & facts );
-
-  virtual solve_trans_result solveTrans(
-    unsigned prevFidx, 
-    const smt::Term & prop_btor_ptr, const smt::Term & prop_msat_ptr, // or the following
-    const std::vector<Model *> & models_to_block, const std::vector<Model *> & models_fact,
+    const std::vector<Model *> & cexs );
+  
+  virtual solve_trans_result solveTrans( unsigned prevFidx, 
+    const smt::Term & prop_btor,
     bool remove_prop_in_prev_frame,
-    bool use_init, bool findItp, 
-    bool get_pre_state,
-    bool get_post_state, FrameCache * fc ) override;
-  
-  Model * get_bad_state_from_property_invalid_after_trans (
-    const smt::Term & prop, const smt::Term & prop_msat, unsigned idx, bool use_init, bool add_itp,
-    Model * cube);
+    bool use_init, bool get_pre_state) override;
 
-  bool do_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_origin, bool check_reach = false);
-  
-  virtual bool try_recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_origin,
-    FrameCache & frame_cache) override;
+  solve_trans_lemma_result Apdr::solveTransLemma(
+    unsigned prevFidx, 
+    const std::vector<Model *> & models_to_block,
+    bool remove_prop_in_prev_frame,
+    // bool use_init = true, bool findItp = true,
+    bool get_pre_state);
+
+  bool recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_origin);
 
   bool check_init_failed();
 
   void push_lemma_from_the_lowest_frame();
 
-  void push_lemma_from_frame(unsigned fidx);
+  void push_lemma_from_frame(unsigned fidx, bool second_round_push);
 
-  void merge_frame_cache(FrameCache & fc);
-
-  void validate_inv();
 
   // --------------- accessor --------------- //
   // --------- delegate to TransitionSystem -------- //
