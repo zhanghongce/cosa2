@@ -78,7 +78,7 @@ public:
   typedef std::unordered_map<Model *, PerCexInfo>   cex_term_map_t; // the enumeration position of a cex
   typedef std::function<smt::Term(const smt::Term &)> to_next_t; // ast to next
   //typedef std::function<smt::Term(const smt::Term &)> btor_var_to_msat_t;
-  typedef std::function<void(const smt::UnorderedTermSet &)> extract_model_t;
+  typedef std::function<void(const smt::UnorderedTermSet &, bool)> extract_model_t;
   
 protected:
   // btor_var_to_msat_t btor_var_to_msat_;
@@ -90,7 +90,7 @@ protected:
   smt::Term trans_;
   smt::Term init_;
   smt::Term prev_;
-  std::vector<Model *> cexs_; // the cexs to block
+  Model * cex_; // the cexs to block
   
   static cex_term_map_t  cex_term_map_;
   
@@ -99,8 +99,10 @@ protected:
   PerCexInfo & setup_cex_info(VarTermManager & var_term_extractor);
   void terms_to_predicates();
   
-  smt::Term Enumerator::AssembleCandFromUnsatCore(const smt::Term & base_term, const smt::UnorderedTermSet & unsatcore);
+  smt::Term AssembleCandFromUnsatCore(const smt::Term & base_term, const smt::UnorderedTermSet & unsatcore);
   void DebugPredicates(const smt::UnorderedTermSet & inpreds, const smt::Term & base, const smt::Term & init) ;
+  bool check_failed_at_init(const smt::Term & F_and_T) ;
+
 public:
   Enumerator(
     to_next_t to_next_func,
@@ -108,7 +110,7 @@ public:
     smt::SmtSolver & btor_solver,
     //smt::SmtSolver & msat_solver,
     const smt::Term & T_btor, const smt::Term & Init_btor, const smt::Term & Fprev_btor,
-    const std::vector<Model *> & cexs,
+    Model * cex,
     VarTermManager & var_term_extractor
     );
   
@@ -118,7 +120,7 @@ public:
 
   void GetNCandidates(smt::TermVec & cands, size_t n) ;
   void GetOneCandidate(const smt::UnorderedTermSet & in, 
-    smt::UnorderedTermSet & unsatcore, const smt::Term & base_term) ;
+    smt::UnorderedTermSet & unsatcore, const smt::Term & base_term, const smt::Term & F_and_T) ;
 
 }; // class Enumerator
 

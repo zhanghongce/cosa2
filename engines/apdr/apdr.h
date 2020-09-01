@@ -122,6 +122,7 @@ protected:
   // cache the two lambda function
   to_next_t to_next_func_;
   extract_model_t extract_model_func_;
+  bool sygus_failed_at_init;
   Model * extract_model_output_;
 
 
@@ -171,26 +172,28 @@ protected: // essentials
 protected: // sygus related
   void reset_sygus_syntax();  
   // returns msat's term
-  smt::Term do_sygus(const smt::Term & prevF_msat, 
+
+std::pair<Model *, bool> do_sygus( 
     const smt::Term & prevF_btor,
-    const smt::Term & prop_msat,
-    const smt::Term & prop_btor,
-    const std::vector<Model *> & cexs, const std::vector<Model *> & facts,
-    bool assert_inv_in_prevF,
-    ApdrSygusHelper & sygus_info /* if possible use itp var num */ );
+    Model * cex,
+    ApdrSygusHelper & sygus_info, /* use itp var size*/
+    smt::TermVec & lemmas_btor /*OUT*/ );
 
 public:
   void propose_new_lemma_to_block(fcex_t * pre, fcex_t * post);
   // within pre/post, you have fidx
-
-  std::pair<smt::Term, smt::Term> gen_lemma(
-    unsigned fidx,
-    const smt::Term & Fprev_msat, 
-    const smt::Term & Fprev_btor, 
-    const smt::Term & prop_msat,
-    const smt::Term & prop_btor,
-    const std::vector<Model *> & cexs );
   
+  // return may block model and fail at init
+  std::pair<Model *, bool> gen_lemma(
+    unsigned fidx,
+    //const smt::Term & Fprev_msat, 
+    const smt::Term & Fprev_btor, 
+    //const smt::Term & prop_msat,
+    const smt::Term & prop_btor,
+    Model * cex,
+    smt::TermVec & lemmas_msat /*OUT*/,
+    smt::TermVec & lemmas_btor /*OUT*/ );
+
   virtual solve_trans_result solveTrans( unsigned prevFidx, 
     const smt::Term & prop_btor,
     bool remove_prop_in_prev_frame,
@@ -198,7 +201,7 @@ public:
 
   solve_trans_lemma_result Apdr::solveTransLemma(
     unsigned prevFidx, 
-    const std::vector<Model *> & models_to_block,
+    Model * model_to_block,
     bool remove_prop_in_prev_frame,
     // bool use_init = true, bool findItp = true,
     bool get_pre_state);
@@ -211,6 +214,9 @@ public:
 
   void push_lemma_from_frame(unsigned fidx, bool second_round_push);
 
+  smt::Term get_interpolant(
+      const smt::Term & Fprev_msat, 
+      const smt::Term & prop_msat);
 
   // --------------- accessor --------------- //
   // --------- delegate to TransitionSystem -------- //

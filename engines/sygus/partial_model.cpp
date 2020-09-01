@@ -73,6 +73,18 @@ Model::Model(smt::SmtSolver & solver_, const std::unordered_set<smt::Term> & var
   }
 }
 
+Model::Model(smt::SmtSolver & solver_, 
+    const std::unordered_set<smt::Term> & varset, // extract using these vars
+    const std::unordered_map<smt::Term, smt::Term> & varmap // but use the map in here for the vars
+    ) {
+  for (smt::Term v : varset) {
+    smt::Term val = solver_->get_value(v);
+    auto pos = varmap.find(v);
+    assert (pos != varmap.end());
+    cube.insert(std::make_pair(pos->second,val));
+  }
+}
+
 bool Model::erase_var(const smt::Term & v) {
   if (cube.size() == 1)
     return false; // will not erase it in this case
@@ -98,6 +110,7 @@ smt::Term Model::to_expr(const cube_t & c, smt::SmtSolver & solver_) {
     else
       ret = AND(ret, EQ(v_val.first, v_val.second));
   }
+  assert(ret);
   return ret;
 }
 
@@ -154,6 +167,7 @@ smt::Term Model::to_expr_translate(
     else
       ret = AND(ret, EQ(var_msat, val_msat));
   }
+  assert(ret);
   return ret;
 }
 

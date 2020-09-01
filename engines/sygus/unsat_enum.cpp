@@ -114,14 +114,14 @@ Enumerator::Enumerator(
     smt::SmtSolver & btor_solver,
     //smt::SmtSolver & msat_solver,
     const smt::Term & T_btor, const smt::Term & Init_btor, const smt::Term & Fprev_btor,
-    const std::vector<Model *> & cexs,
+    Model * cex,
     VarTermManager & var_term_extractor
     ):
       to_next_(to_next_func),
       extract_model_(extract_model_func),
       solver_(btor_solver),
       trans_(T_btor), init_(Init_btor), prev_(Fprev_btor),
-      cexs_(cexs), 
+      cex_(cex), 
       per_cex_info_(setup_cex_info(var_term_extractor))
 { // you need to make this incremental
   TermsDumping();
@@ -131,8 +131,8 @@ Enumerator::Enumerator(
 // will not update : Question when to update ?
 
 PerCexInfo & Enumerator::setup_cex_info(VarTermManager & var_term_extractor) {
-  assert (cexs_.size() == 1);
-  auto cex_ptr = cexs_.at(0);
+  assert (cex_);
+  auto cex_ptr = cex_;
   auto cex_term_map_pos = cex_term_map_.find(cex_ptr);
   if (cex_term_map_pos == cex_term_map_.end()) {
     bool nouse;
@@ -297,7 +297,8 @@ void Enumerator::terms_to_predicates() {
 // if cands is empty: no good predicates
 void Enumerator::GetNCandidates(smt::TermVec & cands, size_t n) {
 
-  smt::Term base_term = OR( AND(prev_, trans_) ,to_next_(init_) );
+  smt::Term F_and_T = AND(prev_, trans_);
+  smt::Term base_term = OR( F_and_T ,to_next_(init_) );
   smt::UnorderedTermSet inpreds (per_cex_info_.predicates_nxt.begin(), per_cex_info_.predicates_nxt.end());
   inpreds.insert(base_term);
   unsigned init_preds_n = inpreds.size();
@@ -312,10 +313,8 @@ void Enumerator::GetNCandidates(smt::TermVec & cands, size_t n) {
 
   // first round
   smt::UnorderedTermSet init_choice;
-  GetOneCandidate( /*in*/ inpreds, /*out*/ init_choice, /*in*/ base_term);
+  GetOneCandidate( /*in*/ inpreds, /*out*/ init_choice, /*in*/ base_term, /*IN*/ F_and_T);
   if (init_choice.empty()) {
-    // TODO : you will need to extract pre-image
-    ?;
     return; // no good pred
   }
   // assemble the output HERE
@@ -329,7 +328,7 @@ void Enumerator::GetNCandidates(smt::TermVec & cands, size_t n) {
     inpreds.erase(*(stack.back().pos));
 
     smt::UnorderedTermSet choice_set;
-    GetOneCandidate( /*in*/ inpreds, /*out*/ choice_set, /*in*/ base_term);
+    GetOneCandidate( /*in*/ inpreds, /*out*/ choice_set, /*in*/ base_term, /*IN*/ F_and_T);
     if (choice_set.empty()) { // bad attempt : becomes sat
       assert(!IN(*(stack.back().pos), inpreds));
       inpreds.insert( *(stack.back().pos) ); // add it back
@@ -357,7 +356,8 @@ void Enumerator::GetNCandidates(smt::TermVec & cands, size_t n) {
   }  // while (get n cands)
 } // GetAllCandidates
 
-void Enumerator::GetOneCandidate(const smt::UnorderedTermSet & in, smt::UnorderedTermSet & unsatcore, const smt::Term & base_term) {
+void Enumerator::GetOneCandidate(const smt::UnorderedTermSet & in, smt::UnorderedTermSet & unsatcore, 
+  const smt::Term & base_term, const smt::Term & F_and_T) {
 
   unsatcore.clear();
   unsatcore.insert(in.begin(), in.end());
@@ -375,14 +375,18 @@ void Enumerator::GetOneCandidate(const smt::UnorderedTermSet & in, smt::Unordere
     // }
     
     ++ n_iter;
-    D(0, "Unsat enum iter #{}, core size {} ", n_iter, inpreds.size());
+    D(0, "Unsat enum iter #{}, core size {} ", n_iter, unsatcore.size());
     auto res = solver_->check_sat_assuming(unsatcore);
     if (res.is_sat()) {
       // we cannot find a good set of predicates
       assert (n_iter == 1);
+
+      DebugPredicates(in, base_term, init_);
+
       std::unordered_set<smt::Term> varset;
-      cexs_.at(0)->get_varset(varset);
-      extract_model_(varset); // must before pop
+      cex_->get_varset(varset);
+      bool fail_at_init = check_failed_at_init(F_and_T);
+      extract_model_(varset, fail_at_init); // must before pop
       // will replace var to its prime and then use the next part
       // inside it will store the model to a necesary place
       solver_->pop();
@@ -399,6 +403,7 @@ void Enumerator::GetOneCandidate(const smt::UnorderedTermSet & in, smt::Unordere
 
     assert (unsatcore.size() <= old_size);
     assert (!unsatcore.empty());
+    assert(IN(base_term, unsatcore)); // otherwise just the conjunction of preds are unsat
     // if dump
     for(const auto & p: unsatcore) {
       if (p == base_term)
@@ -408,9 +413,9 @@ void Enumerator::GetOneCandidate(const smt::UnorderedTermSet & in, smt::Unordere
     }
     
     if (unsatcore.size() == old_size) {
-      D(0, "Unsat enum done, iter {}, core size {}", n_iter, unsat_core.size());
+      D(0, "Unsat enum done, iter {}, core size {}", n_iter, unsatcore.size());
       break;
-    } // else continue
+    } // else continue to shrink
 
     //inpreds.insert(inpreds.begin(), unsat_core.begin(), unsat_core.end());
   } while(GlobalAPdrConfig.UNSAT_CORE_RUN_MULITTIMES);
@@ -440,6 +445,18 @@ smt::Term Enumerator::AssembleCandFromUnsatCore(const smt::Term & base_term, con
 } // AssembleCandFromSet
 
 
+// (F/\T) \/ init'
+// we want to favor the init case
+bool Enumerator::check_failed_at_init(const smt::Term & F_and_T) {
+  auto init_val = solver_->get_value(to_next_(init_))->to_int();
+  if (init_val)
+    return true;
+
+  auto F_and_T_val = solver_->get_value(F_and_T)->to_int();
+  assert(F_and_T_val);
+  return false;
+}
+
 
 void Enumerator::DebugPredicates(const smt::UnorderedTermSet & inpreds, const smt::Term & base, const smt::Term & init) {
 
@@ -454,60 +471,8 @@ void Enumerator::DebugPredicates(const smt::UnorderedTermSet & inpreds, const sm
   }
 
   // finally print base and init
-  D(0, "INIT : {} ", solver_->get_value(init)->to_string());
+  D(0, "INIT' : {} ", solver_->get_value(to_next_(init))->to_string());
   D(0, "( F /\\ T ) \\/ (INIT') : {} ", solver_->get_value(base)->to_string());
-
-  std::unordered_set<smt::Term> varset;
-  cexs_.at(0)->get_varset(varset); // THIS SET is not good !
-  Model m(solver_, varset);
-  // for all vars get the model
-  D(0, "The model is: {}", m.to_string() );
-  D(0, "The cex model related to this is: {}", cexs_.at(0)->to_string() );
-
-  assert (base_term_in);
-
-  // -----------------------------------------------------------------
-  // see if any p can block m
-  solver_->pop();
-  solver_->push();
-  solver_->assert_formula(m.to_expr_btor(solver_));
-  auto res = solver_->check_sat();
-  assert(res.is_sat());
-  
-  D(0, "-------------------------------");
-  unsigned idx =0;
-  smt::TermVec preds_to_try;
-  for (const auto & p : inpreds) {
-    if (p == base) {
-      continue;
-    } else {
-      auto t_curr = per_cex_info_.pred_next_to_pred_curr.at(p);
-      auto pred_res = solver_->get_value(t_curr)->to_int();
-      if (pred_res == 1) {
-        preds_to_try.push_back(NOT(t_curr));
-        D(0, "NOT({}) on s: {} ", t_curr->to_raw_string(), "False");
-        idx ++;
-      }
-    }
-  }
-  D(0, "-------------Total : {} ------------------", idx);
-
-  // see if /\ not(p) will have something there
-  // -----------------------------------------------------------------
-  solver_->pop();
-  solver_->push();
-  
-  res = solver_->check_sat_assuming(preds_to_try);
-  D(0,"AND of (not p) sat? : {}", res.is_sat());
-  if (res.is_unsat()) {
-    smt::UnorderedTermSet unsatcore;
-    solver_->get_unsat_core(unsatcore);
-    D(0, "-------------Unsat core : {} ------------------", unsatcore.size());
-    for (const auto & p : unsatcore)
-      D(0, "{}", p->to_raw_string());
-    D(0, "-----------------------------------------------", unsatcore.size());    
-  }
-
 
 } // DebugPredicates
 

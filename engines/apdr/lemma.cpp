@@ -55,18 +55,29 @@ Model * ModelLemmaManager::new_model() {
 }
 
 void ModelLemmaManager::register_new_model(Model * m) {
+  assert (m);
   cube_allocation_pool.push_back(m);
 }
 
 
 Model * ModelLemmaManager::new_model(const std::unordered_set<smt::Term> & varset) {
   cube_allocation_pool.push_back(new Model(solver() , varset));
+  assert(!cube_allocation_pool.back()->cube.empty());
+  return cube_allocation_pool.back();
+}
+
+Model * ModelLemmaManager::new_model_replace_var(
+    const std::unordered_set<smt::Term> & varset,
+    const std::unordered_map<smt::Term, smt::Term> & varmap ) {
+  cube_allocation_pool.push_back(new Model(solver() , varset, varmap));
+  assert(!cube_allocation_pool.back()->cube.empty());
   return cube_allocation_pool.back();
 }
 
 Lemma * ModelLemmaManager::new_lemma(
     const smt::Term & expr, const smt::Term & expr_msat, 
     Model * cex, Lemma::LemmaOrigin origin) {
+  assert(cex);
   lemma_allocation_pool.push_back(new Lemma(expr, expr_msat, cex, origin));
   return lemma_allocation_pool.back();
 }

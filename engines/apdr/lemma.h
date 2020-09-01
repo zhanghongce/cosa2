@@ -163,6 +163,9 @@ protected:
   Model * new_model();
   void register_new_model(Model *);
   Model * new_model(const std::unordered_set<smt::Term> & varset);
+  Model * new_model_replace_var(
+    const std::unordered_set<smt::Term> & varset,
+    const std::unordered_map<smt::Term, smt::Term> & varmap );
 
   Lemma * new_lemma(
     const smt::Term & expr, const smt::Term & expr_msat,

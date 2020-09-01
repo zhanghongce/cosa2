@@ -118,14 +118,25 @@ void Apdr::initialize() {
   to_next_func_ = [&] (const smt::Term & v) -> smt::Term {
     return ts_.next(v);
   };
-  // this is the pre model
-  extract_model_func_ = [this] (const smt::UnorderedTermSet & varset) -> void {
-    smt::TermVec var_next;
-    smt::UnorderedTermSet var_pre;
-    for (const auto & v:varset)
-      var_next.push_back( this->ts_.next_to_expr( this->ts_.next(v) ) );
-    this->partial_model_getter.GetVarListForAsts(var_next, var_pre,  GlobalAPdrConfig.CACHE_PARTIAL_MODEL_CONDITION);
-    this->extract_model_output_ = this->new_model(var_pre); // get the model on thies vars
+  // this is to get the pre model
+  // varset is the set of cex (post)
+  extract_model_func_ = [this] (const smt::UnorderedTermSet & varset, bool failed_at_init) -> void {
+    this->sygus_failed_at_init = failed_at_init;
+    if (!failed_at_init) {
+      smt::UnorderedTermSet var_pre;
+      smt::TermVec var_next;
+      for (const auto & v:varset)
+        var_next.push_back( this->ts_.next_to_expr( this->ts_.next(v) ) );
+      this->partial_model_getter.GetVarListForAsts(var_next, var_pre,  GlobalAPdrConfig.CACHE_PARTIAL_MODEL_CONDITION);
+      // we will not try to cut inputs away
+      this->extract_model_output_ = this->new_model(var_pre); // get the model on thies vars
+    } else {
+      // get the next vars and make them the current ones
+      smt::UnorderedTermSet var_next;
+      for (const auto & v:varset)
+        var_next.insert(this->ts_.next(v));
+      this->extract_model_output_ = this->new_model_replace_var( var_next, this->ts_.curr_map() );
+    }
   };
 
   { // register terms to find exprs
@@ -191,7 +202,8 @@ Apdr::solve_trans_result Apdr::solveTrans( unsigned prevFidx,
       Model * prev_ex = new_model(varlist);
       solver_->pop();
       // must after pop
-      CHECK_MODEL(solver_, prop_btor, 0, prev_ex);
+      if(has_assumptions) // when there are assumptions, we will not cut inputs, therefore it should be good
+        CHECK_MODEL(solver_, prop_btor, 0, prev_ex);
 
       POP_STACK;
       return solve_trans_result(true, true, prev_ex);       
@@ -230,7 +242,8 @@ Apdr::solve_trans_result Apdr::solveTrans( unsigned prevFidx,
   solver_->pop();
 
   // must after pop
-  CHECK_MODEL(solver_, prop_no_nxt_btor, 0, prev_ex);
+  if(has_assumptions)
+    CHECK_MODEL(solver_, prop_no_nxt_btor, 0, prev_ex);
 
   POP_STACK;
   return solve_trans_result(true, false, prev_ex); 
@@ -241,16 +254,15 @@ Apdr::solve_trans_result Apdr::solveTrans( unsigned prevFidx,
 // result: Prev_No_Pred
 Apdr::solve_trans_lemma_result Apdr::solveTransLemma(
   unsigned prevFidx, 
-  const std::vector<Model *> & models_to_block,
+  Model * model_to_block,
   bool remove_prop_in_prev_frame,
   // bool use_init = true, bool findItp = true,
   bool get_pre_state) {
   
-  assert ( !(models_to_block.empty()) );
-  assert ( models_to_block.size() == 1 );
+  assert ( model_to_block );
 
   // construct ...
-  smt::Term prop_btor = NOT(models_to_block.at(0)->to_expr_btor(solver_));
+  smt::Term prop_btor = NOT(model_to_block->to_expr_btor(solver_));
 
   auto res = solveTrans(prevFidx, prop_btor, remove_prop_in_prev_frame, true /*use init*/, get_pre_state);
   if (res.not_hold)
@@ -261,17 +273,13 @@ Apdr::solve_trans_lemma_result Apdr::solveTransLemma(
   //D(3,"      [solveTrans] Property: {} , v=>v', useinit: {}", prop_btor->to_string(), use_init  );
   //D(4,"      [solveTrans] formula : {}", F_to_check->to_string());
 
-  smt::Term prop_msat = NOT_msat(models_to_block.at(0)->to_expr_msat(itp_solver_, to_itp_solver_));
-
-  auto prevF_msat = frame_prop_msat(prevFidx);
-  if (remove_prop_in_prev_frame)
-    prevF_msat = AND_msat(prevF_msat, prop_msat);
+  auto prevF_btor = frame_prop_btor(prevFidx);
   // the init' thing is in gen_lemma
   
   solve_trans_lemma_result ret_lemmas(false, false, NULL, NULL, false);
   std::tie(ret_lemmas.may_block,ret_lemmas.may_block_at_init)
-    = gen_lemma( prevFidx, prevF_msat, prevF_btor,
-      prop_msat, prop_btor, models_to_block,  /*OUT*/ ret_lemmas.itp_msat, /*OUT*/ ret_lemmas.itp );
+    = gen_lemma( prevFidx,  prevF_btor,
+        prop_btor, model_to_block,  /*OUT*/ ret_lemmas.itp_msat, /*OUT*/ ret_lemmas.itp );
 
   #ifdef DEBUG
     assert (!ret_lemmas.unblockable());

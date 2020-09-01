@@ -43,6 +43,10 @@ struct Model {
   Model(const Model &m) : cube(m.cube), expr_btor_(m.expr_btor_), expr_msat_(m.expr_msat_) {}
   // from get value from a solver
   Model(smt::SmtSolver & solver_, const std::unordered_set<smt::Term> & varset);
+  Model(smt::SmtSolver & solver_, 
+    const std::unordered_set<smt::Term> & varset, // extract using these vars
+    const std::unordered_map<smt::Term, smt::Term> & varmap // but use the map in here for the vars
+    );
   // return true, if it really exists
   bool erase_var(const smt::Term & v);
 

@@ -38,6 +38,7 @@ namespace cosa {
     
     unsigned TERM_EXTRACT_DEPTH = 0; // 2; depth == 0 means all possible sol
     bool UNSAT_CORE_RUN_MULITTIMES = true;
+    unsigned UNSAT_CORE_MULTI = 0; // 0 : all
     bool ENUM_UNSAT_CORE = true;
 
     // ------------- CVC4 SyGuS Configuration ---------------------------------

@@ -51,9 +51,11 @@ bool Apdr::is_valid_imply(const smt::Term & pre, const smt::Term & post) {
 
 // this function is only used in recursive block
 // in checking the same cycle solve
+// maybe not used at all
 Model * Apdr::solve(const smt::Term & formula) {
 #ifdef DEBUG
   assert(ts_.only_curr(formula)); // TO REMOVE when not DEBUG
+  assert(false);
 #endif
   solver_->push();
   solver_->assert_formula(formula);
@@ -173,16 +175,18 @@ void Apdr::cut_vars_cur(std::unordered_set<smt::Term> & v) {
       // if has assumption
       // will not remove input var
       if (!ts_.is_curr_var(*pos) && 
-          ts_.inputs().find(*pos) == ts_.inputs().end())
+          ts_.inputs().find(*pos) == ts_.inputs().end()) {
+        assert(false);
         pos = v.erase(pos);
-      else
+      } else
         ++pos;
     }
   } else { // if no assumption, will not keep input, erase everything but current var
     while(pos != v.end()) {
-      if (!ts_.is_curr_var(*pos))
+      if (!ts_.is_curr_var(*pos)) {
+        assert(ts_.inputs().find(*pos) != ts_.inputs().end()); // it must be an input var
         pos = v.erase(pos);
-      else
+      } else
         ++pos;
     }
   } // else : no assumption
