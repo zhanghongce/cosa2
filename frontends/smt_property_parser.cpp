@@ -62,8 +62,8 @@ void Smtlib2PropertyParser::define_function(const std::string& func_name,
     for (auto termptr : args)
       arglist.push_back(get_term(termptr));
     
-    func_def_table_.insert(std::make_pair(func_name, 
-      std::make_pair(arglist, get_term(func_body))));
+    func_def_table_.emplace(func_name, 
+      std::make_pair(arglist, get_term(func_body)));
   }
 }
 
@@ -92,7 +92,7 @@ Smtlib2PropertyParser::TermPtrT Smtlib2PropertyParser::make_function(const std::
       const auto & arg_new = arglist.at(arg_pos - func_args.begin());
       if ( (*arg_pos)->get_sort() != arg_new->get_sort() )
         throw CosaException("Function : " + name + " is used without correct argument.");
-      arg_map.insert(std::make_pair(*arg_pos, arg_new));
+      arg_map.emplace(*arg_pos, arg_new);
     }
     auto term_after_subst = solver_->substitute(ret_term, arg_map);
     term_allocation_table.push_back(term_after_subst);

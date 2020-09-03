@@ -165,8 +165,8 @@ Smtlib2Parser::SortPtrT Smtlib2Parser::make_bv_sort(uint64_t w) {
   if (bv_pos == sort_table.end()) {
     sort_names.push_back(sortIdxName);
     size_t ptr = sort_names.size()-1;
-    sort_table.insert(std::make_pair(sortIdxName, 
-      std::make_pair(solver_->make_sort(smt::BV, w), ptr)));
+    sort_table.emplace(sortIdxName, 
+      std::make_pair(solver_->make_sort(smt::BV, w), ptr));
     return ptr;      
   }
   return (bv_pos->second.second);
@@ -178,8 +178,8 @@ Smtlib2Parser::SortPtrT Smtlib2Parser::make_sort(const std::string& name, const 
     if (bool_pos == sort_table.end()) {
       sort_names.push_back("Bool");
       size_t ptr = sort_names.size()-1;
-      sort_table.insert(std::make_pair("Bool", 
-        std::make_pair(solver_->make_sort(smt::BOOL),ptr)));
+      sort_table.emplace("Bool", 
+        std::make_pair(solver_->make_sort(smt::BOOL),ptr));
       return ptr;
     } else 
       return (bool_pos->second.second);
@@ -213,8 +213,8 @@ Smtlib2Parser::SortPtrT Smtlib2Parser::make_parametric_sort(const std::string& n
       if (sort_pos == sort_table.end()) {
         sort_names.push_back(sort_name);
         size_t ptr = sort_names.size()-1;
-        sort_table.insert(std::make_pair(sort_name, 
-          std::make_pair(solver_->make_sort(smt::ARRAY, sort1, sort2),ptr)));
+        sort_table.emplace(sort_name, 
+          std::make_pair(solver_->make_sort(smt::ARRAY, sort1, sort2),ptr));
         return ptr;
       } else 
         return (sort_pos->second.second);
@@ -258,11 +258,11 @@ void Smtlib2Parser::declare_quantified_variable(const std::string& name, SortPtr
   // now insert it to the local table
 
   term_allocation_table.push_back(t);
-  quantifier_def_stack.back().insert(std::make_pair(name, term_allocation_table.size()-1));
+  quantifier_def_stack.back().emplace(name, term_allocation_table.size()-1);
 
   // we should not define new vars
   // auto var = solver_->make_symbol(name, *sort);
-  // quantifier_def_stack.back().insert(std::make_pair(name, var));
+  // quantifier_def_stack.back().emplace(name, var);
 }
 
 void * Smtlib2Parser::push_quantifier_scope() {
