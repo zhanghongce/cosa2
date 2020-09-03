@@ -160,7 +160,7 @@ void PartialEvalTreeWalker::PostChild(const smt::Term & ast) {
     } // merging
   }
 
-  node_tree_buffer.insert(std::make_pair(ast, node));
+  node_tree_buffer.emplace(ast,node);
 
 } // PartialEvalTreeManager::PreChild
 
@@ -264,7 +264,7 @@ PartialEvalTreeManager::get_flatten_varlist(const smt::Term & ast) {
       ++condition_map_pos;
   }
   
-  node_tree_buffer.insert(std::make_pair(unflattened_tree, node));
+  node_tree_buffer.emplace(unflattened_tree, node);
   return node;
 }
 

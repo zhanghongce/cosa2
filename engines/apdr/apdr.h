@@ -61,7 +61,7 @@ public:
     bool can_transit_to_next;
     Lemma::LemmaOrigin cex_origin;
     fcex_t(unsigned fidx_, Model * cex_,  bool can_transit_to_next_, Lemma::LemmaOrigin origin) : 
-    fidx(fidx_), cex(cex_), can_transit_to_next(can_transit_to_next_), cex_origin(origin) {}
+      fidx(fidx_), cex(cex_), can_transit_to_next(can_transit_to_next_), cex_origin(origin) {}
   };
   //typedef std::pair<unsigned, Model *> fcex_t;
   // we don't need the comparator, just use vector
@@ -90,8 +90,9 @@ public:
   // smt::TermTranslator & to_itp_solver() override { return to_itp_solver_; }
   smt::TermTranslator & to_btor() override { return to_btor_; }
 
-  void print_frame_stat(const std::string & extra_info) const;
-  void print_time_stat() const;
+
+  std::string print_frame_stat() const ;
+  void print_time_stat(std::ostream & os) const ;
 
 protected:
   const std::unordered_set<smt::Term> keep_vars_;
@@ -101,7 +102,7 @@ protected:
   smt::Term init_msat_nxt;
   smt::Term T_msat;
   bool has_assumptions;
-  void cut_vars_cur(std::unordered_set<smt::Term> & v);
+  void cut_vars_curr(std::unordered_set<smt::Term> & v, bool cut_curr_input);
 
   PartialModelGen partial_model_getter;
 
@@ -142,14 +143,19 @@ protected:
   bool is_valid_imply(const smt::Term & pre, const smt::Term & post);
   bool is_sat(const smt::Term & e);
   Model * get_not_valid_model(const smt::Term & e);
-  Model * solve(const smt::Term & formula);
+  //Model * solve(const smt::Term & formula);
+
+  bool can_sat(const smt::Term & t);
+  bool no_next_vars(const smt::Term & t);
+
 
 public: // sanity and dumping
   smt::Term get_inv() const;
   void validate_inv(); // the same as following
   bool is_safe_inductive_inv(const smt::Term & inv);
 
-  virtual void dump_frames(std::ostream & os) const override;
+  void dump_frames(std::ostream & os) const;
+  virtual void dump_info(std::ostream & os) const;
   
 protected: // sanity and dumping
   Model * frame_not_implies_model(unsigned fidx, const smt::Term &prop); // check fail dump
@@ -158,10 +164,12 @@ protected: // sanity and dumping
   void sanity_check_last_frame_nopushed(); // lemmas at last frame are not pushed
   smt::Result sanity_check_property_at_length_k(const smt::Term & btor_p, unsigned k); // in sat case, validate with BMC
   void sanity_check_prop_fail(const std::vector<fcex_t> & path);
+  bool sanity_check_trans_not_deadended();
 
 
 protected: // essentials
   bool is_last_two_frames_inductive() ;
+  void assert_a_frame(unsigned fidx);
   virtual bool frame_implies(unsigned fidx, const smt::Term &prop) override;
   virtual smt::Term frame_prop_btor(unsigned fidx) const override;
   smt::Term frame_prop_msat(unsigned fidx) const;
@@ -199,7 +207,7 @@ public:
     bool remove_prop_in_prev_frame,
     bool use_init, bool get_pre_state) override;
 
-  solve_trans_lemma_result Apdr::solveTransLemma(
+  solve_trans_lemma_result solveTransLemma(
     unsigned prevFidx, 
     Model * model_to_block,
     bool remove_prop_in_prev_frame,

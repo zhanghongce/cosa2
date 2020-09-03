@@ -39,7 +39,7 @@
   #define CHECK_MODEL(solver, ast, exp_val, model)            \
     do {                                                      \
       (solver)->push();                                       \
-      smt::Term v_assign = (model)->to_expr(solver);            \
+      smt::Term v_assign = (model)->to_expr_btor(solver);            \
       if (exp_val)                                            \
         solver->assert_formula(NOT(ast));                     \
       else    /*expect ast 0*/                                \
@@ -83,7 +83,7 @@
 // ------------------- TRACING ------------- //
 // this is full tracing
 #define PUSH_STACK(x)   \
-  do { \ 
+  do { \
     GlobalAPdrConfig.Apdr_function_tracing_stack_push((x)); \
     GlobalTimer.RegisterEventStart( GlobalAPdrConfig.Apdr_function_tracing_func_str(x) , 0); \
    } while(0)

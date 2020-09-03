@@ -12,6 +12,7 @@ const std::vector<std::string> APdrConfig::function_names = {
       "Function:RecursiveBlock",
       "Function:CheckUntil",
       "Function:PushOneFrame",
+      "Function:PushEager",
     };
 
 } // namespace cosa

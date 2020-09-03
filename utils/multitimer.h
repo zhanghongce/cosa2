@@ -19,6 +19,7 @@
 #include <string>
 #include <map>
 #include <chrono>
+#include <iostream>
 
 namespace cosa {
 
@@ -56,6 +57,7 @@ public:
   void ClearEventFlag(const std::string & event);
   std::tuple<float, T, float> GetStatus(const std::string & event);
   std::tuple<float, T, float> GetTotal(const std::string & event);
+  void DumpAllEvents(std::ostream & os) const;
 }; // class MultiChannelTimer
 
 // instantiate this template for long long

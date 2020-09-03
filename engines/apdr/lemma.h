@@ -72,7 +72,7 @@ public:
     bool remove_prop_in_prev_frame,
     bool use_init, bool get_pre_state) = 0;
 
-  virtual bool recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_origin) = 0;
+  virtual bool recursive_block(Model * cube, unsigned idx, LemmaOrigin cex_origin) = 0;
   
   // getters
   virtual smt::SmtSolver & btor() = 0;
@@ -91,8 +91,6 @@ public:
   virtual smt::Term trans_msat() const = 0;
   virtual const smt::UnorderedTermSet & states_msat() const = 0;
   virtual const smt::UnorderedTermSet & next_states_msat() const = 0;
-
-  virtual void dump_frames(std::ostream & os) const = 0;
 
 };  // class LemmaPDRInterface
 

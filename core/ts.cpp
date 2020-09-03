@@ -118,8 +118,13 @@ void TransitionSystem::name_term(const string name, const Term & t)
 Term TransitionSystem::make_input(const string name, const Sort & sort)
 {
   Term input = solver_->make_symbol(name, sort);
+  Term next_input = solver_->make_symbol(name + ".next", sort);
   inputs_.insert(input);
+  next_inputs_.insert(next_input);
   symbols_.insert(std::make_pair(name, input));
+  symbols_.insert(std::make_pair(name + ".next", next_input));
+  next_map_[input] = next_input;
+  curr_map_[next_input] = input;
   return input;
 }
 
@@ -152,8 +157,8 @@ Term TransitionSystem::next(const Term & term) const
 
 Term TransitionSystem::next_to_expr(const Term & term) const
 {
-  if (next_map_.find(term) != next_map_.end()) {
-    return next_map_.at(term);
+  if (nxt_state_updates_.find(term) != nxt_state_updates_.end()) {
+    return nxt_state_updates_.at(term);
   }
   return solver_->substitute(term, nxt_state_updates_);
 }

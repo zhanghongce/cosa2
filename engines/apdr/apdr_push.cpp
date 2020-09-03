@@ -37,7 +37,10 @@ void Apdr::push_lemma_from_frame(unsigned fidx, bool second_round_push) {
     dump_frames(std::cerr);
 #endif
   assert (frames.at(fidx).size() > 0 );
-  PUSH_STACK(APdrConfig::Apdr_working_state_t::PUSH_A_FRAME);
+  if(second_round_push)
+    PUSH_STACK(APdrConfig::Apdr_working_state_t::PUSH_A_FRAME);
+  else
+    PUSH_STACK(APdrConfig::Apdr_working_state_t::PUSH_EAGER);
 
 
   // 2. push lemmas
@@ -46,7 +49,8 @@ void Apdr::push_lemma_from_frame(unsigned fidx, bool second_round_push) {
 
   //                      lemmaIdx, Lemma, prev_ex, post_ex
   std::vector<std::tuple<unsigned, Lemma *>> unpushed_lemmas;
-  
+  unsigned unpushed = 0;
+
   for (unsigned lemmaIdx = start_lemma_idx ; lemmaIdx < end_lemma_idx; ++ lemmaIdx) {
     Lemma * lemma = frames.at(fidx).at(lemmaIdx);
     if (lemma->pushed)
@@ -63,17 +67,20 @@ void Apdr::push_lemma_from_frame(unsigned fidx, bool second_round_push) {
       D(2, "  [push_lemma F{}] Succeed in pushing l{}",
         fidx, lemmaIdx);
       _add_lemma(lemma->direct_push(*this), fidx+1);
-    } else if (second_round_push) {
-      if (lemma->origin() == LemmaOrigin::MUST_BLOCK)
-        unpushed_lemmas.push_back(std::make_tuple(
-          lemmaIdx, lemma
-        ));
-      // will only try hard on MUST block lemma
+    } else { 
+      ++ unpushed;
+      if (second_round_push) {
+        if (lemma->origin() == LemmaOrigin::MUST_BLOCK)
+          unpushed_lemmas.push_back(std::make_tuple(
+            lemmaIdx, lemma
+          ));
+        // will only try hard on MUST block lemma
+      }
     }
   } // try plain pushing
 
-  INFO("F{}->F{}: {}/{} not pushed by first round.", fidx , fidx+1, 
-    unpushed_lemmas.size(), end_lemma_idx - start_lemma_idx);
+  INFO("F{}->F{}: {}/{} not pushed by first round, retry #{}", fidx , fidx+1, 
+    unpushed, end_lemma_idx - start_lemma_idx, unpushed_lemmas.size());
 
   // 3. handle unpushed lemmas
   std::string push_status;
@@ -92,6 +99,7 @@ void Apdr::push_lemma_from_frame(unsigned fidx, bool second_round_push) {
 
     // 3.1 if cex is subsumed, then we don't need to worry about this one
     if (lemma->subsume_by_frame(fidx + 1, *this)) {
+      lemma->pushed = GlobalAPdrConfig.SUBSUME_NO_PUSH_RETRY;
       push_status += '.';
       continue;
     } // this is for mulitple lemmas for the same cex
@@ -128,8 +136,10 @@ void Apdr::push_lemma_from_frame(unsigned fidx, bool second_round_push) {
     push_status += "C"+std::to_string(new_size - old_size);
     continue;
   } // for each unpushe lemma
-  
-  INFO("F{}->F{}: second round push {} ",fidx,fidx+1, push_status);
+  if (second_round_push)
+    INFO("F{}->F{}: second round push {} ",fidx,fidx+1, push_status);
+  else 
+    INFO("F{}->F{}: second round push skipped ",fidx,fidx+1);
   POP_STACK;
 } // push_lemma_from_frame
 

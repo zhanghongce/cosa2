@@ -183,7 +183,7 @@ size_t extend_hash::operator() (const extend_t & t) const {
     
 void SyntaxStructure::insert_symbol   (uint64_t width, const std::string & name) {
   if ( !IN(width, syntax_) ) {
-    syntax_.insert(std::make_pair(width, sygus::BvConstructs()));
+    syntax_.emplace(width, sygus::BvConstructs());
     new_constructs = true;
   }
 
@@ -196,7 +196,7 @@ void SyntaxStructure::insert_symbol   (uint64_t width, const std::string & name)
 
 void SyntaxStructure::insert_const    (uint64_t width, const std::string & val) {
   if ( !IN(width, syntax_) ) {
-    syntax_.insert(std::make_pair(width, sygus::BvConstructs()));
+    syntax_.emplace(width, sygus::BvConstructs());
     new_constructs = true;
   }
   sygus::BvConstructs & cnstr = syntax_.at(width);
@@ -208,7 +208,7 @@ void SyntaxStructure::insert_const    (uint64_t width, const std::string & val) 
 
 void SyntaxStructure::insert_op_unary (uint64_t width, smt::PrimOp op) {
   if ( !IN(width, syntax_) ) {
-    syntax_.insert(std::make_pair(width, sygus::BvConstructs()));
+    syntax_.emplace(width, sygus::BvConstructs());
     new_constructs = true;
   }
   sygus::BvConstructs & cnstr = syntax_.at(width);
@@ -218,7 +218,7 @@ void SyntaxStructure::insert_op_unary (uint64_t width, smt::PrimOp op) {
 
 void SyntaxStructure::insert_op_binary(uint64_t width, smt::PrimOp op) {
   if ( !IN(width, syntax_) ) {
-    syntax_.insert(std::make_pair(width, sygus::BvConstructs()));
+    syntax_.emplace(width, sygus::BvConstructs());
     new_constructs = true;
   }
   sygus::BvConstructs & cnstr = syntax_.at(width);
@@ -228,7 +228,7 @@ void SyntaxStructure::insert_op_binary(uint64_t width, smt::PrimOp op) {
 
 void SyntaxStructure::insert_op_comp  (uint64_t width, smt::PrimOp op) {
   if ( !IN(width, syntax_) ) {
-    syntax_.insert(std::make_pair(width, sygus::BvConstructs()));
+    syntax_.emplace(width, sygus::BvConstructs());
     new_constructs = true;
   }
   sygus::BvConstructs & cnstr = syntax_.at(width);
@@ -238,7 +238,7 @@ void SyntaxStructure::insert_op_comp  (uint64_t width, smt::PrimOp op) {
 
 void SyntaxStructure::insert_concat   (uint64_t width, concat_t && c ) {
   if ( !IN(width, syntax_) ) {
-    syntax_.insert(std::make_pair(width, sygus::BvConstructs()));
+    syntax_.emplace(width, sygus::BvConstructs());
     new_constructs = true;
   }
   sygus::BvConstructs & cnstr = syntax_.at(width);
@@ -248,7 +248,7 @@ void SyntaxStructure::insert_concat   (uint64_t width, concat_t && c ) {
 
 void SyntaxStructure::insert_extract  (uint64_t width, extract_t && c) {
   if ( !IN(width, syntax_) ) {
-    syntax_.insert(std::make_pair(width, sygus::BvConstructs()));
+    syntax_.emplace(width, sygus::BvConstructs());
     new_constructs = true;
   }
   sygus::BvConstructs & cnstr = syntax_.at(width);
@@ -258,7 +258,7 @@ void SyntaxStructure::insert_extract  (uint64_t width, extract_t && c) {
 
 void SyntaxStructure::insert_rotate   (uint64_t width, rotate_t && c) {
   if ( !IN(width, syntax_) ) {
-    syntax_.insert(std::make_pair(width, sygus::BvConstructs()));
+    syntax_.emplace(width, sygus::BvConstructs());
     new_constructs = true;
   }
   sygus::BvConstructs & cnstr = syntax_.at(width);
@@ -268,7 +268,7 @@ void SyntaxStructure::insert_rotate   (uint64_t width, rotate_t && c) {
 
 void SyntaxStructure::insert_extend   (uint64_t width, extend_t && c) {
   if ( !IN(width, syntax_) ) {
-    syntax_.insert(std::make_pair(width, sygus::BvConstructs()));
+    syntax_.emplace(width, sygus::BvConstructs());
     new_constructs = true;
   }
   sygus::BvConstructs & cnstr = syntax_.at(width);

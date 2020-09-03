@@ -35,7 +35,7 @@ struct ApdrSygusHelper {
   ApdrSygusHelper() { }
 
 protected:
-  static uint64_t ApdrSygusHelper::get_constants_max_width(const smt::Term & term);
+  static uint64_t get_constants_max_width(const smt::Term & term);
 
 };
 

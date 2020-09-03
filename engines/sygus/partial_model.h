@@ -28,12 +28,19 @@ struct Model {
   std::string to_string() const;
   std::string vars_to_canonical_string() const;
   void get_varset(std::unordered_set<smt::Term> & varset) const;
+
+private: 
+  // none cache version, usually
+  // should not be used from outside
+  // this is to make sure the cache
+  // thing is not accidentally broken
   smt::Term to_expr(smt::SmtSolver & solver_);
   static smt::Term to_expr(const cube_t & c, smt::SmtSolver & solver_);
   static smt::Term to_expr_translate(
       const cube_t & c, smt::SmtSolver & solver_,
       smt::TermTranslator & to_msat);
 
+public:
   // the following two use cache
   smt::Term to_expr_btor(smt::SmtSolver & btor_solver_);
   smt::Term to_expr_msat(smt::SmtSolver & msat_solver_, smt::TermTranslator & to_msat);

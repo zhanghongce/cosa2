@@ -20,6 +20,7 @@
 #include "utils/logger.h"
 #include "utils/container_shortcut.h"
 #include "utils/multitimer.h"
+#include "utils/term_analysis.h"
 
 namespace cosa {
 
@@ -49,6 +50,8 @@ bool Apdr::is_valid_imply(const smt::Term & pre, const smt::Term & post) {
 }
 
 
+// lets disable this
+#if 0
 // this function is only used in recursive block
 // in checking the same cycle solve
 // maybe not used at all
@@ -63,7 +66,7 @@ Model * Apdr::solve(const smt::Term & formula) {
   if (result.is_sat()) {
     varset_t varset;
     partial_model_getter.GetVarList(formula, varset, GlobalAPdrConfig.CACHE_PARTIAL_MODEL_CONDITION);
-    cut_vars_cur(varset);
+    cut_vars_curr(varset);
     Model * m = new_model(varset);
     solver_->pop();
     // must after pop
@@ -75,6 +78,7 @@ Model * Apdr::solve(const smt::Term & formula) {
 
   return NULL;
 }
+#endif
 
 // ---------------------------------------------------- //
 //                                                      //
@@ -110,15 +114,18 @@ smt::Term Apdr::frame_prop_msat(unsigned fidx) const {
   return e;
 }
 
+void Apdr::assert_a_frame(unsigned fidx) {
+  const auto & lemmas = frames.at(fidx);
+  for (const auto & lemma : lemmas)
+    solver_->assert_formula(lemma->expr());
+}
 
 bool Apdr::frame_implies(unsigned fidx, const smt::Term &prop) {
   // will not use 
   // return is_valid(IMPLY(frame_prop_btor(fidx), prop));
   assert(fidx < frames.size());
-  const auto & lemmas = frames.at(fidx);
   solver_->push();
-    for (const auto & lemma : lemmas)
-      solver_->assert_formula(lemma->expr());
+    assert_a_frame(fidx);
     solver_->assert_formula(NOT(prop));
   auto res = solver_->check_sat();
   solver_->pop();
@@ -127,10 +134,8 @@ bool Apdr::frame_implies(unsigned fidx, const smt::Term &prop) {
 
 Model * Apdr::frame_not_implies_model(unsigned fidx, const smt::Term &prop) {
   assert(fidx < frames.size());
-  const auto & lemmas = frames.at(fidx);
   solver_->push();
-    for (const auto & lemma : lemmas)
-      solver_->assert_formula(lemma->expr());
+    assert_a_frame(fidx);
     solver_->assert_formula(NOT(prop));
   auto res = solver_->check_sat();
   if (res.is_sat()) {
@@ -168,15 +173,27 @@ void Apdr::_add_pushed_lemma(Lemma * lemma, unsigned start, unsigned end) {
 //                                                      //
 // ---------------------------------------------------- //
 
-void Apdr::cut_vars_cur(std::unordered_set<smt::Term> & v) {
+void Apdr::cut_vars_curr(std::unordered_set<smt::Term> & v, bool cut_curr_input) {
+  // we will not handle this as a special case - no need
+#if 0
+  bool has_state_v = false;
+  for (const auto & e : v)
+    if (ts_.is_curr_var(e)) {
+      has_state_v = true;
+      break;
+    }
+  if (!has_state_v)
+    cut_curr_input = false; // override
+#endif
+
   auto pos = v.begin();
-  if (has_assumptions) {
+  if (!cut_curr_input) { // then we only cut next input
     while(pos != v.end()) {
       // if has assumption
       // will not remove input var
       if (!ts_.is_curr_var(*pos) && 
           ts_.inputs().find(*pos) == ts_.inputs().end()) {
-        assert(false);
+        assert(ts_.next_inputs().find(*pos) != ts_.next_inputs().end());
         pos = v.erase(pos);
       } else
         ++pos;
@@ -184,7 +201,8 @@ void Apdr::cut_vars_cur(std::unordered_set<smt::Term> & v) {
   } else { // if no assumption, will not keep input, erase everything but current var
     while(pos != v.end()) {
       if (!ts_.is_curr_var(*pos)) {
-        assert(ts_.inputs().find(*pos) != ts_.inputs().end()); // it must be an input var
+        assert(ts_.inputs().find(*pos) != ts_.inputs().end() ||
+          ts_.next_inputs().find(*pos) != ts_.next_inputs().end() ); // it must be an input var
         pos = v.erase(pos);
       } else
         ++pos;
@@ -201,7 +219,7 @@ void Apdr::cut_vars_cur(std::unordered_set<smt::Term> & v) {
         ++pos;
     }
   }
-} // cut_vars_cur
+} // cut_vars_curr
 
 // ---------------------------------------------------- //
 //                                                      //
@@ -215,13 +233,33 @@ smt::Term Apdr::get_inv() const {
 }
 
 
+bool Apdr::can_sat(const smt::Term & t) {
+  solver_->push();
+  solver_->assert_formula(t);
+  auto res = solver_->check_sat();
+  solver_->pop();
+  return res.is_sat();
+}
+
+bool Apdr::no_next_vars(const smt::Term & t) {
+  smt::UnorderedTermSet symbols;
+  get_free_symbols(t, symbols);
+  for (const auto & v : symbols) {
+    if (!ts_.is_curr_var(v) && ts_.inputs().find(t) == ts_.inputs().end())
+      return false;
+  }
+  return true;
+}
+
 void Apdr::validate_inv() {
   dump_frames(std::cerr);
   smt::Term inv = get_inv();
   D(1, "INV: {}", inv->to_string());
+  assert (no_next_vars(inv)); // no next state var and no next input var
+  assert (can_sat(inv));
   assert (is_safe_inductive_inv(inv));
 
-  print_time_stat();
+  print_time_stat(std::cout);
 }
 
 bool Apdr::is_last_two_frames_inductive() {
@@ -323,9 +361,9 @@ void Apdr::sanity_check_prop_fail(const std::vector<fcex_t> & path) {
     auto res = sanity_check_property_at_length_k(cex_info.cex->to_expr_btor(solver_), cex_info.fidx);
     
     if (!res.is_sat() && prev_res.is_sat() ) {
-      solver_->assert_formula(pre_cex->cex->to_expr(solver_));
+      solver_->assert_formula(pre_cex->cex->to_expr_btor(solver_));
       solver_->assert_formula(ts_.trans());
-      solver_->assert_formula(ts_.next(cex_info.cex->to_expr(solver_)));
+      solver_->assert_formula(ts_.next(cex_info.cex->to_expr_btor(solver_)));
       auto result = solver_->check_sat();
       solver_->pop();
 
@@ -338,12 +376,28 @@ void Apdr::sanity_check_prop_fail(const std::vector<fcex_t> & path) {
 } // sanity_check_prop_fail
 
 
+bool Apdr::sanity_check_trans_not_deadended() {
+  solver_->push();
+    // T and F is sat
+    assert_a_frame(frames.size()-1);
+    solver_->assert_formula(ts_.trans());
+    auto res = solver_->check_sat();
+  solver_->pop();
+  return res.is_sat();
+}
+
 // ---------------------------------------------------- //
 //                                                      //
 //                    DUMPING                           //
 //                                                      //
 // ---------------------------------------------------- //
 
+void Apdr::dump_info(std::ostream & os) const {
+  dump_frames(os);
+  print_time_stat(os);
+  os << print_frame_stat() << std::endl;
+  // dump time
+}
 
 void Apdr::dump_frames(std::ostream & os) const {
   os << "---------- Frames DUMP ----------" << std::endl;
@@ -366,43 +420,23 @@ void Apdr::dump_frames(std::ostream & os) const {
 } // dump_frames
 
 
-void Apdr::print_frame_stat(const std::string & extra_info) const {
-  std::string output = "F[{}] ";
+std::string Apdr::print_frame_stat() const {
+  std::string output = "F[" + std::to_string(frames.size()) + "] ";
   if (frames.size() < 20) {
     for (auto && f : frames)
       output += std::to_string(f.size()) + ' ';
-    output += extra_info;
-    INFO(output, frames.size());
+    return output;
   } else {
     for(unsigned idx = 0; idx < 10; ++ idx)
       output += std::to_string(frames.at(idx).size()) + ' ';
     for(unsigned idx = frames.size()-10; idx < frames.size(); ++ idx)
       output += std::to_string(frames.at(idx).size()) + ' ';
-    output += extra_info;
-    INFO(output, frames.size());
   }
-#ifdef DEBUG
-  print_time_stat();
-#endif
+  return output;
 }
 
-void Apdr::print_time_stat() const {
-  std::vector<std::string> stat_to_show = {
-    "Enum.Z3Query",
-    "Enum.PredicateGen",
-    "Enum.EnumPredConj",
-
-    "APDR.interpolant",
-    "APDR.SyGuS"
-  };
-
-  INFO("-----------Time Stat --------");
-  for(const auto & s : stat_to_show) {
-    if (GlobalTimer.EventExists(s)) {
-      auto [tm,quant,speed] = GlobalTimer.GetTotal(s);
-      INFO(s+"  {} / {}s = {}", quant,tm,speed);
-    }
-  }
+void Apdr::print_time_stat(std::ostream & os) const {
+  GlobalTimer.DumpAllEvents(os);
 }
 
 

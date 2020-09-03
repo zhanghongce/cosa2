@@ -41,13 +41,13 @@ bool TermExtractor::Skip(const smt::Term & ast) {
 
 void TermExtractor::PreChild(const smt::Term & ast) {
   assert(!IN(ast, walked_nodes_));
-  //walked_nodes_.insert(std::make_pair(ast, node_info_t() ));
+  //walked_nodes_.emplace(ast, node_info_t() );
 }
 
 void TermExtractor::PostChild(const smt::Term & ast) {
   // check if it is leaf
 
-  walked_nodes_.insert(std::make_pair(ast, node_info_t() ));
+  walked_nodes_.emplace(ast, node_info_t() );
 
   unsigned width;
   auto sort_kind = ast->get_sort()->get_sort_kind() ;

@@ -105,6 +105,15 @@ void MultiChannelTimer<T>::ClearEventFlag(const std::string & event) {
   pos->second.run_at_least_once_flag = false;
 }
 
+template <class T> 
+void MultiChannelTimer<T>::DumpAllEvents(std::ostream & os) const {
+  for(const auto & name_info : events_) {
+    const auto & name = name_info.first;
+    auto [tm,quant,speed] = GlobalTimer.GetTotal(name);
+    os << name << " \t" << (name_info.second.started?'#':' ') << " \t" << quant << " / " << tm << "s = " << speed << std::endl;
+  }
+}
+
 class MultiChannelTimer<long long> GlobalTimer;
 
 } // namespace cosa

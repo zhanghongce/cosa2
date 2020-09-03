@@ -24,7 +24,7 @@ class SignalPDRInterface {
 
 public:
 
-  virtual void dump_frames(std::ostream & os) const = 0;
+  virtual void dump_info(std::ostream & os) const = 0;
 
 }; // class SignalPDRInterface
 

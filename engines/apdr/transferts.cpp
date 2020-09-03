@@ -56,6 +56,15 @@ TransferredTransitionSystem::TransferredTransitionSystem(
     symbol_map_in2ex.emplace( local_v, v );
   }
 
+
+  for (const auto & v : ts.next_inputs()) {
+    auto local_v = translater_.transfer_term(v, true);
+    assert (local_v->get_sort()->get_sort_kind() == smt::SortKind::BV);
+    next_inputs_.insert( local_v );
+    symbol_map_ex2in.emplace( v, local_v );
+    symbol_map_in2ex.emplace( local_v, v );
+  }
+
   for (const auto & v : ts.symbols()) {
     symbols_.emplace( v.first, translater_.transfer_term(v.second, false) );
   }

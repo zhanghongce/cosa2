@@ -25,7 +25,6 @@
 #include <fstream>
 #include <sstream>
 
-#define INFO(...) logger.log(1, __VA_ARGS__)
 
 // #define DEBUG_DUMP_ENUM_STAT 1
 #ifdef DEBUG_DUMP_ENUM_STAT
@@ -105,9 +104,12 @@ void Apdr::propose_new_lemma_to_block(fcex_t * pre, fcex_t * post) {
     if (GlobalAPdrConfig.RM_CEX_IN_PREV)
       prevF_msat = AND_msat(prevF_msat, prop_msat);
 
+  std::cerr << "about to use itp;"  << std::endl;// for debug purpose
+ 
     smt::Term itp_msat = get_interpolant(prevF_msat, prop_msat);
     smt::Term itp_btor = nullptr;
   
+  dump_frames(std::cout);
   assert(false); // for debug purpose
 
     if(itp_msat) {
@@ -152,6 +154,8 @@ std::pair<Model *, bool> Apdr::gen_lemma(
   }
     
   // an alternative : if fail, do something here
+  // do the amendment here and return no may-block
+
   return ret;
 
 } // Apdr::gen_lemma
@@ -174,7 +178,7 @@ smt::Term Apdr::get_interpolant(
   GlobalTimer.RegisterEventEnd("APDR.interpolant",1);
   assert( res.is_unsat() );
 
-  if (itp_msat) {
+  if (itp_msat) { // should be okay to use curr
     itp_msat = ts_msat_.curr(bv_to_bool_msat(itp_msat, itp_solver_));
     D(2, "         [lemma-gen] get itp {}.", itp_msat->to_string());
   } else {

@@ -19,6 +19,7 @@
 #include "sig_apdr_if.h"
 
 #include <vector>
+#include <map>
 
 namespace cosa {
 
@@ -38,8 +39,8 @@ namespace cosa {
     
     unsigned TERM_EXTRACT_DEPTH = 0; // 2; depth == 0 means all possible sol
     bool UNSAT_CORE_RUN_MULITTIMES = true;
-    unsigned UNSAT_CORE_MULTI = 0; // 0 : all
-    bool ENUM_UNSAT_CORE = true;
+    unsigned UNSAT_CORE_MULTI = 1; // 0 : all , you may want different things for may/must
+    bool SUBSUME_NO_PUSH_RETRY = true; // if a cex is subsume, its lemma will not be retried
 
     // ------------- CVC4 SyGuS Configuration ---------------------------------
 
@@ -60,7 +61,8 @@ namespace cosa {
       SOLVE_TRANS_LEMMA,
       RECURSIVE_BLOCK,
       CHECK_UNTIL,
-      PUSH_A_FRAME }; // definition of functionnames in config.cpp
+      PUSH_A_FRAME,
+      PUSH_EAGER }; // definition of functionnames in config.cpp
     
     const static std::vector<std::string> function_names;
 

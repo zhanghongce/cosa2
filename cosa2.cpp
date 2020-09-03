@@ -304,10 +304,7 @@ int main(int argc, char ** argv)
     } else if (engine == APDR) {
       #ifdef WITH_MSAT
       // need mathsat for interpolant based model checking
-      GlobalAPdrConfig.BLOCK_CTG = !strengthen_off;
       GlobalAPdrConfig.LEMMA_GEN_MODE = (APdrConfig::LEMMA_GEN_MODE_T)lemma_gen_mode;
-      GlobalAPdrConfig.COMP_DEFAULT_BVULTULE = ((bvcomp_mode & 0x4) || (bvcomp_mode & 0x2));
-      GlobalAPdrConfig.COMP_DEFAULT_OVERRIDE = ((bvcomp_mode & 0x1));
 
       s = BoolectorSolverFactory::create(false); // let's create it with a wrapper in case translation failed
       s->set_opt("produce-models", "true");

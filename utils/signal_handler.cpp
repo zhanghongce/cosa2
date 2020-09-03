@@ -15,6 +15,7 @@
  **/
 
 #include <apdr/config.h>
+#include <apdr/support.h>
 
 #include <iostream>
 #include <string>
@@ -23,59 +24,29 @@
 #include <assert.h>
 #include <unistd.h>
 
+
 namespace cosa{
 
-#if !defined(NDEBUG) || defined(SIGNAL_DUMP)
+#ifdef SIGNAL_DUMP
 
 sighandler_t old_SIGQUIT_handler;
 sighandler_t old_SIGINT_handler;
 sighandler_t old_SIGALARM_handler;
 
-static std::vector<std::string_view> state_names = {
-  "Idle",
-  "InitCache", 
-  "CheckUntill",
-  "GetBadStateForProp", 
-  "BlockBadStateForProp", 
-  "PushingAll",
-  "PushAFrame",
-  "PushFirstTryAll",
-  "PushTryWhetherCexPushable",
-  "PushTrySygus",
-  "PushTryBlockCtg",
-  "SolveTrans",
-  "TryRecBlock",
-  "DoRecBlock"
-};
-
-std::string_view inline enum2str(APdrConfig::APDR_WORKING_STATE_T s) {
-   unsigned idx = (unsigned) (s);
-   if (idx >= state_names.size()) {
-     std::cerr << "enum2str out of range!" << std::endl;
-     exit(1);
-   }
-   return state_names.at(idx);
-}
-
 void dumping_apdr_frames() {
   if (GlobalAPdrConfig.ApdrInterface)
-    GlobalAPdrConfig.ApdrInterface->dump_frames(std::cerr);
+    GlobalAPdrConfig.ApdrInterface->dump_info(std::cerr);
   std::cerr.flush();
 }
 
 void dumping_apdr_states() {
   unsigned idx = 0;
   std::cerr << "\n----------------------" <<std::endl;
-  for (auto && s : GlobalAPdrConfig.APDR_WORKING_STATE_STACK) {
-    std::cerr << idx ++ << "\t:\t" << enum2str(s.first) << " (" << s.second <<")" << std::endl;
+  for (const auto & s : GlobalAPdrConfig.Apdr_working_state_stack) {
+    std::cerr << idx ++ << "\t:\t" << GlobalAPdrConfig.Apdr_function_tracing_func_str(s)
+              <<  " (" << GlobalAPdrConfig.Apdr_function_invocation_count.at(s) <<")" << std::endl;
   }
-  std::cerr << idx ++ << "\t:\t" 
-    << enum2str(GlobalAPdrConfig.APDR_WORKING_STATE.first) 
-    << " (" << GlobalAPdrConfig.APDR_WORKING_STATE.second <<")" << std::endl;
-  std::cerr << "Good itp (stronger than prop): " 
-            << GlobalAPdrConfig.STAT_ITP_STRONG_COUNT 
-            << "/" << GlobalAPdrConfig.STAT_ITP_CHECK_COUNT
-            << std::endl;
+
   std::cerr.flush();
 }
 
@@ -103,7 +74,7 @@ void RegisterApdrSigHandler() {
   old_SIGQUIT_handler = signal(SIGQUIT, SIGQUIT_handler);
   old_SIGALARM_handler = signal(SIGALRM, SIGALARM_handler);
   alarm(0);
-  alarm(3200);
+  alarm(3200); // get a summary at 3200s 
 }
 
 void UnregisterApdrSigHandler() {

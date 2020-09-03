@@ -64,7 +64,7 @@ bool SameVar(const Model &m, const std::unordered_set<smt::Term> & vars) {
         std::cout << m << std::endl;     \
         Model m2(s, v2);\
         std::cout << m2 << std::endl;     \
-        smt::Term v_assign = m.to_expr(s); \
+        smt::Term v_assign = m.to_expr_btor(s); \
         s->pop(); s->push();\
         s->assert_formula(NOT(ast));\
         s->assert_formula(v_assign);\
@@ -386,6 +386,27 @@ TEST (SygusInternal, FromCex)  {
     auto to_next = [&] (const smt::Term & v)  -> smt::Term {
       return fts_btor.next(v);
     };
+    
+    bool sygus_failed_at_init = false;
+    Model * fail_model = NULL;
+    auto extract_model_func_ = [&] (const smt::UnorderedTermSet & varset, bool failed_at_init) -> void {
+    sygus_failed_at_init = failed_at_init;
+    if (!failed_at_init) {
+      smt::UnorderedTermSet var_pre;
+      smt::TermVec var_next;
+      for (const auto & v:varset)
+        var_next.push_back( fts_btor.next_to_expr( fts_btor.next(v) ) );
+      pt.GetVarListForAsts(var_next, var_pre,  GlobalAPdrConfig.CACHE_PARTIAL_MODEL_CONDITION);
+      // we will not try to cut inputs away
+      fail_model = new Model(btor, var_pre); // get the model on thies vars
+    } else {
+      // get the next vars and make them the current ones
+      smt::UnorderedTermSet var_next;
+      for (const auto & v:varset)
+        var_next.insert(fts_btor.next(v));
+      fail_model = new Model(btor, var_next, fts_btor.curr_map() );
+    }
+  };
 
     unsat_enum::VarTermManager sygus_term_manager_;
     { // register terms to find exprs
@@ -399,6 +420,7 @@ TEST (SygusInternal, FromCex)  {
     
     unsat_enum::Enumerator sygus_enumerator(
       to_next,
+      extract_model_func_,
       btor,
       fts_btor.trans(), fts_btor.init(),
       fts_btor.init() /*prevF*/, 
@@ -407,10 +429,16 @@ TEST (SygusInternal, FromCex)  {
     );
 
     std::cout << "Cex : " << m.to_string() << std::endl;
-    auto res = sygus_enumerator.GetCandidate();
+    smt::TermVec cands;
+    sygus_enumerator.GetNCandidatesRemoveInPrev(cands,3); //1 , 3 , 0 also rm_prev
 
-    std::cout << "Result btor : " << res->to_string() << std::endl;
+    std::cout << "----------- Result btor ---------" << std::endl;
+    for (const auto & c : cands)
+      std::cout << ">> Result btor : " << c->to_string() << std::endl;
+    std::cout << "----------- " << cands.size() << "  ---------" << std::endl;
 
+    if (fail_model)
+      delete fail_model;
     sygus_enumerator.ClearCache();
 } // InternalSygus from cex
 

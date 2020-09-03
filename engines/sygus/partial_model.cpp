@@ -32,6 +32,11 @@ namespace cosa {
 // ------------------------------- // 
 
 std::ostream & operator<< (std::ostream & os, const Model & m) {
+  if (m.cube.empty()) {
+    os << "true";
+    return os;
+  }
+  
   for (auto && v_val : m.cube ) {
     os << "" << v_val.first->to_string() << "= "
               << v_val.second->to_string() << "";
@@ -42,6 +47,9 @@ std::ostream & operator<< (std::ostream & os, const Model & m) {
 
 
 std::string Model::to_string() const {
+  if (cube.empty())
+    return "true";
+  
   std::string ret;
   for (auto && v_val : cube ) {
     ret += v_val.first->to_string()  + "= " +
@@ -69,7 +77,7 @@ void Model::get_varset(std::unordered_set<smt::Term> & varset) const {
 Model::Model(smt::SmtSolver & solver_, const std::unordered_set<smt::Term> & vars) {
   for (smt::Term v : vars) {
     smt::Term val = solver_->get_value(v);
-    cube.insert(std::make_pair(v,val));
+    cube.emplace(v,val);
   }
 }
 
@@ -81,7 +89,7 @@ Model::Model(smt::SmtSolver & solver_,
     smt::Term val = solver_->get_value(v);
     auto pos = varmap.find(v);
     assert (pos != varmap.end());
-    cube.insert(std::make_pair(pos->second,val));
+    cube.emplace(pos->second, val);
   }
 }
 
@@ -110,6 +118,8 @@ smt::Term Model::to_expr(const cube_t & c, smt::SmtSolver & solver_) {
     else
       ret = AND(ret, EQ(v_val.first, v_val.second));
   }
+  if (!ret)
+    ret = solver_->make_term(true);
   assert(ret);
   return ret;
 }
@@ -167,7 +177,9 @@ smt::Term Model::to_expr_translate(
     else
       ret = AND(ret, EQ(var_msat, val_msat));
   }
-  assert(ret);
+  if (!ret) // I just don't want to have many of the same "true" term in the cache there
+    ret = to_msat.transfer_term(solver_->make_term(true), false);
+  
   return ret;
 }
 
@@ -211,7 +223,7 @@ void PartialModelGen::GetPartialModel(const smt::Term & ast, cube_t & m, bool us
 
   for (smt::Term v : dfs_vars_) {
     smt::Term val = solver_->get_value(v);
-    m.insert(std::make_pair(v,val));
+    m.emplace(v,val);
   }
 }
 
@@ -421,7 +433,7 @@ void PartialModelGen::CacheNode(const smt::Term & ast) {
     dfs_variable_stack_.back().begin(),
     dfs_variable_stack_.back().end());
   
-  node_buffer_.insert(std::make_pair(ast, cur_node_));
+  node_buffer_.emplace(ast, cur_node_);
 }
 
 void PartialModelGen::InterpretCache(CondVarBuffer * n, std::unordered_set<smt::Term> & var)  {

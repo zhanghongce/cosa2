@@ -55,7 +55,7 @@ states_(ts_msat.states()), next_states_(ts_msat.next_states()), inputs_(ts_msat.
     arg_lists_call_trans_.push_back(name);
 
     auto name_next = name_sanitize(ts_msat.next(s)->to_string());
-    state_to_next_map_.insert(std::make_pair(name, name_next));
+    state_to_next_map_.emplace(name, name_next);
   }
   for (const auto &s : next_states_) {
     auto name = name_sanitize(s->to_string());

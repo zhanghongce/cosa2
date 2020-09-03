@@ -100,7 +100,7 @@ protected:
   void terms_to_predicates();
   
   smt::Term AssembleCandFromUnsatCore(const smt::Term & base_term, const smt::UnorderedTermSet & unsatcore);
-  void DebugPredicates(const smt::UnorderedTermSet & inpreds, const smt::Term & base, const smt::Term & init) ;
+  void DebugPredicates(const smt::UnorderedTermSet & inpreds, const smt::Term & base, const smt::Term & init, bool rm_pre) ;
   bool check_failed_at_init(const smt::Term & F_and_T) ;
 
 public:
@@ -119,8 +119,25 @@ public:
   static void ClearCache();
 
   void GetNCandidates(smt::TermVec & cands, size_t n) ;
+
+  void GetNCandidatesRemoveInPrev(smt::TermVec & cands, size_t n) ;
+
+protected:
   void GetOneCandidate(const smt::UnorderedTermSet & in, 
-    smt::UnorderedTermSet & unsatcore, const smt::Term & base_term, const smt::Term & F_and_T) ;
+    smt::UnorderedTermSet & unsatcore, const smt::Term & base_term, const smt::Term & F_and_T, bool first_check) ;
+  smt::Term GetOneCandidateRemoveInPrev(const smt::UnorderedTermSet & in, 
+    smt::UnorderedTermSet & unsatcore, const smt::Term & F_and_T, bool first_check) ;
+
+  bool CheckPredDisjFailInit();
+
+  template <class T> smt::Term ANDN_pre(const T & prime_p);
+
+private:
+  // debug purpose
+  std::unordered_map<smt::Term, unsigned> pred_to_numbers;
+  void DebugRegAllpred(const smt::UnorderedTermSet & inpreds);
+  void DebugRegSelRemove(const smt::Term & sel, const std::string & action);
+  void DebugRegResult(const smt::UnorderedTermSet & res);
 
 }; // class Enumerator
 

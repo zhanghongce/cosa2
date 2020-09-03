@@ -140,6 +140,7 @@ class TransitionSystem
   const smt::UnorderedTermSet & states() const { return states_; };
 
   const smt::UnorderedTermSet & next_states() const { return next_states_; };
+  const smt::UnorderedTermSet & next_inputs() const { return next_inputs_; };
 
   const smt::UnorderedTermSet & inputs() const { return inputs_; };
 
@@ -234,9 +235,11 @@ class TransitionSystem
   //       on the left hand side of equalities in
   //       trans for functional transition systems
   smt::UnorderedTermMap next_map_;
-
+  
   // system inputs
   smt::UnorderedTermSet inputs_;
+  // stores all the next state variables
+  smt::UnorderedTermSet next_inputs_;
 
   // mapping from names to terms
   std::unordered_map<std::string, smt::Term> named_terms_;
