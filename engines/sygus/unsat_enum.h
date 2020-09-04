@@ -17,6 +17,7 @@
 #pragma once
 
 #include "engines/sygus/ast_knob/var_term_manager.h"
+#include "common.h"
 
 #include <vector>
 #include <functional>
@@ -55,28 +56,9 @@ struct eval_val_hash {
   }
 };
 
-
-struct PerCexInfo {
-  struct term_const_num{
-    unsigned term_num;
-    unsigned const_num;
-    term_const_num(): term_num(0), const_num(0) {}
-  };
-
-  std::unordered_map<smt::Term,eval_val> terms_val_under_cex;
-  std::vector<smt::Term> predicates_nxt;
-  std::unordered_map<smt::Term, smt::Term> pred_next_to_pred_curr;
-  const PerVarsetInfo & varset_info; // reference from VarTermManager
-
-  std::map<unsigned, term_const_num> prev_per_width_term_num;
-  PerCexInfo(const PerVarsetInfo & info) : varset_info(info) {}
-};
-
 class Enumerator {
 
 public:
-  typedef std::unordered_map<Model *, PerCexInfo>   cex_term_map_t; // the enumeration position of a cex
-  typedef std::function<smt::Term(const smt::Term &)> to_next_t; // ast to next
   //typedef std::function<smt::Term(const smt::Term &)> btor_var_to_msat_t;
   typedef std::function<void(const smt::UnorderedTermSet &, bool)> extract_model_t;
   
@@ -116,7 +98,8 @@ public:
   
   void TermsDumping() const;
 
-  static void ClearCache();
+  static void ClearCache() {  cex_term_map_.clear(); }
+  static cex_term_map_t & GetCexToPreCexInfoMap() { return cex_term_map_; }
 
   void GetNCandidates(smt::TermVec & cands, size_t n) ;
 

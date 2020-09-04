@@ -37,12 +37,18 @@ namespace cosa {
 
     bool MSAT_INTERPOLANT_ENABLE = true;
     
-    unsigned TERM_EXTRACT_DEPTH = 0; // 2; depth == 0 means all possible sol
     bool UNSAT_CORE_RUN_MULITTIMES = true;
     unsigned UNSAT_CORE_MULTI = 1; // 0 : all , you may want different things for may/must
     bool SUBSUME_NO_PUSH_RETRY = true; // if a cex is subsume, its lemma will not be retried
 
-    // ------------- CVC4 SyGuS Configuration ---------------------------------
+    // ------------- TERM Generation  ---------------------------------
+    unsigned TERM_EXTRACT_DEPTH = 0; // 2; depth == 0 means all possible sol
+    unsigned INITIAL_TERM_WIDTH = 8; // (-1 to disable this)
+    unsigned INITIAL_TERM_INC   = 8;
+    unsigned ACCUMULATED_TERM_BOUND = 0; // let's try 0 first
+
+    
+    // ------------- SyGuS Configuration ---------------------------------
 
     enum LEMMA_GEN_MODE_T {
       ITP_ONLY = 1,

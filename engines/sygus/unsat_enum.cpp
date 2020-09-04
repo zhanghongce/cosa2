@@ -95,9 +95,6 @@ bool eval_val::operator<(const eval_val &r) const {
 
 Enumerator::cex_term_map_t  Enumerator::cex_term_map_;
   
-void Enumerator::ClearCache() {
-  cex_term_map_.clear();
-}
 
 // ----------------------------------------------------------------
 //
