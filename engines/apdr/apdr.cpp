@@ -319,6 +319,8 @@ bool Apdr::recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_or
     return true; // already blocked
   }
 
+  enum prev_action_t {NONE, PREV_PUSH, PREV_POP} prev_action = prev_action_t::NONE;
+
   std::vector<fcex_t> cexs_to_block;
   cexs_to_block.push_back(fcex_t(idx,cube, true, cex_origin));
   while(!cexs_to_block.empty()) {
@@ -354,6 +356,7 @@ bool Apdr::recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_or
       // pop till idx-1 (idx-1 will also be removed)
       unsigned post_fidx = post->fidx;
       cexs_to_block.erase(cexs_to_block.begin() + idx - 1 , cexs_to_block.end());
+      prev_action = prev_action_t::PREV_POP;
       // cexs_to_block.resize(idx-1); //
       // p
       if (!cexs_to_block.empty()) 
@@ -362,9 +365,23 @@ bool Apdr::recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_or
 
     D(3, "      [block] check at F{} -> @F{} {} : {}", fidx-1, fidx, Lemma::origin_to_string(cex_type), cex->to_string());
 
+    // check already block ? especially if we are from a lower-end
+    if (prev_action == prev_action_t::PREV_POP) {
+      // check already block by current frame (newly pushed ones)
+
+      smt::Term prop_btor = NOT(cex->to_expr_btor(solver_));
+      if (frame_implies(fidx, prop_btor)){
+        cexs_to_block.pop_back();
+        prev_action = prev_action_t::PREV_POP;
+        if (!cexs_to_block.empty()) 
+          push_lemma_from_frame(fidx, false);
+        continue;
+      }
+    } // if prev pop
+
     // check at F Fidx-1 -> F idx 
     auto trans_result = solveTransLemma(fidx-1,
-      {cex}, GlobalAPdrConfig.RM_CEX_IN_PREV,
+      cex, GlobalAPdrConfig.RM_CEX_IN_PREV,
       true /*pre state*/ ); // with init already
 
     if (trans_result.unblockable()) {
@@ -381,7 +398,7 @@ bool Apdr::recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_or
           _add_pushed_lemma(lemma, 1, fidx - 1);
         } // new lemmas added, and we can pop the queue
         cexs_to_block.pop_back();
-
+        prev_action = prev_action_t::PREV_POP;
         if (!cexs_to_block.empty()) 
           push_lemma_from_frame(fidx, false);
 
@@ -391,6 +408,7 @@ bool Apdr::recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_or
         // we may want to tighten a bit the prev frame
         unsigned prev_fidx = trans_result.may_block_at_init ? 0 : fidx-1;
         cexs_to_block.push_back(fcex_t(prev_fidx, trans_result.may_block, false, Lemma::LemmaOrigin::MAY_BLOCK));
+        prev_action = prev_action_t::PREV_PUSH;
         D(3, "      [block] push to queue, @F{} --aT--> prime : {}", prev_fidx,  trans_result.may_block->to_string());
       }
     } // --cT--/--> , may or may not have good lemmas
