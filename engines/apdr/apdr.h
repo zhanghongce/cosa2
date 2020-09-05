@@ -18,6 +18,7 @@
 
 #include "engines/sygus/partial_model.h"
 #include "engines/sygus/ast_knob/opextract.h"
+#include "engines/sygus/ast_knob/term_learning.h"
 #include "engines/sygus/gen_sygus_query.h"
 #include "engines/sygus/unsat_enum.h"
 #include "engines/prover.h"
@@ -66,7 +67,7 @@ public:
   //typedef std::pair<unsigned, Model *> fcex_t;
   // we don't need the comparator, just use vector
 
-  using to_next_t = unsat_enum::Enumerator::to_next_t;
+  using to_next_t = unsat_enum::to_next_t;
   using extract_model_t = unsat_enum::Enumerator::extract_model_t;
   
 public:
@@ -131,9 +132,11 @@ protected:
   smt::UnorderedTermSet sygus_symbol_;
   std::unordered_set<std::string> sygus_symbol_names_;
   sygus::SyGuSTransBuffer sygus_tf_buf_;
+  std::unique_ptr<sygus::SyGusQueryGen> sygus_query_gen_;
+
   std::unique_ptr<OpExtractor> op_extract_;
   unsat_enum::VarTermManager sygus_term_manager_;
-  std::unique_ptr<sygus::SyGusQueryGen> sygus_query_gen_;
+  std::unique_ptr<unsat_enum::TermLearner> term_learner_;
 
   // use by internal sygus
   ApdrSygusHelper sygus_info_helper_;
@@ -197,7 +200,7 @@ public:
     //const smt::Term & Fprev_msat, 
     const smt::Term & Fprev_btor, 
     //const smt::Term & prop_msat,
-    const smt::Term & prop_btor,
+    // const smt::Term & prop_btor,
     Model * cex,
     smt::TermVec & lemmas_msat /*OUT*/,
     smt::TermVec & lemmas_btor /*OUT*/ );

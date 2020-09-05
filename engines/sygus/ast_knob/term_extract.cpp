@@ -34,6 +34,11 @@ namespace cosa {
 
 namespace unsat_enum {
 
+// ---------------------------------------------- //
+//                                                //
+//              TermExtractor                     //
+//                                                //
+// ---------------------------------------------- //
 
 bool TermExtractor::Skip(const smt::Term & ast) {
   return IN(ast, walked_nodes_);
@@ -41,13 +46,13 @@ bool TermExtractor::Skip(const smt::Term & ast) {
 
 void TermExtractor::PreChild(const smt::Term & ast) {
   assert(!IN(ast, walked_nodes_));
-  //walked_nodes_.emplace(ast, node_info_t() );
+  walked_nodes_.emplace(ast, node_info_t() );
 }
 
 void TermExtractor::PostChild(const smt::Term & ast) {
   // check if it is leaf
 
-  walked_nodes_.emplace(ast, node_info_t() );
+  //walked_nodes_.emplace(ast, node_info_t() );
 
   unsigned width;
   auto sort_kind = ast->get_sort()->get_sort_kind() ;
@@ -63,6 +68,7 @@ void TermExtractor::PostChild(const smt::Term & ast) {
     if (IN(ast,related_vars_)) {
       walked_nodes_[ast].in = true;
       width_to_terms_[width].push_back(ast);
+      all_terms_.insert(ast);
     }
   } else if ( ast->is_value() ) {
 
@@ -92,9 +98,38 @@ void TermExtractor::PostChild(const smt::Term & ast) {
 
     if (max_level <= level_ && all_in) {
       width_to_terms_[width].push_back(ast);
+      all_terms_.insert(ast);
     }
   } // end of op
 } // PostChild
+
+// ---------------------------------------------- //
+//                                                //
+//              Parent Extract                    //
+//                                                //
+// ---------------------------------------------- //
+ParentExtract::parent_map_t ParentExtract::parent_;
+
+bool ParentExtract::Skip(const smt::Term & ast) {
+  return IN(ast, walked_nodes_);
+}
+
+void ParentExtract::PreChild(const smt::Term & ast) {
+ walked_nodes_.insert(ast);
+}
+
+void ParentExtract::PostChild(const smt::Term & ast) {
+ // for all its child, add parent pointer to the map
+
+  if (ast->is_symbolic_const()) { }
+  else if ( ast->is_value() ) { } 
+  else { // we will hope it is op
+    for(auto && p : *ast) { // for each of its child node
+      parent_[p].push_back(ast);
+    } // set up its parent to have ast there
+  } // end of op
+} // PostChild
+
 
 
 } // namespace unsat_enum

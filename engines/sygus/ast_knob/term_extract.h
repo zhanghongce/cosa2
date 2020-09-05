@@ -36,10 +36,14 @@ public:
   
   // ----------- CONSTRUCTOR --------------- //
   // if level > 0, then we will count level, otherwise, we don't care about the levels
-  TermExtractor(const std::unordered_set<smt::Term> & varset, bool collect_constants, unsigned level) :
-    related_vars_(varset), collect_constants_(collect_constants), level_(level) { }
+  TermExtractor(const std::unordered_set<smt::Term> & varset, bool collect_constants, unsigned level,
+      std::map<unsigned, std::vector<smt::Term>> & width_to_term_table,
+      std::unordered_set<smt::Term> & all_terms_set) :
+    related_vars_(varset), collect_constants_(collect_constants), level_(level),
+    width_to_terms_(width_to_term_table), all_terms_(all_terms_set) { }
     
-  const std::map<unsigned, std::vector<smt::Term>> & GetTerms() const { return width_to_terms_; }
+  //const std::map<unsigned, std::vector<smt::Term>> & GetTermsByWidth() const { return width_to_terms_; }
+  //const std::unordered_set<smt::Term> & GetAllTerms() const { return all_terms_; }
   const std::map<unsigned, std::vector<smt::Term>> & GetConstants() const { return width_to_constants_; }
   
   // public method inherited: WalkDFS (*) /BFS
@@ -50,8 +54,9 @@ protected:
   bool collect_constants_;
   unsigned level_;
   
-  std::map<unsigned, std::vector<smt::Term>> width_to_terms_;
-  std::map<unsigned, std::vector<smt::Term>> width_to_constants_;
+  std::map<unsigned, std::vector<smt::Term>> & width_to_terms_;
+  std::map<unsigned, std::vector<smt::Term>> width_to_constants_; // const is not needed, as you may not always need it
+  std::unordered_set<smt::Term> & all_terms_;
   
   virtual bool Skip(const smt::Term & ast) override;
   virtual void PreChild(const smt::Term & ast) override;
@@ -59,6 +64,27 @@ protected:
 
 }; // class TermExtractor
 
+
+
+class ParentExtract : public Walker {
+public:
+  // ----------- TYPE --------------- //
+  typedef std::unordered_map<smt::Term, smt::TermVec> parent_map_t;
+
+  ParentExtract() {} // do nothing
+  static void ClearCache() { parent_.clear(); }
+  static const parent_map_t & GetParentRelation() {return parent_;}
+
+protected:
+
+  std::unordered_set<smt::Term> walked_nodes_;
+  static parent_map_t parent_;
+  
+  virtual bool Skip(const smt::Term & ast) override;
+  virtual void PreChild(const smt::Term & ast) override;
+  virtual void PostChild(const smt::Term & ast) override;
+
+}; // ParentExtract
 
 } // namespace unsat_enum
 

@@ -92,7 +92,35 @@ void Apdr::reset_sygus_syntax() {
 
 void Apdr::propose_new_lemma_to_block(fcex_t * pre, fcex_t * post) {
   // TODO: here
-
+  unsigned proposing_new_terms_round = 0;
+  unsigned n_new_terms;
+  do {
+    n_new_terms = 
+      sygus_term_manager_.GetMoreTerms(
+        pre->cex, post->cex, *(term_learner_.get()));
+    D(1, "[propose-new-term] Round {}. Get {} new terms.", proposing_new_terms_round, n_new_terms);
+    if (n_new_terms != 0) {
+      smt::TermVec lemma_msat, lemma_btor;
+      gen_lemma(pre->fidx, frame_prop_btor(pre->fidx), 
+        post->cex, lemma_msat, lemma_btor  );
+      D(1, "[propose-new-term] Round {}. Get {} lemma(s).", proposing_new_terms_round, lemma_btor.size());
+    
+      if (!lemma_btor.empty()) {
+        // we found new terms and find good preds
+        // TODO: insert to frames and then quit
+        for(unsigned lidx = 0; lidx < lemma_btor.size(); ++ lidx)  {
+          Lemma * lemma = new_lemma(lemma_btor.at(lidx), lemma_msat.at(lidx),
+            post->cex, post->cex_origin); // Question cex origin?
+          _add_lemma(lemma, post->fidx);
+          _add_pushed_lemma(lemma, 1, post->fidx - 1);
+        } // new lemmas added, and we can pop the queue
+        return;
+      }
+      proposing_new_terms_round ++;
+    }
+  } while(n_new_terms != 0); // if we can no longer find new terms, we should give up
+  D(1, "[propose-new-term] Continue to try ITP.");
+    
   // if failed
 
   { // interpolant
@@ -104,13 +132,12 @@ void Apdr::propose_new_lemma_to_block(fcex_t * pre, fcex_t * post) {
     if (GlobalAPdrConfig.RM_CEX_IN_PREV)
       prevF_msat = AND_msat(prevF_msat, prop_msat);
 
-  std::cerr << "about to use itp;"  << std::endl;// for debug purpose
  
     smt::Term itp_msat = get_interpolant(prevF_msat, prop_msat);
     smt::Term itp_btor = nullptr;
-  
-  dump_frames(std::cout);
-  assert(false); // for debug purpose
+
+    D(1, "[propose-new-term] @F{} use itp: {}",  post->fidx, 
+      itp_btor->to_raw_string());
 
     if(itp_msat) {
       itp_btor = to_btor_.transfer_term(itp_msat, false);
@@ -121,6 +148,9 @@ void Apdr::propose_new_lemma_to_block(fcex_t * pre, fcex_t * post) {
   } // interpolant
 
   { // not Post state
+
+    D(1, "[propose-new-term] @F{} will use NOT(post)");
+
     auto prop_btor = NOT(post->cex->to_expr_btor(solver_));
     auto prop_msat = NOT_msat(post->cex->to_expr_msat(itp_solver_, to_itp_solver_));
 
@@ -140,7 +170,7 @@ std::pair<Model *, bool> Apdr::gen_lemma(
     //const smt::Term & Fprev_msat, 
     const smt::Term & Fprev_btor, 
     //const smt::Term & prop_msat,
-    const smt::Term & prop_btor,
+    // const smt::Term & prop_btor,
     Model * cex,
     smt::TermVec & lemmas_msat /*OUT*/,
     smt::TermVec & lemmas_btor /*OUT*/ ) {

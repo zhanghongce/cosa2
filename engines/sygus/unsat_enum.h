@@ -17,7 +17,7 @@
 #pragma once
 
 #include "engines/sygus/ast_knob/var_term_manager.h"
-#include "common.h"
+#include "ast_knob/common.h"
 
 #include <vector>
 #include <functional>
@@ -26,35 +26,6 @@
 namespace cosa {
 
 namespace unsat_enum {
-
-
-// value for enumeration
-struct eval_val { // will always convert to uint64_t, if width < 64
-  enum type_t {NUM, STR} type;
-  uint64_t nv;
-  std::string sv;
-  
-  eval_val(const std::string & val); // will remove #b0...0 and then decide to convert or not
-  // default copy and assignment, and then
-
-  bool operator==(const eval_val &r) const {
-    return (type == r.type) && 
-      (type != type_t::NUM || nv == r.nv) && 
-      (type != type_t::STR || sv == r.sv);
-  }
-
-  bool operator<(const eval_val &) const;
-
-  // the first one is always 1....
-  // so, if one is shorter, it must be smaller
-
-};
-
-struct eval_val_hash {
-  std::size_t operator() (const eval_val & k) const {
-    return (k.type == k.NUM ? std::hash<uint64_t>()(k.nv) : std::hash<std::string>()(k.sv));
-  }
-};
 
 class Enumerator {
 

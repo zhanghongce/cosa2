@@ -13,6 +13,7 @@
  **
  ** 
  **/
+
 #include "engines/apdr/config.h"
 #include "unsat_enum.h"
 
@@ -47,53 +48,8 @@ namespace cosa {
 
 namespace unsat_enum {
 
-// --------------------  eval_val ----------------
 
-eval_val::eval_val(const std::string & val) {
-  assert(val.find("#b") == 0);
-  size_t pos = 2;
-  for(; pos < val.length() ; ++ pos) {
-    if ( val.at(pos) != '0' )
-      break;
-  }
-  if (pos == val.length()) {
-    // result 0
-    type = type_t::NUM;
-    nv = 0;
-  } else {
-    try {
-      nv = ::cosa::sygus::StrToULongLong(val.substr(pos), 2);
-      type = type_t::NUM;      
-    } catch (...) {
-      type = type_t::STR;
-      sv = val.substr(pos);
-    }
-  }
-} // eval_val::eval_val
-
-bool eval_val::operator<(const eval_val &r) const {
-  if (type == type_t::NUM && r.type == type_t::STR)
-    return true;
-  if (type == type_t::STR && r.type == type_t::NUM)
-    return false;
-  if (type == type_t::NUM)
-    return nv < r.nv;
-  // both str
-  if (sv.length() < r.sv.length())
-    return true;
-  if (sv.length() > r.sv.length())
-    return false;
-  for(size_t pos = 0; pos < sv.length(); ++ pos) {
-    if (sv.at(pos) == '0' && r.sv.at(pos) == '1')
-      return true;
-    if (sv.at(pos) == '1' && r.sv.at(pos) == '0')
-      return false;
-  }
-  return false; // equal both string, same length and save val
-}
-
-
-Enumerator::cex_term_map_t  Enumerator::cex_term_map_;
+cex_term_map_t  Enumerator::cex_term_map_;
   
 
 // ----------------------------------------------------------------

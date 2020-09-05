@@ -27,6 +27,8 @@ namespace cosa {
 
 namespace unsat_enum {
 
+class TermLearner;
+
 class VarTermManager{
 public:
   // type definition
@@ -38,7 +40,7 @@ public:
   
   // this includes Constant Terms (will be inserted)
   const PerVarsetInfo & GetAllTermsForVarsInModel(Model * m);
-  unsigned GetMoreTerms(Model * pre, Model * post); // return delta terms
+  unsigned GetMoreTerms(Model * pre, Model * post, TermLearner & term_learner); // return delta terms
 
 protected:
   std::unordered_set<std::string> constants_strings_;

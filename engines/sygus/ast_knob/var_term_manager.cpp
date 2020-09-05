@@ -15,17 +15,20 @@
  **/
  
 #include "var_term_manager.h"
-#include "term_extract.cpp"
+#include "term_extract.h"
+#include "term_learning.h"
 #include "engines/apdr/config.h"
 #include "utils/container_shortcut.h"
 #include "utils/multitimer.h"
+
+#include <cassert>
 
 namespace cosa {
 
 namespace unsat_enum {
 
 // return delta(#terms)
-unsigned VarTermManager::GetMoreTerms(Model * pre, Model * post) {
+unsigned VarTermManager::GetMoreTerms(Model * pre, Model * post, TermLearner & term_learner) {
   // decide the policy
   assert(pre && post);
   std::string var_string = post->vars_to_canonical_string();
@@ -47,7 +50,7 @@ unsigned VarTermManager::GetMoreTerms(Model * pre, Model * post) {
       // and do the same as FROMCEX, so continue
     case PerVarsetInfo::state_t::FROMCEX:
       // stay FROMCEX, just try if we can do anything more
-      return learn_terms_from_cex(pre, post, varset_info);
+      return term_learner.learn_terms_from_cex(pre, post, varset_info);
     default:
       assert(false);
   }
@@ -61,8 +64,17 @@ const PerVarsetInfo & VarTermManager::SetupTermsForVar(
   bool collect_constant = width_to_constants_.empty();
   std::unordered_set<smt::Term> varset;
   m->get_varset(varset);
+
+  terms_cache_t::iterator pos; bool succ;
+  std::tie(pos, succ) = terms_cache_.emplace(canonical_string, 
+    PerVarsetInfo(PerVarsetInfo::state_t::EMPTY));
+
   // now TERM_EXTRACT_DEPTH
-  TermExtractor extractor(varset, collect_constant, GlobalAPdrConfig.TERM_EXTRACT_DEPTH);
+  TermExtractor extractor(varset, collect_constant, 
+    GlobalAPdrConfig.TERM_EXTRACT_DEPTH, 
+    pos->second.terms_buffer,
+    pos->second.all_terms);
+
   for (auto && t : terms_to_check_)
     extractor.WalkBFS(t);
   
@@ -70,9 +82,6 @@ const PerVarsetInfo & VarTermManager::SetupTermsForVar(
     insert_from_constmap(extractor.GetConstants());
   // if collect constants
 
-  terms_cache_t::iterator pos; bool succ;
-  std::tie(pos, succ) = terms_cache_.emplace(canonical_string, 
-    PerVarsetInfo(PerVarsetInfo::state_t::EMPTY, extractor.GetTerms()));
   auto & term_cache_item = pos->second;
   const auto & terms = pos->second.terms_buffer; // extractor.GetTerms();
 
@@ -124,8 +133,8 @@ unsigned VarTermManager::insert_from_termsmap_w_width(
     const auto & tvec = w_t_pair.second;
     for(auto && t : tvec) {
       auto tstr = t->to_raw_string();
-      if (!IN(tstr, term_cache_item.terms_strings )){
-        term_cache_item.terms_strings.insert(tstr);
+      auto ins_res = term_cache_item.terms_strings.insert(tstr);
+      if (ins_res.second) { // if indeed inserted
         term_cache_item.terms[width].terms.push_back(t);
         ++ nterm_walked;
       }     
@@ -140,9 +149,11 @@ unsigned VarTermManager::insert_from_termsmap_w_width(
 
     const auto &cvec = w_cs_pair.second;
     for (auto && c : cvec) {
-      term_cache_item.terms_strings.insert(c->to_raw_string());
-      term_cache_item.terms[width].constants.push_back(c);
-      ++ nterm_walked;
+      auto ins_res = term_cache_item.terms_strings.insert(c->to_raw_string());
+      if(ins_res.second) {
+        term_cache_item.terms[width].constants.push_back(c);
+        ++ nterm_walked;
+      } // end if really inserted
     }
   } // end of for each width_constant_pair
   return nterm_walked;
@@ -152,10 +163,9 @@ void VarTermManager::insert_from_constmap(const PerVarsetInfo::width_term_map_t 
   for (const auto & width_constvec_pair : w_c_map) {
     for (const auto & c : width_constvec_pair.second)  {
       auto cnstr_str = c->to_raw_string();
-      if (!IN(cnstr_str, constants_strings_)) {
-        constants_strings_.insert(cnstr_str);
+      auto ins_res = constants_strings_.insert(cnstr_str);
+      if (ins_res.second) // if insertion is successful
         width_to_constants_[width_constvec_pair.first].push_back(c);
-      }
     }
   }
 } // insert_from_constmap

@@ -23,6 +23,8 @@
 #include "utils/logger.h"
 #include "utils/multitimer.h"
 
+#include "engines/sygus/ast_knob/term_extract.h"
+
 #include <cassert>
 #include <queue>
 
@@ -133,29 +135,57 @@ void Apdr::initialize() {
       for (const auto & v:varset)
         var_next.push_back( this->ts_.next_to_expr( this->ts_.next(v) ) );
       this->partial_model_getter.GetVarListForAsts(var_next, var_pre,  GlobalAPdrConfig.CACHE_PARTIAL_MODEL_CONDITION);
+
+      Model * full_model = this->new_model(var_pre);
       this->cut_vars_curr(var_pre, !(this->has_assumptions));
       // we will not try to cut inputs away
       this->extract_model_output_ = this->new_model(var_pre); // get the model on thies vars
+      this->term_learner_->RegisterPartialToFullModelMap(this->extract_model_output_, full_model);
     } else {
       // get the next vars and make them the current ones
       smt::UnorderedTermSet var_next;
       for (const auto & v:varset)
         var_next.insert(this->ts_.next(v));
       this->extract_model_output_ = this->new_model_replace_var( var_next, this->ts_.curr_map() );
+      this->term_learner_->RegisterPartialToFullModelMap(this->extract_model_output_, this->extract_model_output_);
     }
   };
 
-  { // register terms to find exprs
-    for (auto && v_nxtexpr_pair : ts_.state_updates())
+  // clear the mass if used by previous object
+  unsat_enum::Enumerator::ClearCache();
+  unsat_enum::ParentExtract::ClearCache();
+  unsat_enum::TermLearner::ClearCache();
+
+  { // 1. register terms to find exprs
+    // 2. extract parent from the same terms
+    unsat_enum::ParentExtract parent_relation_extractor;
+    for (auto && v_nxtexpr_pair : ts_.state_updates()) {
       sygus_term_manager_.RegisterTermsToWalk(v_nxtexpr_pair.second);
+      parent_relation_extractor.WalkBFS(v_nxtexpr_pair.second);
+    }
     sygus_term_manager_.RegisterTermsToWalk(ts_.init());
+    parent_relation_extractor.WalkBFS(ts_.init());
+
     sygus_term_manager_.RegisterTermsToWalk(ts_.constraint());
+    parent_relation_extractor.WalkBFS(ts_.constraint());
+
     sygus_term_manager_.RegisterTermsToWalk(property_.prop());
+    parent_relation_extractor.WalkBFS(property_.prop());
+  }
+
+  { // now create TermLearner
+    term_learner_.reset(new unsat_enum::TermLearner(
+      ts_.trans(), to_next_func_, solver_, 
+      unsat_enum::ParentExtract::GetParentRelation()
+    ));
   }
 }
 
 Apdr::~Apdr() {
+  term_learner_.reset(nullptr);
   unsat_enum::Enumerator::ClearCache(); // finally: make sure terms are destructed first
+  unsat_enum::ParentExtract::ClearCache();
+  unsat_enum::TermLearner::ClearCache();
 }
 
 // ----------- TRANS - related  -------------------
@@ -285,7 +315,7 @@ Apdr::solve_trans_lemma_result Apdr::solveTransLemma(
   solve_trans_lemma_result ret_lemmas(false, false, NULL, NULL, false);
   std::tie(ret_lemmas.may_block,ret_lemmas.may_block_at_init)
     = gen_lemma( prevFidx,  prevF_btor,
-        prop_btor, model_to_block,  /*OUT*/ ret_lemmas.itp_msat, /*OUT*/ ret_lemmas.itp );
+        /*prop_btor,*/ model_to_block,  /*OUT*/ ret_lemmas.itp_msat, /*OUT*/ ret_lemmas.itp );
 
   #ifdef DEBUG
     assert (!ret_lemmas.unblockable());

@@ -18,6 +18,9 @@
 
 #include "engines/sygus/partial_model.h"
 
+#include <map>
+#include <functional>
+
 namespace cosa {
 
 namespace unsat_enum {
@@ -48,13 +51,18 @@ struct PerVarsetInfo {
   // --- more info --- //
 
   PerVarsetInfo() {}
-  PerVarsetInfo(state_t::stage_t s, const width_term_map_t &init_terms):
-    state(s), terms_buffer(init_terms) {}
+  PerVarsetInfo(state_t::stage_t s): state(s) {}
+
+  // if true, inserting is done
+  bool TermLearnerInsertTerm(const smt::Term & t);
+  bool TermLearnerIsOut(const smt::Term & p) const {
+    return all_terms.find(p) == all_terms.end(); }
 
 protected: // let's restrict the accesses to these fields
   friend class VarTermManager; 
   state_t state;
   width_term_map_t terms_buffer; // will be copied from term_walker
+  smt::UnorderedTermSet all_terms;
 }; // class PerVarsetInfo
 
 
@@ -75,7 +83,41 @@ struct PerCexInfo {
 };
 
 typedef std::unordered_map<Model *, PerCexInfo>   cex_term_map_t; // the enumeration position of a cex
+
+
+
+// value for enumeration
+struct eval_val { // will always convert to uint64_t, if width < 64
+
+  enum type_t {NUM, STR} type;
+  uint64_t nv;
+  std::string sv;
   
+  eval_val(const std::string & val); // will remove #b0...0 and then decide to convert or not
+  // default copy and assignment, and then
+
+  bool operator==(const eval_val &r) const {
+    return (type == r.type) && 
+      (type != type_t::NUM || nv == r.nv) && 
+      (type != type_t::STR || sv == r.sv);
+  }
+
+  bool operator<(const eval_val &) const;
+
+  std::string to_string() const;
+
+  // the first one is always 1....
+  // so, if one is shorter, it must be smaller
+
+}; // struct eval_val
+
+
+struct eval_val_hash {
+  std::size_t operator() (const eval_val & k) const {
+    return (k.type == k.NUM ? std::hash<uint64_t>()(k.nv) : std::hash<std::string>()(k.sv));
+  }
+};
+
 
 } // namespace sat_enum
 
