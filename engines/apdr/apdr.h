@@ -191,8 +191,12 @@ std::pair<Model *, bool> do_sygus(
     smt::TermVec & lemmas_btor /*OUT*/ );
 
 public:
-  void propose_new_lemma_to_block(fcex_t * pre, fcex_t * post);
+  // return true if new lemmas added
+  // otherwises can continue to itp
+  bool propose_new_lemma_to_block(fcex_t * pre, fcex_t * post);
   // within pre/post, you have fidx
+  void use_itp_or_not_cube(Model * model_to_block, Lemma::LemmaOrigin cex_type,
+    unsigned fidx, unsigned prefidx);
   
   // return may block model and fail at init
   std::pair<Model *, bool> gen_lemma(

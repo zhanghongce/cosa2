@@ -40,6 +40,8 @@ unsigned TermLearner::learn_terms_from_cex(Model * pre, Model * post, /*OUTPUT*/
   auto pre_prop = full_pre->to_expr_btor(solver_);
   auto post_prop = NOT(to_next_(post->to_expr_btor(solver_)));
   unsigned delta_term_num = 0;
+  D(0, "[TermLearner] Pre model : {}", full_pre->to_string() );
+  D(0, "[TermLearner] Post model : {}", post->to_string() );
   solver_->push();
     solver_->assert_formula(pre_prop);
     solver_->assert_formula(trans_);
@@ -47,8 +49,8 @@ unsigned TermLearner::learn_terms_from_cex(Model * pre, Model * post, /*OUTPUT*/
     auto res = solver_->check_sat();
     assert(res.is_sat());
     // okay now we need to find the right model on terms
-    delta_term_num += same_val_replace_ast(varset_info);
     delta_term_num += concat_to_extract(varset_info);
+    delta_term_num += same_val_replace_ast(varset_info);
     delta_term_num += extract_complement(varset_info);
 
   solver_->pop();
@@ -124,6 +126,8 @@ unsigned TermLearner::same_val_replace_ast( /*INOUT*/  PerVarsetInfo & varset_in
   unsigned new_terms = 0;
   for(auto & width_info_pair : varset_info.terms){
     auto width = width_info_pair.first;
+    if (width <= 1)
+      continue;
     std::unordered_map<eval_val, std::vector<smt::Term>, eval_val_hash> eq_class; // equivalent classes
 
     for (const auto & t : width_info_pair.second.terms) {
@@ -162,6 +166,28 @@ unsigned TermLearner::same_val_replace_ast( /*INOUT*/  PerVarsetInfo & varset_in
   return new_terms;
 } // same_val_replace_ast
 
+static bool replace_child_in_parent(smt::SmtSolver & solver_, 
+  const smt::Term & child_old, const smt::Term & child_new,
+  const smt::Term & parent,
+  smt::TermVec & out)
+{
+  smt::TermVec old_children;
+  std::vector<unsigned> child_pos;
+  unsigned idx = 0;
+  for(const auto & c : *parent) {
+    old_children.push_back(c);
+    if (c == child_old)
+      child_pos.push_back(idx);
+    ++ idx;
+  }
+  for (auto idx : child_pos) {
+    old_children[idx] = child_new;
+    out.push_back(solver_->make_term(parent->get_op(), old_children));
+    old_children[idx] = child_old;
+  }
+  return !child_pos.empty();
+} // replace_child_in_parent
+
 // let's just make the stack larger
 unsigned TermLearner::replace_hierachically(
   const smt::Term & orig, const smt::Term & repl, PerVarsetInfo & varset_info ) {
@@ -177,11 +203,13 @@ unsigned TermLearner::replace_hierachically(
   for(const auto & p : parentvec) {
     if (varset_info.TermLearnerIsOut(p))
       continue;
-    smt::UnorderedTermMap subs;
-    subs.emplace(orig, repl);
-    auto new_term = solver_->substitute(p, subs);
-    nterm += varset_info.TermLearnerInsertTerm(new_term) ? 1 : 0;
-    nterm += replace_hierachically(p, new_term, varset_info);
+
+    smt::TermVec new_terms;
+    replace_child_in_parent(solver_, orig, repl, p, new_terms);
+    for (const auto & new_term : new_terms) {
+      nterm += varset_info.TermLearnerInsertTerm(new_term) ? 1 : 0;
+      nterm += replace_hierachically(p, new_term, varset_info);
+    }
   }
   return nterm;
 } // replace_hierachically

@@ -46,13 +46,12 @@ bool TermExtractor::Skip(const smt::Term & ast) {
 
 void TermExtractor::PreChild(const smt::Term & ast) {
   assert(!IN(ast, walked_nodes_));
-  walked_nodes_.emplace(ast, node_info_t() );
 }
 
 void TermExtractor::PostChild(const smt::Term & ast) {
   // check if it is leaf
 
-  //walked_nodes_.emplace(ast, node_info_t() );
+  walked_nodes_.emplace(ast, node_info_t() );
 
   unsigned width;
   auto sort_kind = ast->get_sort()->get_sort_kind() ;
@@ -115,17 +114,18 @@ bool ParentExtract::Skip(const smt::Term & ast) {
 }
 
 void ParentExtract::PreChild(const smt::Term & ast) {
- walked_nodes_.insert(ast);
+  assert(!IN(ast, walked_nodes_));
+ // walked_nodes_.insert(ast);
 }
 
 void ParentExtract::PostChild(const smt::Term & ast) {
  // for all its child, add parent pointer to the map
-
+  walked_nodes_.insert(ast);
   if (ast->is_symbolic_const()) { }
   else if ( ast->is_value() ) { } 
   else { // we will hope it is op
     for(auto && p : *ast) { // for each of its child node
-      parent_[p].push_back(ast);
+      parent_[p].insert(ast);
     } // set up its parent to have ast there
   } // end of op
 } // PostChild

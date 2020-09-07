@@ -69,7 +69,7 @@ protected:
 class ParentExtract : public Walker {
 public:
   // ----------- TYPE --------------- //
-  typedef std::unordered_map<smt::Term, smt::TermVec> parent_map_t;
+  typedef std::unordered_map<smt::Term, smt::UnorderedTermSet> parent_map_t;
 
   ParentExtract() {} // do nothing
   static void ClearCache() { parent_.clear(); }

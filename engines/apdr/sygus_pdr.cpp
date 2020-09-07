@@ -90,7 +90,7 @@ void Apdr::reset_sygus_syntax() {
 }
 
 
-void Apdr::propose_new_lemma_to_block(fcex_t * pre, fcex_t * post) {
+bool Apdr::propose_new_lemma_to_block(fcex_t * pre, fcex_t * post) {
   // TODO: here
   unsigned proposing_new_terms_round = 0;
   unsigned n_new_terms;
@@ -100,35 +100,37 @@ void Apdr::propose_new_lemma_to_block(fcex_t * pre, fcex_t * post) {
         pre->cex, post->cex, *(term_learner_.get()));
     D(1, "[propose-new-term] Round {}. Get {} new terms.", proposing_new_terms_round, n_new_terms);
     if (n_new_terms != 0) {
-      smt::TermVec lemma_msat, lemma_btor;
-      gen_lemma(pre->fidx, frame_prop_btor(pre->fidx), 
-        post->cex, lemma_msat, lemma_btor  );
-      D(1, "[propose-new-term] Round {}. Get {} lemma(s).", proposing_new_terms_round, lemma_btor.size());
-    
-      if (!lemma_btor.empty()) {
-        // we found new terms and find good preds
-        // TODO: insert to frames and then quit
-        for(unsigned lidx = 0; lidx < lemma_btor.size(); ++ lidx)  {
-          Lemma * lemma = new_lemma(lemma_btor.at(lidx), lemma_msat.at(lidx),
-            post->cex, post->cex_origin); // Question cex origin?
-          _add_lemma(lemma, post->fidx);
-          _add_pushed_lemma(lemma, 1, post->fidx - 1);
-        } // new lemmas added, and we can pop the queue
-        return;
-      }
+      unsat_enum::Enumerator sygus_enumerator(
+        to_next_func_,
+        extract_model_func_,
+        btor(),
+        ts_.trans(), ts_.init(),
+        frame_prop_btor(pre->fidx) /*prevF*/, 
+        post->cex /*cex*/,
+        sygus_term_manager_   
+      );
+      if (sygus_enumerator.CheckPrepointNowHasPred(pre->cex))
+        return true;
       proposing_new_terms_round ++;
+      D(1, "[propose-new-term] Round {}. New terms are not useful for c{}-/->c{}.", proposing_new_terms_round,
+        pre->fidx, post->fidx);
+      D(1, "[propose-new-term] c{} : {}", pre->fidx, pre->cex->to_string() );
+      D(1, "[propose-new-term] c{} : {}", post->fidx, post->cex->to_string() );
     }
   } while(n_new_terms != 0); // if we can no longer find new terms, we should give up
-  D(1, "[propose-new-term] Continue to try ITP.");
-    
+  D(1, "[propose-new-term] No new terms worked after #round {}", proposing_new_terms_round);
+  assert(false);
+  return false;
   // if failed
+} // propose_new_lemma_to_block
+
+void Apdr::use_itp_or_not_cube(Model * model_to_block, Lemma::LemmaOrigin cex_type,
+   unsigned fidx, unsigned prefidx) {
 
   { // interpolant
-    Model * model_to_block = post->cex;
-    auto fidx = post->fidx;
     smt::Term prop_msat = NOT_msat(model_to_block->to_expr_msat(itp_solver_, to_itp_solver_));
 
-    auto prevF_msat = frame_prop_msat(fidx-1);
+    auto prevF_msat = frame_prop_msat(prefidx);
     if (GlobalAPdrConfig.RM_CEX_IN_PREV)
       prevF_msat = AND_msat(prevF_msat, prop_msat);
 
@@ -136,13 +138,13 @@ void Apdr::propose_new_lemma_to_block(fcex_t * pre, fcex_t * post) {
     smt::Term itp_msat = get_interpolant(prevF_msat, prop_msat);
     smt::Term itp_btor = nullptr;
 
-    D(1, "[propose-new-term] @F{} use itp: {}",  post->fidx, 
-      itp_btor->to_raw_string());
 
     if(itp_msat) {
       itp_btor = to_btor_.transfer_term(itp_msat, false);
-      Lemma * itp = new_lemma(itp_btor, itp_msat, post->cex, post->cex_origin);
+      Lemma * itp = new_lemma(itp_btor, itp_msat, model_to_block, cex_type);
       frames.at(fidx).push_back(itp);
+      D(1, "[propose-new-term] @F{} use itp: {}",  fidx, 
+        itp_btor->to_raw_string());
       return;
     }
   } // interpolant
@@ -151,14 +153,14 @@ void Apdr::propose_new_lemma_to_block(fcex_t * pre, fcex_t * post) {
 
     D(1, "[propose-new-term] @F{} will use NOT(post)");
 
-    auto prop_btor = NOT(post->cex->to_expr_btor(solver_));
-    auto prop_msat = NOT_msat(post->cex->to_expr_msat(itp_solver_, to_itp_solver_));
+    auto prop_btor = NOT(model_to_block->to_expr_btor(solver_));
+    auto prop_msat = NOT_msat(model_to_block->to_expr_msat(itp_solver_, to_itp_solver_));
 
-    Lemma * itp = new_lemma(prop_btor, prop_msat, post->cex, post->cex_origin);
-    frames.at(post->fidx).push_back(itp);
+    Lemma * itp = new_lemma(prop_btor, prop_msat, model_to_block, cex_type);
+    frames.at(fidx).push_back(itp);
     return;
   }
-} // propose_new_lemma_to_block
+} // UseItpOrNotCube
 
 // extract_model_t
 // set 
@@ -245,8 +247,8 @@ std::pair<Model *, bool> Apdr::do_sygus(
   // by the lambda function extract_model_func_
   sygus_enumerator.GetNCandidates(lemmas_btor, GlobalAPdrConfig.UNSAT_CORE_MULTI);
   assert(lemmas_btor.empty() == (extract_model_output_ != NULL));
-  if(extract_model_output_)
-    assert(!extract_model_output_->cube.empty());
+  //if(extract_model_output_)
+  //  assert(!extract_model_output_->cube.empty()); // it can be empty
   return std::make_pair(extract_model_output_, sygus_failed_at_init);
 } // do_sygus
 

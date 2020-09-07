@@ -269,6 +269,22 @@ void Enumerator::DebugRegResult(const smt::UnorderedTermSet & res) {
   std::cerr << "}" << std::endl;
 }
 
+bool Enumerator::CheckPrepointNowHasPred(Model * m) {
+  smt::Term Prepoint = m->to_expr_btor(solver_);
+  smt::Term F_and_T = AND(prev_, trans_);
+  smt::Term base_term = OR( AND(Prepoint, F_and_T) ,to_next_(init_) );
+  //smt::UnorderedTermSet inpreds (.begin(), per_cex_info_.predicates_nxt.end());
+  //inpreds.insert(base_term);
+  solver_->push();
+  solver_->assert_formula(base_term);
+  for (const auto & p : per_cex_info_.predicates_nxt) {
+    solver_->assert_formula(p);
+    D(0, "Assert : {}", p->to_string() );
+  }
+  auto res = solver_->check_sat();
+  solver_->pop();
+  return res.is_unsat();
+}
 
 // if n == 0, will get all
 // if cands is empty: no good predicates

@@ -367,13 +367,19 @@ bool Apdr::recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_or
       // revsersely traverse
       fcex_t * pre = NULL, * post = NULL;
       unsigned idx;
+      std::cout << "|P|="  << cexs_to_block.size() << " init";
       for (idx = cexs_to_block.size()-1; idx > 0; --idx) {
         if (!(cexs_to_block.at(idx).can_transit_to_next) ){
           pre = & (cexs_to_block.at(idx));
           post = & (cexs_to_block.at(idx-1));
+
+          std::cout << "--aT--> F" << cexs_to_block.size()-idx;
           break;          
         }
+        // else
+        std::cout << "--cT--> F" << cexs_to_block.size()-idx;
       } // reverse find
+      std::cout << std::endl;
       if (idx == 0) { // always able to transit_to_next 
         CHECK_PROP_FAIL(cexs_to_block);
         D(3, "      [block-try] CEX found!"); // because we always start from MUST block
@@ -382,16 +388,25 @@ bool Apdr::recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_or
         return false;
       } // else
       assert (pre && post);
-      propose_new_lemma_to_block(pre, post); // must succeed, worse case itp/not post
-      // pop till idx-1 (idx-1 will also be removed)
-      unsigned post_fidx = post->fidx;
-      cexs_to_block.erase(cexs_to_block.begin() + idx - 1 , cexs_to_block.end());
-      prev_action = prev_action_t::PREV_POP;
-      // cexs_to_block.resize(idx-1); //
-      // p
-      if (!cexs_to_block.empty()) 
-        push_lemma_from_frame(post_fidx, false); // because next we will be on post + 1 frame
-    }
+      bool new_terms = propose_new_lemma_to_block(pre, post); // must succeed, worse case itp/not post
+      if (new_terms) {
+        prev_action = prev_action_t::NONE;
+        cexs_to_block.erase(cexs_to_block.begin() + idx , cexs_to_block.end());
+        // we retry on --aT-> (cex),   that cex
+      } else {
+        // use itp as we cannot do better
+        use_itp_or_not_cube(post->cex, post->cex_origin, post->fidx, pre->fidx);
+        // pop till idx-1 (idx-1 will also be removed)
+        unsigned post_fidx = post->fidx;
+        cexs_to_block.erase(cexs_to_block.begin() + idx - 1 , cexs_to_block.end());
+        prev_action = prev_action_t::PREV_POP;
+        // cexs_to_block.resize(idx-1); //
+        // p
+        if (!cexs_to_block.empty()) 
+          push_lemma_from_frame(post_fidx, false); // because next we will be on post + 1 frame
+      }
+      continue;
+    } // end of if reached F0
 
     D(3, "      [block] check at F{} -> @F{} {} : {}", fidx-1, fidx, Lemma::origin_to_string(cex_type), cex->to_string());
 

@@ -76,6 +76,8 @@ public:
 
   void GetNCandidatesRemoveInPrev(smt::TermVec & cands, size_t n) ;
 
+  bool CheckPrepointNowHasPred(Model * m);
+
 protected:
   void GetOneCandidate(const smt::UnorderedTermSet & in, 
     smt::UnorderedTermSet & unsatcore, const smt::Term & base_term, const smt::Term & F_and_T, bool first_check) ;

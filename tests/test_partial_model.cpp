@@ -16,6 +16,9 @@
 #include "engines/apdr/transferts.h"
 #include "engines/sygus/partial_model.h"
 #include "engines/sygus/ast_knob/opextract.h"
+#include "engines/sygus/ast_knob/common.h"
+#include "engines/sygus/ast_knob/term_extract.h"
+#include "engines/sygus/ast_knob/term_learning.h"
 #include "engines/sygus/gen_sygus_query.h"
 #include "engines/sygus/unsat_enum.h"
 #ifdef WITH_MSAT
@@ -389,6 +392,7 @@ TEST (SygusInternal, FromCex)  {
     
     bool sygus_failed_at_init = false;
     Model * fail_model = NULL;
+    Model * full_model = NULL;
     auto extract_model_func_ = [&] (const smt::UnorderedTermSet & varset, bool failed_at_init) -> void {
     sygus_failed_at_init = failed_at_init;
     if (!failed_at_init) {
@@ -398,48 +402,209 @@ TEST (SygusInternal, FromCex)  {
         var_next.push_back( fts_btor.next_to_expr( fts_btor.next(v) ) );
       pt.GetVarListForAsts(var_next, var_pre,  GlobalAPdrConfig.CACHE_PARTIAL_MODEL_CONDITION);
       // we will not try to cut inputs away
-      fail_model = new Model(btor, var_pre); // get the model on thies vars
+
+      full_model = new Model(btor, var_pre);
+      fail_model = new Model(*full_model); // copy model
+      auto pos = fail_model->cube.begin();
+      while(pos != fail_model->cube.end()) {
+        if ( !fts_btor.is_curr_var( pos->first) ) { //  if it is not a state var
+          pos = fail_model->cube.erase(pos);          
+        } else {
+          ++ pos;
+        }
+      } // erase it
+      unsat_enum::TermLearner::RegisterPartialToFullModelMap(fail_model, full_model);
     } else {
       // get the next vars and make them the current ones
       smt::UnorderedTermSet var_next;
       for (const auto & v:varset)
         var_next.insert(fts_btor.next(v));
       fail_model = new Model(btor, var_next, fts_btor.curr_map() );
+      unsat_enum::TermLearner::RegisterPartialToFullModelMap(fail_model, fail_model);
     }
   };
 
     unsat_enum::VarTermManager sygus_term_manager_;
+    unsat_enum::ParentExtract parent_extractor_;
+    unsat_enum::ParentExtract::ClearCache();
     { // register terms to find exprs
-      for (auto && v_nxtexpr_pair : fts_btor.state_updates())
+      for (auto && v_nxtexpr_pair : fts_btor.state_updates()) {
         sygus_term_manager_.RegisterTermsToWalk(v_nxtexpr_pair.second);
+        parent_extractor_.WalkBFS(v_nxtexpr_pair.second);
+      }
       sygus_term_manager_.RegisterTermsToWalk(fts_btor.init());
+      parent_extractor_.WalkBFS(fts_btor.init());
       sygus_term_manager_.RegisterTermsToWalk(fts_btor.constraint());
+      parent_extractor_.WalkBFS(fts_btor.constraint());
       sygus_term_manager_.RegisterTermsToWalk(prop_btor);
+      parent_extractor_.WalkBFS(prop_btor);
     }
     
-    
-    unsat_enum::Enumerator sygus_enumerator(
-      to_next,
-      extract_model_func_,
-      btor,
-      fts_btor.trans(), fts_btor.init(),
-      fts_btor.init() /*prevF*/, 
-      {&m} /*cexs \*/,
-      sygus_term_manager_      
-    );
+    { // in the case that we are able to block
+      unsat_enum::Enumerator::ClearCache();
+      unsat_enum::Enumerator sygus_enumerator(
+        to_next,
+        extract_model_func_,
+        btor,
+        fts_btor.trans(), fts_btor.init(),
+        fts_btor.init() /*prevF*/, 
+        &m /*cexs \*/,
+        sygus_term_manager_      
+      );
 
-    std::cout << "Cex : " << m.to_string() << std::endl;
-    smt::TermVec cands;
-    sygus_enumerator.GetNCandidatesRemoveInPrev(cands,3); //1 , 3 , 0 also rm_prev
+      std::cout << "Cex : " << m.to_string() << std::endl;
+      smt::TermVec cands;
+      sygus_enumerator.GetNCandidatesRemoveInPrev(cands,3); //1 , 3 , 0 also rm_prev
 
-    std::cout << "----------- Result btor ---------" << std::endl;
-    for (const auto & c : cands)
-      std::cout << ">> Result btor : " << c->to_string() << std::endl;
-    std::cout << "----------- " << cands.size() << "  ---------" << std::endl;
+      std::cout << "----------- Result btor ---------" << std::endl;
+      for (const auto & c : cands)
+        std::cout << ">> Result btor : " << c->to_string() << std::endl;
+      std::cout << "----------- " << cands.size() << "  ---------" << std::endl;
 
-    if (fail_model)
+      if (fail_model) {
+        delete fail_model;
+        fail_model = NULL;
+      }
+      if (full_model) {
+        delete full_model;
+        full_model = NULL;
+      }
+      sygus_enumerator.ClearCache();
+    } // end we can block
+
+    { // now let's test gen_new_terms
+      /*
+      [block] check at F1 -> @F2 MAY : addr= #b1101110001100100 , cnt= #b0000000000000001 , base= #b0111011000000100 ,
+      [block] check at F0 -> @F1 MAY : addr= #b0111011000000100 , cnt= #b0000000000000000 , base= #b0111011000000100 , 
+      Before var cut: inp= #b0111011000000100 , rst= #b0 , en= #b1 , 
+      [block] push to queue, @F0 --cT--> prime : true
+      */
+      // 2. try to block it        0123456789012345
+      Model mpost; // mpre_full
+      auto bv16sort = btor->make_sort(smt::SortKind::BV, 16);
+      {
+        const auto & a = fts_btor.symbols().at("addr-1");
+        const auto & b = fts_btor.symbols().at("base$5#3");
+        const auto & c = fts_btor.symbols().at("cnt");
+        // const auto & inp = fts_btor.symbols().at("inp");
+        // const auto & en = fts_btor.symbols().at("en.d");
+        // const auto & rst = fts_btor.symbols().at("rst_");
+        auto bv = [&btor, &bv16sort](const std::string & s) -> smt::Term {
+          return btor->make_term(s, bv16sort, 2);
+        };
+
+        mpost.cube.emplace(a, bv("1101110001100100"));
+        mpost.cube.emplace(b, bv("0111011000000100"));
+        mpost.cube.emplace(c, bv("0000000000000001"));
+
+        // mpre_full.cube.emplace(inp,bv("0111011000000100"));
+        // mpre_full.cube.emplace(rst,bv("0"));
+        // mpre_full.cube.emplace(en,bv("1"));
+        // unsat_enum::TermLearner::RegisterPartialToFullModelMap(&mpre, &mpre_full);
+      } // end of create model
+
+      { // first make sure this is not blockable on F0->F1
+          unsat_enum::Enumerator sygus_enumerator(
+          to_next,
+          extract_model_func_,
+          btor,
+          fts_btor.trans(), fts_btor.init(),
+          fts_btor.init() /*prevF*/, 
+          &mpost /*cexs \*/,
+          sygus_term_manager_      
+        );
+
+        std::cout << "Cex : " << mpost.to_string() << std::endl;
+        smt::TermVec cands;
+        EXPECT_TRUE(fail_model == NULL);
+        EXPECT_TRUE(full_model == NULL);
+        sygus_enumerator.GetNCandidatesRemoveInPrev(cands,1); //1 , 3 , 0 also rm_prev
+
+        EXPECT_EQ(cands.empty(), true);
+        EXPECT_TRUE(fail_model != NULL);
+        // EXPECT_TRUE(full_model != NULL);
+        if (fail_model) {
+          std::cout <<" Pre-model : " << fail_model->to_string() << std::endl;
+          //delete fail_model;
+          //fail_model = NULL;
+        }
+        if (full_model) {
+          std::cout <<" Pre-model (full) : " << full_model->to_string() << std::endl;
+          //delete full_model;
+          //full_model = NULL;
+        }
+      } // end of unblockable
+
+
+      // create term_learner
+      unsat_enum::TermLearner term_learner(
+        fts_btor.trans(), to_next, btor, unsat_enum::ParentExtract::GetParentRelation()
+      );
+
+      unsigned n_new_terms ;
+      do {
+        n_new_terms = 
+          sygus_term_manager_.GetMoreTerms(fail_model, &mpost, term_learner);
+        
+        if (fail_model) {
+          delete fail_model;
+          fail_model = NULL;
+        }
+        if (full_model) {
+          delete full_model;
+          full_model = NULL;
+        }
+
+        unsat_enum::Enumerator sygus_enumerator(
+          to_next,
+          extract_model_func_,
+          btor,
+          fts_btor.trans(), fts_btor.init(),
+          fts_btor.init() /*prevF*/, 
+          &mpost /*cexs \*/,
+          sygus_term_manager_      
+        );
+
+        std::cout << "Cex : " << mpost.to_string() << std::endl;
+        smt::TermVec cands;
+        EXPECT_TRUE(fail_model == NULL);
+        EXPECT_TRUE(full_model == NULL);
+        sygus_enumerator.GetNCandidatesRemoveInPrev(cands,1); //1 , 3 , 0 also rm_prev
+
+        if (!cands.empty()) {
+          std::cout << "----------- Result lemma ---------" << std::endl;
+          for (const auto & c : cands)
+            std::cout << ">> Result lemma : " << c->to_string() << std::endl;
+          std::cout << "----------- " << cands.size() << "  ---------" << std::endl;
+          break;
+        }
+
+        // EXPECT_TRUE(full_model != NULL);
+        if (fail_model) {
+          std::cout <<" Pre-model : " << fail_model->to_string() << std::endl;
+          //delete fail_model;
+          //fail_model = NULL;
+        }
+        if (full_model) {
+          std::cout <<" Pre-model (full) : " << full_model->to_string() << std::endl;
+          //delete full_model;
+          //full_model = NULL;
+        }
+      } while(n_new_terms > 0);
+    } // gen_new_term test end
+
+    if (fail_model) {
       delete fail_model;
-    sygus_enumerator.ClearCache();
+      fail_model = NULL;
+    }
+    if (full_model) {
+      delete full_model;
+      full_model = NULL;
+    }
+
+    unsat_enum::Enumerator::ClearCache();
+    unsat_enum::ParentExtract::ClearCache();
+    unsat_enum::TermLearner::ClearCache();
 } // InternalSygus from cex
 
 

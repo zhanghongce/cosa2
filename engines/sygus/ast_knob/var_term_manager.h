@@ -60,7 +60,7 @@ protected:
 
   // 2. ----------------------------------------------
   // helps with the Terms
-  const PerVarsetInfo & VarTermManager::SetupTermsForVar(
+  const PerVarsetInfo & SetupTermsForVar(
     Model * m, const std::string & canonical_string);
     
 }; // class VarTermManager

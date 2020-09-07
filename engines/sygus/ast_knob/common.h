@@ -35,6 +35,12 @@ struct PerWidthInfo {
 
 class VarTermManager;
 
+// --------------------------------------------------
+//
+//               PerVarsetInfo
+//
+// --------------------------------------------------
+
 struct PerVarsetInfo {
   // --- type definition --- //
   typedef std::map<unsigned, smt::TermVec> width_term_map_t;
@@ -66,25 +72,11 @@ protected: // let's restrict the accesses to these fields
 }; // class PerVarsetInfo
 
 
-struct PerCexInfo {
-  struct term_const_num{
-    unsigned term_num;
-    unsigned const_num;
-    term_const_num(): term_num(0), const_num(0) {}
-  };
-
-  std::unordered_map<smt::Term,eval_val> terms_val_under_cex;
-  std::vector<smt::Term> predicates_nxt;
-  std::unordered_map<smt::Term, smt::Term> pred_next_to_pred_curr;
-  const PerVarsetInfo & varset_info; // reference from VarTermManager
-
-  std::map<unsigned, term_const_num> prev_per_width_term_num;
-  PerCexInfo(const PerVarsetInfo & info) : varset_info(info) {}
-};
-
-typedef std::unordered_map<Model *, PerCexInfo>   cex_term_map_t; // the enumeration position of a cex
-
-
+// --------------------------------------------------
+//
+//               eval_val
+//
+// --------------------------------------------------
 
 // value for enumeration
 struct eval_val { // will always convert to uint64_t, if width < 64
@@ -117,6 +109,32 @@ struct eval_val_hash {
     return (k.type == k.NUM ? std::hash<uint64_t>()(k.nv) : std::hash<std::string>()(k.sv));
   }
 };
+
+// --------------------------------------------------
+//
+//               PerCexInfo
+//
+// --------------------------------------------------
+
+struct PerCexInfo {
+  struct term_const_num{
+    unsigned term_num;
+    unsigned const_num;
+    term_const_num(): term_num(0), const_num(0) {}
+  };
+
+  std::unordered_map<smt::Term,eval_val> terms_val_under_cex;
+  std::vector<smt::Term> predicates_nxt;
+  std::unordered_map<smt::Term, smt::Term> pred_next_to_pred_curr;
+  const PerVarsetInfo & varset_info; // reference from VarTermManager
+
+  std::map<unsigned, term_const_num> prev_per_width_term_num;
+  PerCexInfo(const PerVarsetInfo & info) : varset_info(info) {}
+};
+
+typedef std::unordered_map<Model *, PerCexInfo>   cex_term_map_t; // the enumeration position of a cex
+
+
 
 
 } // namespace sat_enum
