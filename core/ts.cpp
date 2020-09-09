@@ -100,8 +100,21 @@ void TransitionSystem::add_constraint(const Term & constraint)
     constraint_ = solver_->make_term(And, constraint_, constraint);
     constraint_ = solver_->make_term(And, constraint_, solver_->substitute(constraint, next_map_));
   } else if (no_next(constraint)) {
+    
+#if 0    
     trans_ = solver_->make_term(And, trans_, constraint);
     constraint_ = solver_->make_term(And, constraint_, constraint);
+#else
+    init_ = solver_->make_term(And, init_, constraint);
+    trans_ = solver_->make_term(And, trans_, constraint);
+    // add over next states
+    trans_ = solver_->make_term(
+        And, trans_, solver_->substitute(constraint, next_map_));
+
+    constraint_ = solver_->make_term(And, constraint_, constraint);
+    constraint_ = solver_->make_term(And, constraint_, solver_->substitute(constraint, next_map_));
+#endif
+
   } else {
     throw CosaException("Constraint cannot have next states");
   }
