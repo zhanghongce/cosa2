@@ -250,23 +250,23 @@ void Enumerator::DebugRegAllpred(const smt::UnorderedTermSet & inpreds) {
   for (const auto & t : inpreds) {
     pred_to_numbers.emplace(t,idx++);
   }
-  std::cerr << "Total pred: #" << idx << std::endl;
+  std::cout << "Total pred: #" << idx << std::endl;
 }
 
 void Enumerator::DebugRegSelRemove(const smt::Term & sel, const std::string & action) {
   auto pos = pred_to_numbers.find(sel);
   assert(pos != pred_to_numbers.end());
-  std::cerr << "  -> " << action << " no. " << pos->second << std::endl;
+  std::cout << "  -> " << action << " no. " << pos->second << std::endl;
 }
 
 void Enumerator::DebugRegResult(const smt::UnorderedTermSet & res) {
-  std::cerr << "     result : {" ;
+  std::cout << "     result : {" ;
   for (const auto & p : res) {
     auto pos = pred_to_numbers.find(p);
     assert(pos != pred_to_numbers.end());
-    std::cerr << pos->second << ", ";
+    std::cout << pos->second << ", ";
   }
-  std::cerr << "}" << std::endl;
+  std::cout << "}" << std::endl;
 }
 
 bool Enumerator::CheckPrepointNowHasPred(Model * m) {
@@ -279,7 +279,7 @@ bool Enumerator::CheckPrepointNowHasPred(Model * m) {
   solver_->assert_formula(base_term);
   for (const auto & p : per_cex_info_.predicates_nxt) {
     solver_->assert_formula(p);
-    D(0, "Assert : {}", p->to_string() );
+    // D(0, "Assert : {}", p->to_string() );
   }
   auto res = solver_->check_sat();
   solver_->pop();
@@ -407,14 +407,7 @@ void Enumerator::GetOneCandidate(const smt::UnorderedTermSet & in, smt::Unordere
     assert (unsatcore.size() <= old_size);
     assert (!unsatcore.empty());
     assert(IN(base_term, unsatcore)); // otherwise just the conjunction of preds are unsat
-    // if dump
-    for(const auto & p: unsatcore) {
-      if (p == base_term)
-        D(0, "Unsat base: (F/\\T)\\/INIT' ");
-      else
-        D(0, "Unsat pred: {}", p->to_raw_string());
-    }
-    
+        
     if (unsatcore.size() == old_size) {
       D(0, "Unsat enum done, iter {}, core size {}", n_iter, unsatcore.size());
       break;
@@ -426,6 +419,17 @@ void Enumerator::GetOneCandidate(const smt::UnorderedTermSet & in, smt::Unordere
   GlobalTimer.RegisterEventEnd("Enum.SMTQuery", n_iter );
 
   assert(IN(base_term, unsatcore));
+
+  // if dump
+#ifdef DEBUG
+  for(const auto & p: unsatcore) {
+    if (p == base_term)
+      D(0, "Unsat base: (F/\\T)\\/INIT' ");
+    else
+      D(0, "Unsat pred: {}", p->to_raw_string());
+  }
+#endif
+
   unsatcore.erase(base_term);
   assert(!unsatcore.empty());
 } // GetOneCandidate
@@ -463,6 +467,7 @@ bool Enumerator::check_failed_at_init(const smt::Term & F_and_T) {
 
 void Enumerator::DebugPredicates(const smt::UnorderedTermSet & inpreds, const smt::Term & base, const smt::Term & init, bool rm_pre) {
 
+#if 0
   bool base_term_in = false;
   for (const auto & p : inpreds) {
     if (p == base) {
@@ -472,6 +477,7 @@ void Enumerator::DebugPredicates(const smt::UnorderedTermSet & inpreds, const sm
       D(0, "{} on s': {} ", t_curr->to_raw_string(), solver_->get_value(p)->to_string());
     }
   }
+#endif
 
   // finally print base and init
   D(0, "INIT' : {} ", solver_->get_value(to_next_(init))->to_string());
@@ -595,10 +601,10 @@ smt::Term Enumerator::GetOneCandidateRemoveInPrev(const smt::UnorderedTermSet & 
     if (res.is_sat()) {
       // we cannot find a good set of predicates
       if (n_iter != 1) {
-        std::cerr << "---------- DUMPING constraints ---------" << unsatcore.size() << std::endl;
+        std::cout << "---------- DUMPING constraints ---------" << unsatcore.size() << std::endl;
         unsigned idx = 0;
         for (const auto & p : unsatcore) {
-          std::cerr << ">>> p" << idx << (p == base ? 'b' : ' ')  << " : " << p->to_raw_string() << std::endl;
+          std::cout << ">>> p" << idx << (p == base ? 'b' : ' ')  << " : " << p->to_raw_string() << std::endl;
           idx ++;
         }
       }
