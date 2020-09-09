@@ -102,8 +102,13 @@ void Apdr::initialize() {
   frames.back().push_back(
     new_lemma(
       ts_.init(), bv_to_bool_msat( ts_msat_.init() , itp_solver_),
-      NULL, Lemma::LemmaOrigin::ORIGIN_FROM_INIT) );
-  // frames.push_back(frame_t()); // F1 = []
+      NULL, LCexOrigin::FromInit() ) );
+  frames.push_back(frame_t()); // F1 = [p]
+  frames.back().push_back(
+    new_lemma(
+      property_.prop(), property_msat_,
+      NULL, LCexOrigin::FromProperty() ) );
+
 
   // sygus state name initialization
   for (auto && s : sygus_symbol_)
@@ -347,8 +352,8 @@ Apdr::solve_trans_lemma_result Apdr::solveTransLemma(
 
 // if blocked return true
 // else false
-bool Apdr::recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_origin) {
-  assert (cex_origin == Lemma::LemmaOrigin::MUST_BLOCK);
+bool Apdr::recursive_block(Model * cube, unsigned idx, Lemma::LCexOrigin cex_origin) {
+  assert (cex_origin.is_must_block());
 
   PUSH_STACK(APdrConfig::Apdr_working_state_t::RECURSIVE_BLOCK);
   D(2, "      [block F{}] Try @F{} id {} : {}", idx, idx, reinterpret_cast<long>(cube), cube->to_string());
@@ -374,7 +379,7 @@ bool Apdr::recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_or
     const auto & head = cexs_to_block.back(); // the last one is the smallest
     unsigned fidx = head.fidx;
     Model * cex = head.cex;
-    Lemma::LemmaOrigin cex_type = head.cex_origin;
+    Lemma::LCexOrigin cex_type = head.cex_origin;
     if (fidx == 0) {
       // may or may not matter, because it could be just a may block
       // TODO: find the lowest !can_transit_to_next's next
@@ -399,10 +404,9 @@ bool Apdr::recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_or
       std::cout << std::endl;
 
       std::cout << "Before CEX stack dump: ";
-      for (auto pos = cexs_to_block.rbegin(); pos != cexs_to_block.rend(); ++pos) {
+      for (auto pos = cexs_to_block.rbegin(); pos != cexs_to_block.rend(); ++pos)
         std::cout << "F"<<pos->fidx << (pos->can_transit_to_next ?  "--c-->" : "--a-->");
-      }
-      std::cout <<"not P" << std::endl;
+      std::cout << "(" << cexs_to_block.at(0).cex_origin.dist_to_fail() << ") not P" << std::endl;
 
       if (idx == 0) { // always able to transit_to_next 
         CHECK_PROP_FAIL(cexs_to_block);
@@ -440,7 +444,7 @@ bool Apdr::recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_or
       std::cout << "After CEX stack dump: ";
       for (auto pos = cexs_to_block.rbegin(); pos != cexs_to_block.rend(); ++pos) 
         std::cout << "F"<<pos->fidx << (pos->can_transit_to_next ?  "--c-->" : "--a-->");
-      std::cout <<"not P" << std::endl;
+      std::cout << "(" << cexs_to_block.at(0).cex_origin.dist_to_fail() << ") not P" << std::endl;
       assert(cexs_to_block.size() == prev_frame_sizes.size());
 
       continue;
@@ -471,7 +475,9 @@ bool Apdr::recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_or
 
     if (trans_result.unblockable()) {
       unsigned prev_fidx = trans_result.not_hold_at_init ? 0 : fidx-1;
-      cexs_to_block.push_back(fcex_t(prev_fidx, trans_result.prev_ex, true, cex_type));
+      auto prev_type = cex_type.is_may_block() ? cex_type : LCexOrigin::MustBlock(cex_type.dist_to_fail()+1);
+
+      cexs_to_block.push_back(fcex_t(prev_fidx, trans_result.prev_ex, true, prev_type )); // cex_type
       prev_frame_sizes.push_back(frames.at(prev_fidx).size());
 
       D(3, "      [block] push to queue, @F{} --cT--> prime : {}", prev_fidx,  trans_result.prev_ex->to_string());
@@ -497,7 +503,7 @@ bool Apdr::recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_or
 
         // we may want to tighten a bit the prev frame
         unsigned prev_fidx = trans_result.may_block_at_init ? 0 : fidx-1;
-        cexs_to_block.push_back(fcex_t(prev_fidx, trans_result.may_block, false, Lemma::LemmaOrigin::MAY_BLOCK));
+        cexs_to_block.push_back(fcex_t(prev_fidx, trans_result.may_block, false, LCexOrigin::MayBlock()));
         prev_frame_sizes.push_back(frames.at(prev_fidx).size());
 
         prev_action = prev_action_t::PREV_PUSH;
@@ -525,11 +531,15 @@ bool Apdr::recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_or
 // ---------------------------------------------------- //
 
 bool Apdr::check_init_failed() { // will use the prop specified by property
-  Model * failed_m = frame_not_implies_model(0, property_.prop());
-  if (failed_m) {
+  if (!frame_implies(0, property_.prop())) {
     D(1, "Property failed at init.");
     return true; // failed
   }  
+  auto res = solveTrans(0,property_.prop(),false,false,false);
+  if (res.not_hold) {
+    D(1, "Property failed at F[1].");
+    return true;
+  }
   return false;
 }
 
@@ -561,30 +571,28 @@ ProverResult Apdr::check_until(int k) {
       // sanity_check_last_frame_nopushed();
     #endif
 
-    // initially F1 is [], will fail, then add 
-    Model * cube = frame_not_implies_model(frames.size() -1, property_.prop());
-    // recursive block cube 
-    if (cube) {
+
+    auto res = solveTrans(frames.size() -1, property_.prop(), false,false,true);
+    if(res.not_hold) {
+      assert(res.prev_ex);
       INFO("{} , blocking..." , print_frame_stat());
-      if (!recursive_block(cube, frames.size() -1, Lemma::LemmaOrigin::MUST_BLOCK)) {
-        D(1, "[Checking property] Bug found at step {}", frames.size()-1);
-        
+
+      if (!recursive_block(res.prev_ex, frames.size() -1, LCexOrigin::MustBlock(1))) {
+        D(1, "[Checking property] Bug found at step {} + 1", frames.size()-1);
         {
           #ifdef DEBUG
-            auto cube_bmc_reachable = sanity_check_property_at_length_k(NOT(property_.prop()), frames.size() -1);
+            auto cube_bmc_reachable = sanity_check_property_at_length_k(NOT(property_.prop()), frames.size());
             D(1, "[Checking property] BMC result sat: {} ", cube_bmc_reachable.is_sat() ? "True" : "False");
             sanity_check_frame_monotone();
             sanity_check_imply();
             assert ( cube_bmc_reachable.is_sat());
           #endif
         }
-
         POP_STACK;
         return ProverResult(FALSE);
       } else { // blocked
         D(1, "[Checking property] Cube block at F{}", frames.size()-1);
       }
-      // will try to block a second cex in the next round
     } else {
       if (is_last_two_frames_inductive()) {
         D(1, "[Checking property] The system is safe, frame : {}", frames.size());
@@ -602,7 +610,29 @@ ProverResult Apdr::check_until(int k) {
         }
         //  can still be SAT (note T already include constraints)
         frames.push_back(frame_t());
-        push_lemma_from_the_lowest_frame();
+
+        if (!push_lemma_from_the_lowest_frame() ) {
+          assert (must_block_fail.l);
+          // some must block failed to be pushed
+          D(1, "[Checking property] Bug found at step {} + {}", 
+            must_block_fail.failing_frame ,  must_block_fail.l->origin().dist_to_fail());
+          
+          auto bmc_length = must_block_fail.failing_frame +  must_block_fail.l->origin().dist_to_fail();
+          
+          {
+            #ifdef DEBUG
+              auto cube_bmc_reachable = sanity_check_property_at_length_k(NOT(property_.prop()), bmc_length);
+              D(1, "[Checking property] BMC result sat: {} ", cube_bmc_reachable.is_sat() ? "True" : "False");
+              sanity_check_frame_monotone();
+              sanity_check_imply();
+              assert ( cube_bmc_reachable.is_sat());
+            #endif
+          }
+
+          POP_STACK;
+          return ProverResult(FALSE);
+        } // end of !push_lemma_from_the_lowest_frame
+
         if (is_last_two_frames_inductive()) { // if we are lucky to have pushed all
           // Fn -> Fn-1 -> P, so Fn -> P
           D(1, "[Checking property] The system is safe, frame : {}", frames.size());

@@ -29,8 +29,26 @@ class FrameCache;
 
 
 class LemmaPDRInterface : public SignalPDRInterface {
-public:
-  enum LemmaOrigin {MUST_BLOCK, MAY_BLOCK, ORIGIN_FROM_INIT};
+public: 
+  struct LCexOrigin{
+    private:
+      enum CexType {MUST_BLOCK, MAY_BLOCK, ORIGIN_FROM_INIT, PROPERTY} cex_type;
+      unsigned step_to_fail; // only matters for MUST_BLOCK
+    public:
+      LCexOrigin(CexType type, unsigned step) : cex_type(type), step_to_fail(step){}
+
+      bool inline is_must_block() const { return cex_type == MUST_BLOCK; }
+      bool inline is_may_block() const { return cex_type == MAY_BLOCK; }
+      bool inline is_the_property() const { return cex_type == PROPERTY; }
+      unsigned inline dist_to_fail() const { return step_to_fail; }
+      CexType inline get_type() const { return cex_type;} 
+
+      static LCexOrigin MustBlock(unsigned i) { return LCexOrigin(MUST_BLOCK, i); }
+      static LCexOrigin MayBlock() { return LCexOrigin(MAY_BLOCK, 0); }
+      static LCexOrigin FromInit() { return LCexOrigin(ORIGIN_FROM_INIT, 0); }
+      static LCexOrigin FromProperty() { return LCexOrigin(PROPERTY, 0); }
+    
+  };
   
   struct solve_trans_result{
     bool not_hold;
@@ -72,7 +90,7 @@ public:
     bool remove_prop_in_prev_frame,
     bool use_init, bool get_pre_state) = 0;
 
-  virtual bool recursive_block(Model * cube, unsigned idx, LemmaOrigin cex_origin) = 0;
+  virtual bool recursive_block(Model * cube, unsigned idx, LCexOrigin cex_origin) = 0;
   
   // getters
   virtual smt::SmtSolver & btor() = 0;
@@ -98,15 +116,15 @@ public:
 // the lemma on a frame
 class Lemma {
 public:
-  using LemmaOrigin = LemmaPDRInterface::LemmaOrigin;
+  using LCexOrigin = LemmaPDRInterface::LCexOrigin;
   
-  Lemma(const smt::Term & expr, const smt::Term & expr_msat, Model * cex, LemmaOrigin origin);
+  Lemma(const smt::Term & expr, const smt::Term & expr_msat, Model * cex, LCexOrigin origin);
   
   inline smt::Term  expr() const { return expr_; }
   inline smt::Term  expr_msat() const { return expr_msat_; }
   inline Model *  cex() const { return cex_; }
   inline std::string to_string() const { return expr()->to_string(); }
-  inline LemmaOrigin origin() const { return origin_; }
+  inline LCexOrigin origin() const { return origin_; }
 
   Lemma * copy(ModelLemmaManager & mfm);
   
@@ -120,7 +138,7 @@ public:
   // cex_failed, and ITP
 
 
-  static std::string origin_to_string(LemmaOrigin o) ;
+  static std::string origin_to_string(LCexOrigin o) ;
   std::string dump_expr() const;
   std::string dump_cex() const;
 
@@ -132,7 +150,7 @@ protected:
   // the cex it blocks
   Model*  cex_;
   // status tracking
-  LemmaOrigin origin_;
+  LCexOrigin origin_;
   
   unsigned n_itp_push_trial;
   unsigned n_itp_push_failure;
@@ -167,7 +185,7 @@ protected:
 
   Lemma * new_lemma(
     const smt::Term & expr, const smt::Term & expr_msat,
-    Model * cex, Lemma::LemmaOrigin origin);
+    Model * cex, Lemma::LCexOrigin origin);
     
   std::vector<Lemma *> lemma_allocation_pool;
   std::vector<Model *> cube_allocation_pool;

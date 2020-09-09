@@ -359,7 +359,7 @@ void Apdr::sanity_check_prop_fail(const std::vector<fcex_t> & path) {
 
   for(int idx = path.size() -2 ;  idx > -1; --idx) {
     const auto & cex_info = path.at(idx);
-    assert(cex_info.cex_origin == Lemma::LemmaOrigin::MUST_BLOCK);
+    assert(cex_info.cex_origin.is_must_block());
     assert(cex_info.fidx == pre_cex->fidx+1);
 
     std::cout << "Check @F" << cex_info.fidx << " cex : " << cex_info.cex->to_string() << " ... \n";

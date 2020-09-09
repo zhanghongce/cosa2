@@ -76,14 +76,14 @@ Model * ModelLemmaManager::new_model_replace_var(
 
 Lemma * ModelLemmaManager::new_lemma(
     const smt::Term & expr, const smt::Term & expr_msat, 
-    Model * cex, Lemma::LemmaOrigin origin) {
+    Model * cex, Lemma::LCexOrigin origin) {
   //assert(cex); you cannot do this, for init, this is true
   lemma_allocation_pool.push_back(new Lemma(expr, expr_msat, cex, origin));
   return lemma_allocation_pool.back();
 }
 
 
-Lemma::Lemma(const smt::Term & expr, const smt::Term & expr_msat, Model * cex, LemmaOrigin origin):
+Lemma::Lemma(const smt::Term & expr, const smt::Term & expr_msat, Model * cex, LCexOrigin origin):
   expr_(expr), expr_msat_(expr_msat),
   cex_(cex),  origin_(origin), pushed(false),
   n_itp_push_trial(0), n_itp_push_failure(0), 
@@ -127,12 +127,15 @@ void Lemma::stats_sygus_fail(bool failed) {
   ++ n_itp_enhance_trial;
 }
 
-std::vector<std::string_view> origin2str = {
-  "MUST", "MAY", "init"
+std::vector<std::string> origin2str = {
+  "MUST", "MAY", "init", "prop"
 };
 
-std::string Lemma::origin_to_string(LemmaOrigin o) {
-  return static_cast<std::string>(origin2str.at(o));
+std::string Lemma::origin_to_string(LCexOrigin o) {
+  const auto & n = origin2str.at(o.get_type());
+  if (o.is_must_block())
+    return (n + "-" + std::to_string(o.dist_to_fail()));
+  return n;
 }
 
 std::string Lemma::dump_expr() const {

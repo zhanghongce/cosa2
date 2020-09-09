@@ -60,15 +60,23 @@ public:
     unsigned fidx;
     Model * cex;
     bool can_transit_to_next;
-    Lemma::LemmaOrigin cex_origin;
-    fcex_t(unsigned fidx_, Model * cex_,  bool can_transit_to_next_, Lemma::LemmaOrigin origin) : 
+    Lemma::LCexOrigin cex_origin;
+    fcex_t(unsigned fidx_, Model * cex_,  bool can_transit_to_next_, Lemma::LCexOrigin origin) : 
       fidx(fidx_), cex(cex_), can_transit_to_next(can_transit_to_next_), cex_origin(origin) {}
   };
   //typedef std::pair<unsigned, Model *> fcex_t;
   // we don't need the comparator, just use vector
 
+  struct must_block_cex_fail{
+    Lemma * l;
+    unsigned failing_frame;
+    must_block_cex_fail() : l(NULL) {}
+  };
+
+
   using to_next_t = unsat_enum::to_next_t;
   using extract_model_t = unsat_enum::Enumerator::extract_model_t;
+  using LCexOrigin = Lemma::LCexOrigin;
   
 public:
   // inherited interfaces
@@ -110,6 +118,7 @@ protected:
 
   std::vector<frame_t> frames;
   std::unordered_map<unsigned, unsigned> frames_pushed_idxs_map;
+  must_block_cex_fail must_block_fail; // just to help early termination
 
   // the itp solver
   smt::SmtSolver & itp_solver_;
@@ -196,7 +205,7 @@ public:
   // otherwises can continue to itp
   bool propose_new_lemma_to_block(fcex_t * pre, fcex_t * post);
   // within pre/post, you have fidx
-  void use_itp_or_not_cube(Model * model_to_block, Lemma::LemmaOrigin cex_type,
+  void use_itp_or_not_cube(Model * model_to_block, LCexOrigin cex_type,
     unsigned fidx, unsigned prefidx);
   
   // return may block model and fail at init
@@ -222,13 +231,13 @@ public:
     // bool use_init = true, bool findItp = true,
     bool get_pre_state);
 
-  bool recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_origin);
+  bool recursive_block(Model * cube, unsigned idx, LCexOrigin cex_origin);
 
   bool check_init_failed();
 
-  void push_lemma_from_the_lowest_frame();
+  bool push_lemma_from_the_lowest_frame();
 
-  void push_lemma_from_frame(unsigned fidx);
+  bool push_lemma_from_frame(unsigned fidx);
 
   void eager_push_lemmas(unsigned fidx, unsigned lstart);
 

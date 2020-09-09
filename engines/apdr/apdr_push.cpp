@@ -22,14 +22,6 @@
 
 namespace cosa {
 
-void Apdr::push_lemma_from_the_lowest_frame() {
-  unsigned start_frame = 1;
-  D(1, "[pushes] F{} --- F{}", start_frame, frames.size() -2);
-  for (unsigned fidx = start_frame; fidx < frames.size() -1 ; ++ fidx) {
-    push_lemma_from_frame(fidx);
-  }
-}
-
 void Apdr::eager_push_lemmas(unsigned fidx, unsigned lstart) {
   if (fidx >= frames.size()-1)
     return;
@@ -58,8 +50,17 @@ void Apdr::eager_push_lemmas(unsigned fidx, unsigned lstart) {
   POP_STACK;
 } // eager_push_lemmas
 
+bool Apdr::push_lemma_from_the_lowest_frame() {
+  unsigned start_frame = 1;
+  D(1, "[pushes] F{} --- F{}", start_frame, frames.size() -2);
+  for (unsigned fidx = start_frame; fidx < frames.size() -1 ; ++ fidx) {
+    if(!push_lemma_from_frame(fidx))
+      return false;
+  }
+  return true;
+} // push_lemma_from_the_lowest_frame
 
-void Apdr::push_lemma_from_frame(unsigned fidx) {
+bool Apdr::push_lemma_from_frame(unsigned fidx) {
   assert (frames.size() > fidx + 1);
   
 #ifdef DEBUG
@@ -97,7 +98,7 @@ void Apdr::push_lemma_from_frame(unsigned fidx) {
       _add_lemma(lemma->direct_push(*this), fidx+1);
     } else { 
       ++ unpushed;
-      if (lemma->origin() == LemmaOrigin::MUST_BLOCK)
+      if (lemma->origin().is_must_block())
         unpushed_lemmas.push_back(std::make_tuple(
           lemmaIdx, lemma
         ));
@@ -150,22 +151,31 @@ void Apdr::push_lemma_from_frame(unsigned fidx) {
     // them in the same frames
 
     unsigned old_size = frames.at(fidx+1).size();
-    bool cex_failed = !recursive_block(lemma->cex(), fidx+1, Lemma::LemmaOrigin::MUST_BLOCK);
+    bool cex_failed = !recursive_block(lemma->cex(), fidx+1, lemma->origin());
     unsigned new_size = frames.at(fidx+1).size();
     
     if (cex_failed) {
       D(2, "  [{} F{}] skip pushing l{} : {} , as its cex cannot be push-blocked.",action_name,
         fidx, lemmaIdx, lemma->to_string());
-      push_status += 'x';
-      continue;
-    }
 
-    push_status += "C"+std::to_string(new_size - old_size);
-    continue;
+      assert(lemma->origin().is_must_block());
+      must_block_fail.l = lemma;
+      must_block_fail.failing_frame = fidx+1;
+      D(2, "  [{} F{}] This indicates the property will fail.",action_name,fidx );
+
+      POP_STACK;
+      return false;
+      //push_status += 'x';
+      //break;
+    } else {
+      push_status += "C"+std::to_string(new_size - old_size);
+    }
   } // for each unpushe lemma
+
   INFO("[{}] F{}->F{}: second round push {} ",action_name, fidx,fidx+1, push_status);
   frames_pushed_idxs_map[fidx] = end_lemma_idx;
   POP_STACK;
+  return true;
 } // push_lemma_from_frame
 
 } // namespace cosa
