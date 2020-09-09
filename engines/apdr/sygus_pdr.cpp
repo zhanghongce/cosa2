@@ -92,13 +92,18 @@ void Apdr::reset_sygus_syntax() {
 
 bool Apdr::propose_new_lemma_to_block(fcex_t * pre, fcex_t * post) {
   // TODO: here
+  PUSH_STACK(APdrConfig::Apdr_working_state_t::MAKE_NEW_TERM);
   unsigned proposing_new_terms_round = 0;
   unsigned n_new_terms;
   do {
+    PUSH_STACK(APdrConfig::Apdr_working_state_t::MAKE_NEW_TERM_ROUND);
+    GlobalTimer.RegisterEventStart("Propose.NewTerm", 0);
     n_new_terms = 
       sygus_term_manager_.GetMoreTerms(
         pre->cex, post->cex, *(term_learner_.get()));
     D(1, "[propose-new-term] Round {}. Get {} new terms.", proposing_new_terms_round, n_new_terms);
+
+    GlobalTimer.RegisterEventEnd("Propose.NewTerm", n_new_terms);
     if (n_new_terms != 0) {
       unsat_enum::Enumerator sygus_enumerator(
         to_next_func_,
@@ -109,17 +114,21 @@ bool Apdr::propose_new_lemma_to_block(fcex_t * pre, fcex_t * post) {
         post->cex /*cex*/,
         sygus_term_manager_   
       );
-      if (sygus_enumerator.CheckPrepointNowHasPred(pre->cex))
+      if (sygus_enumerator.CheckPrepointNowHasPred(pre->cex)) {
+        POP_STACK;
+        POP_STACK;
         return true;
+      }
       proposing_new_terms_round ++;
       D(1, "[propose-new-term] Round {}. New terms are not useful for c{}-/->c{}.", proposing_new_terms_round,
         pre->fidx, post->fidx);
       D(1, "[propose-new-term] c{} : {}", pre->fidx, pre->cex->to_string() );
       D(1, "[propose-new-term] c{} : {}", post->fidx, post->cex->to_string() );
     }
+    POP_STACK;
   } while(n_new_terms != 0); // if we can no longer find new terms, we should give up
   D(1, "[propose-new-term] No new terms worked after #round {}", proposing_new_terms_round);
-  assert(false);
+  POP_STACK;
   return false;
   // if failed
 } // propose_new_lemma_to_block
