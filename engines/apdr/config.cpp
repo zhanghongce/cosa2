@@ -13,6 +13,8 @@ const std::vector<std::string> APdrConfig::function_names = {
       "Function:CheckUntil",
       "Function:PushOneFrame",
       "Function:PushEager",
+      "Function:ProposeNewTerm",
+      "Function:ProposeNewTermRound",
     };
 
 } // namespace cosa

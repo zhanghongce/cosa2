@@ -68,7 +68,9 @@ namespace cosa {
       RECURSIVE_BLOCK,
       CHECK_UNTIL,
       PUSH_A_FRAME,
-      PUSH_EAGER }; // definition of functionnames in config.cpp
+      PUSH_EAGER,
+      MAKE_NEW_TERM,
+      MAKE_NEW_TERM_ROUND }; // definition of functionnames in config.cpp
     
     const static std::vector<std::string> function_names;
 
