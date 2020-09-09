@@ -368,7 +368,7 @@ void BTOR2Encoder::parse(const std::string& filename)
       }
     } else if (l_->tag == BTOR2_TAG_constraint) {
       Term constraint = bv_to_bool(termargs_[0]);
-      std::cout << "It has constraint: " << constraint->to_string() << std::endl;
+      std::cerr << "It has constraint: " << constraint->to_string() << std::endl;
       ts_.add_constraint(constraint);
       terms_[l_->id] = constraint;
     } else if (l_->tag == BTOR2_TAG_init) {
