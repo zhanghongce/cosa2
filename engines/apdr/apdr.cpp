@@ -94,6 +94,8 @@ void Apdr::initialize() {
     // to_itp_solver_.transfer_term(ts_.next(ts_.init())), itp_solver_);
   T_msat = bv_to_bool_msat(ts_msat_.trans(), itp_solver_);
     // bv_to_bool_msat(to_itp_solver_.transfer_term(ts_.trans()), itp_solver_);
+  // cache btor expression
+  constraints_btor = ts_.next_to_expr( ts_.constraint() ); // c(s,T(s))
 
   // build frames
   frames.push_back(frame_t()); // F0 = [init]
@@ -134,6 +136,8 @@ void Apdr::initialize() {
       smt::TermVec var_next;
       for (const auto & v:varset)
         var_next.push_back( this->ts_.next_to_expr( this->ts_.next(v) ) );
+      if(this->has_assumptions)
+        var_next.push_back( this->constraints_btor );
       this->partial_model_getter.GetVarListForAsts(var_next, var_pre,  GlobalAPdrConfig.CACHE_PARTIAL_MODEL_CONDITION);
 
       Model * full_model = this->new_model(var_pre);
@@ -231,15 +235,20 @@ Apdr::solve_trans_result Apdr::solveTrans( unsigned prevFidx,
       } // get pre state
 
       std::unordered_set<smt::Term> varlist;
-      partial_model_getter.GetVarList(prop_btor, varlist, GlobalAPdrConfig.CACHE_PARTIAL_MODEL_CONDITION);
+      if (has_assumptions)
+        partial_model_getter.GetVarListForAsts(
+          {prop_btor, ts_.init()}, varlist, GlobalAPdrConfig.CACHE_PARTIAL_MODEL_CONDITION);
+      else
+        partial_model_getter.GetVarList(
+          prop_btor, varlist, GlobalAPdrConfig.CACHE_PARTIAL_MODEL_CONDITION);
 
       D(3, "Before var cut: {}", new_model(varlist)->to_string());
       cut_vars_curr(varlist , !has_assumptions); // if we don't have assumptions we can cut current input
       Model * prev_ex = new_model(varlist);
       solver_->pop();
       // must after pop
-      if(has_assumptions) // when there are assumptions, we will not cut inputs, therefore it should be good
-        CHECK_MODEL(solver_, prop_btor, 0, prev_ex);
+      //if(has_assumptions) // when there are assumptions, we will not cut inputs, therefore it should be good
+      //  CHECK_MODEL(solver_, prop_btor, 0, prev_ex);
 
       POP_STACK;
       return solve_trans_result(true, true, prev_ex);       
@@ -249,8 +258,7 @@ Apdr::solve_trans_result Apdr::solveTrans( unsigned prevFidx,
 
   auto prevF_btor = frame_prop_btor(prevFidx);
   auto prop_no_nxt_btor = ts_.next_to_expr( ts_.next( prop_btor ) ); // p(T(s))
-  // constraints
-  auto constraints_btor = ts_.next_to_expr( ts_.constraint() ); // c(s,T(s))
+  // constraints: constraints_btor
 
   solver_->push();
   solver_->assert_formula(prevF_btor);
@@ -270,7 +278,10 @@ Apdr::solve_trans_result Apdr::solveTrans( unsigned prevFidx,
     return solve_trans_result(true, false, NULL);
   } // now get the state
   std::unordered_set<smt::Term> varlist;
-  partial_model_getter.GetVarList(prop_no_nxt_btor, varlist, GlobalAPdrConfig.CACHE_PARTIAL_MODEL_CONDITION);
+  if (has_assumptions)
+    partial_model_getter.GetVarListForAsts({prop_no_nxt_btor,constraints_btor}, varlist, GlobalAPdrConfig.CACHE_PARTIAL_MODEL_CONDITION);
+  else
+    partial_model_getter.GetVarList(prop_no_nxt_btor, varlist, GlobalAPdrConfig.CACHE_PARTIAL_MODEL_CONDITION);
 
   D(3, "Before var cut: {}", new_model(varlist)->to_string());
   cut_vars_curr(varlist, !has_assumptions); // // if we don't have assumptions we can cut current input
@@ -278,8 +289,8 @@ Apdr::solve_trans_result Apdr::solveTrans( unsigned prevFidx,
   solver_->pop();
 
   // must after pop
-  if(has_assumptions)
-    CHECK_MODEL(solver_, prop_no_nxt_btor, 0, prev_ex);
+  //if(has_assumptions)
+  //  CHECK_MODEL(solver_, prop_no_nxt_btor, 0, prev_ex);
 
   POP_STACK;
   return solve_trans_result(true, false, prev_ex); 
@@ -352,8 +363,14 @@ bool Apdr::recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_or
   enum prev_action_t {NONE, PREV_PUSH, PREV_POP} prev_action = prev_action_t::NONE;
 
   std::vector<fcex_t> cexs_to_block;
+  std::vector<unsigned> prev_frame_sizes;
+  
   cexs_to_block.push_back(fcex_t(idx,cube, true, cex_origin));
+  prev_frame_sizes.push_back(frames.at(idx).size());
+
   while(!cexs_to_block.empty()) {
+    assert(cexs_to_block.size() == prev_frame_sizes.size());
+
     const auto & head = cexs_to_block.back(); // the last one is the smallest
     unsigned fidx = head.fidx;
     Model * cex = head.cex;
@@ -380,9 +397,16 @@ bool Apdr::recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_or
         std::cout << "--cT--> F" << cexs_to_block.size()-idx;
       } // reverse find
       std::cout << std::endl;
+
+      std::cout << "Before CEX stack dump: ";
+      for (auto pos = cexs_to_block.rbegin(); pos != cexs_to_block.rend(); ++pos) {
+        std::cout << "F"<<pos->fidx << (pos->can_transit_to_next ?  "--c-->" : "--a-->");
+      }
+      std::cout <<"not P" << std::endl;
+
       if (idx == 0) { // always able to transit_to_next 
         CHECK_PROP_FAIL(cexs_to_block);
-        D(3, "      [block-try] CEX found!"); // because we always start from MUST block
+        D(3, "      [block] CEX found!"); // because we always start from MUST block
         // cex found
         POP_STACK;
         return false;
@@ -390,21 +414,35 @@ bool Apdr::recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_or
       assert (pre && post);
       bool new_terms = propose_new_lemma_to_block(pre, post); // must succeed, worse case itp/not post
       if (new_terms) {
+        D(3, "      [block] Got new terms, retry at F{} : {}", post->fidx, post->cex->to_string());
         prev_action = prev_action_t::NONE;
+        // idx - 1 will not be removed (the post one)
         cexs_to_block.erase(cexs_to_block.begin() + idx , cexs_to_block.end());
+        prev_frame_sizes.erase(prev_frame_sizes.begin() + idx, prev_frame_sizes.end());
         // we retry on --aT-> (cex),   that cex
       } else {
+        dump_info(std::cerr);
+        throw CosaException("No good terms");
+        assert(false); // itp is used
         // use itp as we cannot do better
         use_itp_or_not_cube(post->cex, post->cex_origin, post->fidx, pre->fidx);
         // pop till idx-1 (idx-1 will also be removed)
         unsigned post_fidx = post->fidx;
+        unsigned old_fsize = prev_frame_sizes.at(idx - 1);
         cexs_to_block.erase(cexs_to_block.begin() + idx - 1 , cexs_to_block.end());
+        prev_frame_sizes.erase(prev_frame_sizes.begin() + idx - 1, prev_frame_sizes.end());
         prev_action = prev_action_t::PREV_POP;
         // cexs_to_block.resize(idx-1); //
         // p
-        if (!cexs_to_block.empty()) 
-          push_lemma_from_frame(post_fidx, false); // because next we will be on post + 1 frame
+        eager_push_lemmas(post_fidx, old_fsize); // push at F[post_fidx] lstart = old_fsize
       }
+
+      std::cout << "After CEX stack dump: ";
+      for (auto pos = cexs_to_block.rbegin(); pos != cexs_to_block.rend(); ++pos) 
+        std::cout << "F"<<pos->fidx << (pos->can_transit_to_next ?  "--c-->" : "--a-->");
+      std::cout <<"not P" << std::endl;
+      assert(cexs_to_block.size() == prev_frame_sizes.size());
+
       continue;
     } // end of if reached F0
 
@@ -417,9 +455,11 @@ bool Apdr::recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_or
       smt::Term prop_btor = NOT(cex->to_expr_btor(solver_));
       if (frame_implies(fidx, prop_btor)){
         cexs_to_block.pop_back();
+        auto curr_f_lstart = prev_frame_sizes.back();
+        prev_frame_sizes.pop_back();
+
         prev_action = prev_action_t::PREV_POP;
-        if (!cexs_to_block.empty()) 
-          push_lemma_from_frame(fidx, false);
+        eager_push_lemmas(fidx, curr_f_lstart);
         continue;
       }
     } // if prev pop
@@ -432,6 +472,8 @@ bool Apdr::recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_or
     if (trans_result.unblockable()) {
       unsigned prev_fidx = trans_result.not_hold_at_init ? 0 : fidx-1;
       cexs_to_block.push_back(fcex_t(prev_fidx, trans_result.prev_ex, true, cex_type));
+      prev_frame_sizes.push_back(frames.at(prev_fidx).size());
+
       D(3, "      [block] push to queue, @F{} --cT--> prime : {}", prev_fidx,  trans_result.prev_ex->to_string());
     } else {
       if (trans_result.has_lemma()) {
@@ -443,9 +485,12 @@ bool Apdr::recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_or
           _add_pushed_lemma(lemma, 1, fidx - 1);
         } // new lemmas added, and we can pop the queue
         cexs_to_block.pop_back();
+        auto curr_f_lstart = prev_frame_sizes.back();
+        prev_frame_sizes.pop_back();
+
         prev_action = prev_action_t::PREV_POP;
-        if (!cexs_to_block.empty()) 
-          push_lemma_from_frame(fidx, false);
+
+        eager_push_lemmas(fidx, curr_f_lstart);
 
       } else {
         assert(trans_result.no_good_syntax()); // we don't have good syntax to gen a lemma
@@ -453,8 +498,11 @@ bool Apdr::recursive_block(Model * cube, unsigned idx, Lemma::LemmaOrigin cex_or
         // we may want to tighten a bit the prev frame
         unsigned prev_fidx = trans_result.may_block_at_init ? 0 : fidx-1;
         cexs_to_block.push_back(fcex_t(prev_fidx, trans_result.may_block, false, Lemma::LemmaOrigin::MAY_BLOCK));
+        prev_frame_sizes.push_back(frames.at(prev_fidx).size());
+
         prev_action = prev_action_t::PREV_PUSH;
         D(3, "      [block] push to queue, @F{} --aT--> prime : {}", prev_fidx,  trans_result.may_block->to_string());
+        GlobalTimer.RegisterEventCount("RecursiveBlock.PushMayQueue", 1);
       }
     } // --cT--/--> , may or may not have good lemmas
     
@@ -489,6 +537,13 @@ bool Apdr::check_init_failed() { // will use the prop specified by property
 ProverResult Apdr::check_until(int k) {
   assert (k>=0);
   
+  if (has_assumptions) {
+    if (!can_sat(ts_.init())) {
+      logger.log(0, "constraint is too tight that does not allow init.");
+      return ProverResult(UNKNOWN);
+    }
+  }
+
   PUSH_STACK(APdrConfig::Apdr_working_state_t::CHECK_UNTIL);
 
   D(1, "[Checking property] start");

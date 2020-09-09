@@ -102,12 +102,14 @@ protected:
   std::unordered_set<smt::Term> remove_vars_nxt_;
   smt::Term init_msat_nxt;
   smt::Term T_msat;
+  smt::Term constraints_btor;
   bool has_assumptions;
   void cut_vars_curr(std::unordered_set<smt::Term> & v, bool cut_curr_input);
 
   PartialModelGen partial_model_getter;
 
   std::vector<frame_t> frames;
+  std::unordered_map<unsigned, unsigned> frames_pushed_idxs_map;
 
   // the itp solver
   smt::SmtSolver & itp_solver_;
@@ -144,7 +146,6 @@ protected:
 protected:
   bool is_valid(const smt::Term & e);
   bool is_valid_imply(const smt::Term & pre, const smt::Term & post);
-  bool is_sat(const smt::Term & e);
   Model * get_not_valid_model(const smt::Term & e);
   //Model * solve(const smt::Term & formula);
 
@@ -227,7 +228,9 @@ public:
 
   void push_lemma_from_the_lowest_frame();
 
-  void push_lemma_from_frame(unsigned fidx, bool second_round_push);
+  void push_lemma_from_frame(unsigned fidx);
+
+  void eager_push_lemmas(unsigned fidx, unsigned lstart);
 
   smt::Term get_interpolant(
       const smt::Term & Fprev_msat, 
