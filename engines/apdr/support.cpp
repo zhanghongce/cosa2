@@ -70,7 +70,7 @@ Model * Apdr::solve(const smt::Term & formula) {
     Model * m = new_model(varset);
     solver_->pop();
     // must after pop
-    CHECK_MODEL(solver_, formula, 1, m); // expect formula to be always 1 give the model
+    // CHECK_MODEL(solver_, formula, 1, m); // expect formula to be always 1 give the model
 
     return m;
   } // else
@@ -245,14 +245,14 @@ bool Apdr::no_next_vars(const smt::Term & t) {
   smt::UnorderedTermSet symbols;
   get_free_symbols(t, symbols);
   for (const auto & v : symbols) {
-    if (!ts_.is_curr_var(v) && ts_.inputs().find(t) == ts_.inputs().end())
+    if (!ts_.is_curr_var(v) && ts_.inputs().find(v) == ts_.inputs().end())
       return false;
   }
   return true;
 }
 
 void Apdr::validate_inv() {
-  dump_frames(std::cerr);
+  dump_info(std::cerr);
   smt::Term inv = get_inv();
   D(1, "INV: {}", inv->to_string());
   assert (no_next_vars(inv)); // no next state var and no next input var
@@ -325,21 +325,25 @@ void Apdr::sanity_check_last_frame_nopushed() {
 }
 
 smt::Result Apdr::sanity_check_property_at_length_k(const smt::Term & btor_p, unsigned k) {
-  solver_->push();
-  solver_->assert_formula(unroller_.at_time(ts_.init(), 0));
-  for (unsigned i = 0; i<=k; ++i) {
-    bool res = true;
-    if (i > 0)
-      solver_->assert_formula(unroller_.at_time(ts_.trans(), i - 1));
+  smt::TermVec trans_assertions;
+  auto init = unroller_.at_time(ts_.init(), 0);
+  std::cout << " * init: " << init->to_raw_string() << std::endl;
 
-    {
-      auto r = solver_->check_sat();
-      if (!r.is_sat()) {
-        logger.log(0, "Transition dead-end at bound: {}, constraint may be too tight.", i);
-      }
+  for (unsigned i = 0; i<=k; ++i) {
+    if (i > 0) {
+      auto trans = unroller_.at_time(ts_.trans(), i - 1);
+      trans_assertions.push_back(trans);
+      std::cout << " * T"<<i<< ": " << trans->to_raw_string() << std::endl;
     }
   } // unroll to frame i
-  solver_->assert_formula(unroller_.at_time(btor_p, k));
+  auto p = unroller_.at_time(btor_p, k);
+  std::cout << " * p"<< ": " << p->to_raw_string() << std::endl;
+
+  solver_->push();
+  solver_->assert_formula(init);
+  for (const auto & c: trans_assertions)
+    solver_->assert_formula(c);
+  solver_->assert_formula(p);
   auto r = solver_->check_sat();
   solver_->pop();
   return r;
@@ -358,9 +362,17 @@ void Apdr::sanity_check_prop_fail(const std::vector<fcex_t> & path) {
     assert(cex_info.cex_origin == Lemma::LemmaOrigin::MUST_BLOCK);
     assert(cex_info.fidx == pre_cex->fidx+1);
 
+    std::cout << "Check @F" << cex_info.fidx << " cex : " << cex_info.cex->to_string() << " ... \n";
     auto res = sanity_check_property_at_length_k(cex_info.cex->to_expr_btor(solver_), cex_info.fidx);
+    std::cout << "Check @F" << cex_info.fidx << " cex : " << cex_info.cex->to_string() << " ... ";
+    std::cout << res.to_string() << std::endl;
     
     if (!res.is_sat() && prev_res.is_sat() ) {
+      std::cout << "pre_cex->fidx:" << pre_cex->fidx << " cex_info.fidx:" << cex_info.fidx << std::endl;
+      std::cout << " * T : " << ts_.trans()->to_raw_string() << std::endl;
+      std::cout << " * T0: " << unroller_.at_time(ts_.trans(), 0)->to_raw_string() << std::endl;
+
+      solver_->push();
       solver_->assert_formula(pre_cex->cex->to_expr_btor(solver_));
       solver_->assert_formula(ts_.trans());
       solver_->assert_formula(ts_.next(cex_info.cex->to_expr_btor(solver_)));
@@ -369,7 +381,11 @@ void Apdr::sanity_check_prop_fail(const std::vector<fcex_t> & path) {
 
       logger.log(0, "      [block-check] V{} /\\ T(V{}, V{}) /\\ V{} SAT?= {}", cex_info.fidx-1, cex_info.fidx-1, cex_info.fidx, cex_info.fidx, 
         result.is_sat() ? "True" : "False" );
+
+      throw CosaException("Possibly non-functional!");
+      assert(false);
     }
+    assert(res.is_sat());
     prev_res = res;
     pre_cex = &cex_info;
   }
