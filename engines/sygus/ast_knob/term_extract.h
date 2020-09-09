@@ -74,7 +74,11 @@ public:
   ParentExtract() {} // do nothing
   static void ClearCache() { parent_.clear(); }
   static const parent_map_t & GetParentRelation() {return parent_;}
-
+  static bool RegisterNewParentRelation(const smt::Term &child, const smt::Term &parent) {
+    auto ret = parent_[child].insert(parent);
+    return ret.second;
+  }
+  
 protected:
 
   std::unordered_set<smt::Term> walked_nodes_;

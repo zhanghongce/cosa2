@@ -19,6 +19,8 @@
 #include "common.h"
 #include "term_extract.h"
 
+#include <map>
+
 namespace cosa {
 
 namespace unsat_enum {
@@ -27,12 +29,12 @@ namespace unsat_enum {
 
 class TermLearner {
 public: // -- static -- model-to-model map
-   typedef std::unordered_map<Model *, Model *> to_full_model_map_t;
-   static void RegisterPartialToFullModelMap(Model * pre, Model * post) {
-     to_full_model_map.emplace(pre, post); }
-   static void ClearCache() { to_full_model_map.clear(); }
+  typedef std::unordered_map<Model *, Model *> to_full_model_map_t;
+  static void RegisterPartialToFullModelMap(Model * pre, Model * post) {
+    to_full_model_map.emplace(pre, post); }
+  static void ClearCache() { to_full_model_map.clear(); }
 
-   using parent_map_t = ParentExtract::parent_map_t;
+  using parent_map_t = ParentExtract::parent_map_t;
 
 protected:
    static to_full_model_map_t to_full_model_map;
@@ -60,8 +62,13 @@ protected:
   unsigned replace_hierachically(
     const smt::Term & orig, const smt::Term & repl, /*INOUT*/  PerVarsetInfo & varset_info );
   
+  unsigned replace_hierachically_w_parent(
+    const smt::Term & orig, const smt::Term & repl, PerVarsetInfo & varset_info,
+    smt::TermVec & output_new_terms ) ;
+
   unsigned concat_to_extract(/*INOUT*/  PerVarsetInfo & varset_info);
   unsigned extract_complement(/*INOUT*/  PerVarsetInfo & varset_info);
+
 
 }; // class TermLearner
   
