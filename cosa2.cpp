@@ -60,7 +60,10 @@ enum optionIndex
   PDR_ITP_MODE,
   LEMMA_GEN_MODE,
   INTERNAL_SYGUS_BVCOMP,
-  STRENGTHEN_OFF
+  STRENGTHEN_OFF,
+
+  SYNTAX_TREE_DEPTH,
+  UNSAT_CORE_N
   
 };
 
@@ -167,6 +170,18 @@ const option::Descriptor usage[] = {
     "strengthen-off",
     Arg::None,
     "  --strengthen-off \tDo not try to block CTG (counterexample-to-generalization)" },
+  { SYNTAX_TREE_DEPTH,
+    0,
+    "",
+    "sdepth",
+    Arg::Numeric,
+    "  --sdepth \tAST depth : 0 for any, >0 for some restriction" },
+  { UNSAT_CORE_N,
+    0,
+    "",
+    "ncore",
+    Arg::Numeric,
+    "  --ncore \tUnsat core num : 0 for all (enum), >0 for some restriction on ncore" },
   { 0, 0, 0, 0, 0, 0 }
 };
 /*********************************** end Option Handling setup
@@ -257,6 +272,8 @@ int main(int argc, char ** argv)
   unsigned int lemma_gen_mode = GlobalAPdrConfig.LEMMA_GEN_MODE;
   bool strengthen_off = options[STRENGTHEN_OFF] != NULL;
   unsigned int bvcomp_mode = 0; // 000 no bvult, no bvule, no override
+  unsigned ncore = GlobalAPdrConfig.UNSAT_CORE_MULTI;
+  unsigned sdepth = GlobalAPdrConfig.TERM_EXTRACT_DEPTH;
 
   for (int i = 0; i < parse.optionsCount(); ++i) {
     option::Option & opt = buffer[i];
@@ -269,9 +286,14 @@ int main(int argc, char ** argv)
       case VERBOSITY: verbosity = atoi(opt.arg); break;
       case VCDNAME: vcd_name = opt.arg; break;
       case PROPFILE: property_file_name = opt.arg; break;
+
       case PDR_ITP_MODE: itp_mode = atoi(opt.arg); break;
       case LEMMA_GEN_MODE: lemma_gen_mode = atoi(opt.arg); break;
       case INTERNAL_SYGUS_BVCOMP: bvcomp_mode = atoi(opt.arg); break;
+      
+      case UNSAT_CORE_N: ncore = atoi(opt.arg); break;
+      case SYNTAX_TREE_DEPTH: sdepth = atoi(opt.arg); break;
+
       case UNKNOWN_OPTION:
         // not possible because Arg::Unknown returns ARG_ILLEGAL
         // which aborts the parse with an error
@@ -305,6 +327,8 @@ int main(int argc, char ** argv)
       #ifdef WITH_MSAT
       // need mathsat for interpolant based model checking
       GlobalAPdrConfig.LEMMA_GEN_MODE = (APdrConfig::LEMMA_GEN_MODE_T)lemma_gen_mode;
+      GlobalAPdrConfig.UNSAT_CORE_MULTI = ncore;
+      GlobalAPdrConfig.TERM_EXTRACT_DEPTH = sdepth;
 
       s = BoolectorSolverFactory::create(false); // let's create it with a wrapper in case translation failed
       s->set_opt("produce-models", "true");
@@ -366,8 +390,8 @@ int main(int argc, char ** argv)
 
       // print btor output
       if (r == FALSE) {
-        cout << "sat" << endl;
-        cout << "b" << prop_idx << endl;
+        cerr << "sat" << endl;
+        cerr << "b" << prop_idx << endl;
         if (cex.size()) {
           print_witness_btor(btor_enc, cex);
           if (!vcd_name.empty()) {
@@ -377,12 +401,12 @@ int main(int argc, char ** argv)
         }
         status_code = 1;
       } else if (r == TRUE) {
-        cout << "unsat" << endl;
-        cout << "b" << prop_idx << endl;
+        cerr << "unsat" << endl;
+        cerr << "b" << prop_idx << endl;
         status_code = 0;
       } else {
-        cout << "unknown" << endl;
-        cout << "b" << prop_idx << endl;
+        cerr << "unknown" << endl;
+        cerr << "b" << prop_idx << endl;
         status_code = 2;
       }
 
@@ -406,9 +430,9 @@ int main(int argc, char ** argv)
 
       if (r == FALSE) {
         for (size_t t = 0; t < cex.size(); t++) {
-          cout << "AT TIME " << t << endl;
+          cerr << "AT TIME " << t << endl;
           for (auto elem : cex[t]) {
-            cout << "\t" << elem.first << " : " << elem.second << endl;
+            cerr << "\t" << elem.first << " : " << elem.second << endl;
           }
         }
         if (!vcd_name.empty()) {
@@ -422,20 +446,20 @@ int main(int argc, char ** argv)
     }
   }
   catch (CosaException & ce) {
-    cout << ce.what() << endl;
-    cout << "unknown" << endl;
-    cout << "b" << prop_idx << endl;
+    cerr << ce.what() << endl;
+    cerr << "unknown" << endl;
+    cerr << "b" << prop_idx << endl;
   }
   catch (SmtException & se) {
-    cout << se.what() << endl;
-    cout << "unknown" << endl;
-    cout << "b" << prop_idx << endl;
+    cerr << se.what() << endl;
+    cerr << "unknown" << endl;
+    cerr << "b" << prop_idx << endl;
   }
   catch (std::exception & e) {
-    cout << "Caught generic exception..." << endl;
-    cout << e.what() << endl;
-    cout << "unknown" << endl;
-    cout << "b" << prop_idx << endl;
+    cerr << "Caught generic exception..." << endl;
+    cerr << e.what() << endl;
+    cerr << "unknown" << endl;
+    cerr << "b" << prop_idx << endl;
   }
 
   return status_code;
