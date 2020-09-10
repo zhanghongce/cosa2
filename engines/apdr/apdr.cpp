@@ -24,6 +24,7 @@
 #include "utils/multitimer.h"
 
 #include "engines/sygus/ast_knob/term_extract.h"
+#include "engines/sygus/ast_knob/term_score.h"
 
 #include <cassert>
 #include <queue>
@@ -164,6 +165,7 @@ void Apdr::initialize() {
   unsat_enum::Enumerator::ClearCache();
   unsat_enum::ParentExtract::ClearCache();
   unsat_enum::TermLearner::ClearCache();
+  unsat_enum::TermScore::ClearCache();
 
   { // 1. register terms to find exprs
     // 2. extract parent from the same terms
@@ -191,10 +193,12 @@ void Apdr::initialize() {
 }
 
 Apdr::~Apdr() {
+  // the order (before solver is freed outside, free the terms first) is important
   term_learner_.reset(nullptr);
   unsat_enum::Enumerator::ClearCache(); // finally: make sure terms are destructed first
   unsat_enum::ParentExtract::ClearCache();
   unsat_enum::TermLearner::ClearCache();
+  unsat_enum::TermScore::ClearCache();
 }
 
 // ----------- TRANS - related  -------------------

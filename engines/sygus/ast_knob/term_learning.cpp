@@ -33,7 +33,6 @@ namespace unsat_enum {
 TermLearner::to_full_model_map_t TermLearner::to_full_model_map;
 
 
-
 // return learned new terms
 unsigned TermLearner::learn_terms_from_cex(Model * pre, Model * post, /*OUTPUT*/  PerVarsetInfo & varset_info ) {
   // you will need the full model of pre !
@@ -177,7 +176,7 @@ unsigned TermLearner::same_val_replace_ast( /*INOUT*/  PerVarsetInfo & varset_in
 
       // new -> new replacement
 
-#if 1
+#if 0
       for( unsigned idx1 = 0; idx1 < tvec_new.size(); ++ idx1) {
         for (unsigned idx2 = idx1 + 1; idx2 < tvec_new.size(); ++ idx2) {
           const auto & t1 = tvec_new.at(idx1);
@@ -207,6 +206,10 @@ unsigned TermLearner::same_val_replace_ast( /*INOUT*/  PerVarsetInfo & varset_in
 
 unsigned TermLearner::replace_hierachically(
   const smt::Term & orig, const smt::Term & repl, PerVarsetInfo & varset_info ) {
+  
+  if (orig->to_raw_string() == repl->to_raw_string())
+    return 0;
+
   smt::TermVec new_terms;
   unsigned ret = replace_hierachically_w_parent(orig, repl, varset_info, new_terms);
   for (const auto & nt : new_terms)
@@ -227,6 +230,7 @@ unsigned TermLearner::replace_hierachically_w_parent(
   const smt::Term & orig, const smt::Term & repl, PerVarsetInfo & varset_info,
   smt::TermVec & output_new_terms ) {
   
+  D(3, "  [ReplaceParent] {} --> {} ", orig->to_raw_string(), repl->to_raw_string());
   assert(!parent_map_.empty());
   auto parent_termvec_pos = parent_map_.find(orig);
   if (parent_termvec_pos == parent_map_.end())
@@ -238,8 +242,10 @@ unsigned TermLearner::replace_hierachically_w_parent(
 
   ParentExtract::parent_map_t new_parent_relation;
   for(const auto & p : parentvec ) {
-    if (varset_info.TermLearnerIsOut(p))
+    if (varset_info.TermLearnerIsOut(p)) {
+      D(3, "  [ReplaceParent]    not in parent: {} , out", p->to_raw_string() );
       continue;
+    }
 
     smt::TermVec new_terms;
     {
@@ -256,10 +262,13 @@ unsigned TermLearner::replace_hierachically_w_parent(
         old_children[idx] = repl;
         auto new_parent = (solver_->make_term(p->get_op(), old_children));
 
-        bool is_new_term = varset_info.TermLearnerInsertTerm(new_parent);
+       bool is_new_term = varset_info.TermLearnerInsertTerm(new_parent);
         if (is_new_term) {
+          D(3, "  [ReplaceParent]    in parent (new): {} ==> {}", p->to_raw_string(), new_parent->to_raw_string() );
           output_new_terms.push_back(new_parent);
           new_terms.push_back(new_parent);
+        } else {
+          D(3, "  [ReplaceParent]    in parent (exists): {} ==> {}", p->to_raw_string(), new_parent->to_raw_string() );
         }
         old_children[idx] = orig;
       }

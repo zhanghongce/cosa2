@@ -16,6 +16,7 @@
 
 #include "engines/apdr/config.h"
 #include "unsat_enum.h"
+#include "ast_knob/term_score.h"
 
 #include "utils/container_shortcut.h"
 #include "utils/term_analysis.h"
@@ -42,7 +43,7 @@
   #define INFO(...) logger.log(1, __VA_ARGS__)
 #endif
 
-#define TERM_TABLE_DEBUG_LVL 2
+#define TERM_TABLE_DEBUG_LVL 0
 
 namespace cosa {
 
@@ -201,6 +202,8 @@ void Enumerator::terms_to_predicates() {
     auto nc_size = constants.size();
 
     for (unsigned cidx = 0; cidx < nc_size; ++ cidx ) {
+      if (width <= 1 && cidx >= 1)
+        break; // you don't need a != 1 and a == 0, you only need to keep 1 value
       const auto & c = constants.at(cidx);
       const auto & cval = value_map.at(c);
       for (unsigned tidx = (cidx < nc ? nt : 0); // if c is an old one, we will start from new terms
@@ -245,30 +248,6 @@ void Enumerator::terms_to_predicates() {
 // solver_->assert_formula(base_term);
 // have base term in const smt::Term & base_term, 
 
-void Enumerator::DebugRegAllpred(const smt::UnorderedTermSet & inpreds) {
-  unsigned idx = 0;
-  for (const auto & t : inpreds) {
-    pred_to_numbers.emplace(t,idx++);
-  }
-  std::cout << "Total pred: #" << idx << std::endl;
-}
-
-void Enumerator::DebugRegSelRemove(const smt::Term & sel, const std::string & action) {
-  auto pos = pred_to_numbers.find(sel);
-  assert(pos != pred_to_numbers.end());
-  std::cout << "  -> " << action << " no. " << pos->second << std::endl;
-}
-
-void Enumerator::DebugRegResult(const smt::UnorderedTermSet & res) {
-  std::cout << "     result : {" ;
-  for (const auto & p : res) {
-    auto pos = pred_to_numbers.find(p);
-    assert(pos != pred_to_numbers.end());
-    std::cout << pos->second << ", ";
-  }
-  std::cout << "}" << std::endl;
-}
-
 bool Enumerator::CheckPrepointNowHasPred(Model * m) {
   smt::Term Prepoint = m->to_expr_btor(solver_);
   smt::Term F_and_T = AND(prev_, trans_);
@@ -286,156 +265,68 @@ bool Enumerator::CheckPrepointNowHasPred(Model * m) {
   return res.is_unsat();
 }
 
-// if n == 0, will get all
-// if cands is empty: no good predicates
-void Enumerator::GetNCandidates(smt::TermVec & cands, size_t n) {
 
+static void insert_preds_score_descending(const smt::UnorderedTermSet & initial_core, 
+  std::list<smt::Term> & pred_sets, std::list<unsigned> & pred_scores)
+{ 
+  std::vector<std::pair<unsigned, smt::Term>> score_vec;
+  for (const auto & t : initial_core) {
+    auto score = TermScore::GetScore(t);
+    score_vec.push_back(std::make_pair(score, t));
+  }
+  std::sort(score_vec.begin(),score_vec.end());
+  for (auto pos = score_vec.rbegin(); pos != score_vec.rend(); ++ pos) {
+    pred_sets.push_back(pos->second);
+    pred_scores.push_back(pos->first);
+  }
+} // insert_preds_score_descending
+
+
+void Enumerator::GetOneCandidateViaMUS(smt::TermVec & cands) {
+
+  //let's first get sat/unsat and initial unsat core
   smt::Term F_and_T = AND(prev_, trans_);
   smt::Term base_term = OR( F_and_T ,to_next_(init_) );
-  smt::UnorderedTermSet inpreds (per_cex_info_.predicates_nxt.begin(), per_cex_info_.predicates_nxt.end());
-  DebugRegAllpred(inpreds);
-  inpreds.insert(base_term);
-  unsigned init_preds_n = inpreds.size();
+  smt::UnorderedTermSet initial_core; // base term is already removed from it
   
-  struct stack_state {
-    smt::UnorderedTermSet choice_set;
-    smt::UnorderedTermSet::iterator pos;
-    stack_state(const smt::UnorderedTermSet & in) : choice_set(in), pos(choice_set.begin())  {
-      assert(pos != choice_set.end());
-    } };
-  std::vector<stack_state> stack; // we don't need to copy inpreds, we only need to 
+  if (!GetInitialUnsatCore(base_term, F_and_T, initial_core))
+    return;
+  assert (!initial_core.empty());
 
-  // first round
-  smt::UnorderedTermSet init_choice; // base term is already removed from it
-  GetOneCandidate( /*in*/ inpreds, /*out*/ init_choice, /*in*/ base_term, /*IN*/ F_and_T, true);
-  if (init_choice.empty()) {
-    return; // no good pred
-  }
-  DebugRegResult(init_choice);
-  // assemble the output HERE
-  cands.push_back(AssembleCandFromUnsatCore(base_term, init_choice));
-  stack.push_back(init_choice);
+  std::list<smt::Term> pred_sets;
+  std::list<unsigned> pred_scores;
 
-  while(n == 0 || (cands.size() < n) ) {
-    // change inpreds to not include the one under pos
-    assert (stack.back().pos != stack.back().choice_set.end());
-    assert(IN(*(stack.back().pos), inpreds));
-    DebugRegSelRemove(*(stack.back().pos), "remove");
-    inpreds.erase(*(stack.back().pos));
+  insert_preds_score_descending(initial_core, pred_sets, pred_scores);
+  assert(pred_scores.size() == pred_sets.size());
+  DebugRegAllpred(pred_sets, pred_scores);
 
-    smt::UnorderedTermSet choice_set;
-    GetOneCandidate( /*in*/ inpreds, /*out*/ choice_set, /*in*/ base_term, /*IN*/ F_and_T, false);
-    DebugRegResult(choice_set);
-
-    if (choice_set.empty()) { // bad attempt : becomes sat
-      assert(!IN(*(stack.back().pos), inpreds));
-      DebugRegSelRemove(*(stack.back().pos), "insert");
-      inpreds.insert( *(stack.back().pos) ); // add it back
-      ++ stack.back().pos; // move iterator to next candidate
-
-      while( !stack.empty() && stack.back().pos == stack.back().choice_set.end()) {
-        stack.pop_back();
-        if (!stack.empty()) {
-          assert(!IN(*(stack.back().pos), inpreds));
-
-          DebugRegSelRemove(*(stack.back().pos), "insert");
-          inpreds.insert( *(stack.back().pos) );
-          ++ stack.back().pos;
-        }
-      }; // backtrack
-      if (stack.empty()) {
-        assert(inpreds.size() == init_preds_n); // we should have been add/remove properly
-        return;
-      }
-    } else {
-      // make the output
-      cands.push_back(AssembleCandFromUnsatCore(base_term, choice_set));
-      stack.push_back(stack_state(choice_set));
+  auto pred_pos = pred_sets.begin(); auto score_pos = pred_scores.begin();
+  while ( pred_pos != pred_sets.end() ) {
+    // warning, the size of pred_sets will shrink
+    DebugRegSelRemove(*pred_pos, "Try Remove");
+    smt::UnorderedTermSet unsatcore;
+    pred_pos = GetUnsatCoreWithout(base_term, pred_sets, pred_pos, /*output*/ unsatcore ) ;
+    if ( ! unsatcore.empty() ) { // still unsat
+      CheckAndRemove( 
+        /*output*/ pred_sets, /*inout*/ pred_pos, 
+         /*output*/ pred_scores,  /*inout*/ score_pos,  /* input */  unsatcore);
+      // they themselves should have been removed, and the later part will also be removed
+      assert(pred_scores.size() == pred_sets.size());
+    } else {// else do nothing
+     ++ pred_pos; ++ score_pos;
     }
-    // if choice_set is empty, we need to backtrack
-    // else push the choice and foreach one remove it from inpreds
-  }  // while (get n cands)
-} // GetAllCandidates
+    DebugRegResult(pred_sets);
+    // because we cannot remove this one
+  } // from beginning to end
+  // now we should collect and form the pred
 
-void Enumerator::GetOneCandidate(const smt::UnorderedTermSet & in, smt::UnorderedTermSet & unsatcore, 
-  const smt::Term & base_term, const smt::Term & F_and_T, bool first_check) {
+  cands.push_back(AssembleCandFromUnsatCore(base_term, pred_sets));
+} // GetOneCandidateViaMUS
 
-  unsatcore.clear();
-  unsatcore.insert(in.begin(), in.end());
-
-  D(0, "Enumerate: pred: {}", unsatcore.size());
-  unsigned n_iter = 0;
-  GlobalTimer.RegisterEventStart("Enum.SMTQuery", n_iter );
-
-  do {
-
-    solver_->push();
-
-    // for(const auto & p: inpreds) {
-    //   D(0, "Assert pred: {}, sort: {}", p->to_string(), p->get_sort()->to_string());
-    // }
-    
-    ++ n_iter;
-    D(0, "Unsat enum iter #{}, core size {} ", n_iter, unsatcore.size());
-    auto res = solver_->check_sat_assuming(unsatcore);
-    if (res.is_sat()) {
-      // we cannot find a good set of predicates
-      assert (n_iter == 1);
-
-      if (first_check) {
-        DebugPredicates(in, base_term, init_, false);
-
-        std::unordered_set<smt::Term> varset;
-        cex_->get_varset(varset);
-        bool fail_at_init = check_failed_at_init(F_and_T);
-        extract_model_(varset, fail_at_init); // must before pop
-        // will replace var to its prime and then use the next part
-        // inside it will store the model to a necesary place
-      }
-      solver_->pop();
-
-      GlobalTimer.RegisterEventEnd("Enum.SMTQuery", n_iter );
-      unsatcore.clear();
-      return; // no good candidates
-    }
-
-    auto old_size = unsatcore.size();
-    unsatcore.clear();
-    solver_->get_unsat_core(unsatcore);
-    solver_->pop();
-
-    assert (unsatcore.size() <= old_size);
-    assert (!unsatcore.empty());
-    assert(IN(base_term, unsatcore)); // otherwise just the conjunction of preds are unsat
-        
-    if (unsatcore.size() == old_size) {
-      D(0, "Unsat enum done, iter {}, core size {}", n_iter, unsatcore.size());
-      break;
-    } // else continue to shrink
-
-    //inpreds.insert(inpreds.begin(), unsat_core.begin(), unsat_core.end());
-  } while(GlobalAPdrConfig.UNSAT_CORE_RUN_MULITTIMES);
-
-  GlobalTimer.RegisterEventEnd("Enum.SMTQuery", n_iter );
-
-  assert(IN(base_term, unsatcore));
-
-  // if dump
-#ifdef DEBUG
-  for(const auto & p: unsatcore) {
-    if (p == base_term)
-      D(0, "Unsat base: (F/\\T)\\/INIT' ");
-    else
-      D(0, "Unsat pred: {}", p->to_raw_string());
-  }
-#endif
-
-  unsatcore.erase(base_term);
-  assert(!unsatcore.empty());
-} // GetOneCandidate
 
 // base term should already been removed
-smt::Term Enumerator::AssembleCandFromUnsatCore(const smt::Term & base_term, const smt::UnorderedTermSet & unsatcore) {
+smt::Term Enumerator::AssembleCandFromUnsatCore(const smt::Term & base_term, 
+  const std::list<smt::Term> & unsatcore) {
   //bool base_term_in = false;
   smt::Term ret = nullptr;
   for (const auto & t : unsatcore) {
@@ -465,7 +356,7 @@ bool Enumerator::check_failed_at_init(const smt::Term & F_and_T) {
 }
 
 
-void Enumerator::DebugPredicates(const smt::UnorderedTermSet & inpreds, const smt::Term & base, const smt::Term & init, bool rm_pre) {
+void Enumerator::DebugPredicates(const smt::TermVec & inpreds, const smt::Term & base, const smt::Term & init, bool rm_pre) {
 
 #if 0
   bool base_term_in = false;
@@ -487,201 +378,140 @@ void Enumerator::DebugPredicates(const smt::UnorderedTermSet & inpreds, const sm
 } // DebugPredicates
 
 
-
-bool Enumerator::CheckPredDisjFailInit() {
+// true means still unsat
+bool Enumerator::GetInitialUnsatCore(const smt::Term & base_term, const smt::Term & F_and_T, 
+  smt::UnorderedTermSet & initial_core) 
+{
   solver_->push();
-  for (const auto & primeP : per_cex_info_.predicates_nxt ) {
-    solver_->assert_formula(primeP);
-  }
-  solver_->assert_formula(to_next_(init_));
-  auto res = solver_->check_sat();
+  solver_->assert_formula(base_term);
+  auto res = solver_->check_sat_assuming_vector(per_cex_info_.predicates_nxt);
   if (res.is_sat()) {
-      std::unordered_set<smt::Term> varset;
-      cex_->get_varset(varset);
-      extract_model_(varset, true);
+    DebugPredicates(per_cex_info_.predicates_nxt, base_term, init_, false);
+
+    std::unordered_set<smt::Term> varset;
+    cex_->get_varset(varset);
+    bool fail_at_init = check_failed_at_init(F_and_T);
+    extract_model_(varset, fail_at_init); // must before pop
+
+    solver_->pop();
+    return false;
   }
+  solver_->get_unsat_core(initial_core);
   solver_->pop();
-  return res.is_sat();
+  return true;
+} // GetInitialUnsatCore
+
+std::list<smt::Term>::iterator Enumerator::GetUnsatCoreWithout(const smt::Term & base_term, 
+  std::list<smt::Term> & pred_sets, std::list<smt::Term>::iterator pred_pos, 
+  /*output*/ smt::UnorderedTermSet & unsatcore )
+{
+    solver_->push();
+    solver_->assert_formula(base_term);
+    
+    smt::Term term_to_remove = *pred_pos;
+    auto pos_after = pred_sets.erase(pred_pos);
+    auto res = solver_->check_sat_assuming_list(pred_sets);
+    auto new_pos = pred_sets.insert(pos_after, term_to_remove);
+    assert(!res.is_unknown());
+    
+    if (res.is_unsat())
+      solver_->get_unsat_core(unsatcore);
+
+    solver_->pop();
+    return new_pos;
+} // GetUnsatCoreWithout
+
+
+void Enumerator::CheckAndRemove(
+  std::list<smt::Term> & pred_sets, std::list<smt::Term>::iterator & pred_pos,
+  std::list<unsigned> & pred_scores, std::list<unsigned>::iterator & score_pos, 
+  const smt::UnorderedTermSet & unsatcore)
+{
+  auto pred_iter = pred_sets.begin(); // pred_pos;
+  auto score_iter = pred_scores.begin(); // score_pos
+  auto pred_pos_new = pred_sets.begin();
+  auto score_pos_new = pred_scores.begin();
+
+  bool reached = false;
+  bool next_pos_found = false;
+  while( pred_iter != pred_sets.end() ) {
+    assert(score_iter != pred_scores.end());
+
+    if (pred_iter == pred_pos) {
+      assert (!reached);
+      assert (score_iter == score_pos);
+      reached = true;
+    }
+    
+    if (unsatcore.find(*pred_iter) == unsatcore.end()) {
+      assert (reached);
+      pred_iter = pred_sets.erase(pred_iter);
+      score_iter = pred_scores.erase(score_iter);
+    } else {
+      if (reached && ! next_pos_found) {
+        pred_pos_new = pred_iter;
+        score_pos_new = score_iter;
+        next_pos_found = true;
+      }
+      ++ pred_iter; ++ score_iter;
+    }
+  }
+  assert(reached);
+  if (! next_pos_found) {
+    assert (pred_iter == pred_sets.end() && score_iter == pred_scores.end());
+    pred_pos_new = pred_iter;
+    score_pos_new = score_iter;
+  }
+  pred_pos = pred_pos_new;
+  score_pos = score_pos_new;
+} // CheckAndRemove
+
+
+//---------------------- DEBUG PURPOSE----------------------------------------------
+
+#ifdef DEBUG
+
+void Enumerator::DebugRegAllpred(const std::list<smt::Term> & inpreds, const std::list<unsigned> & scores) {
+  unsigned idx = 0;
+  pred_to_numbers.clear();
+  auto pos = scores.begin();
+  for (const auto & t : inpreds) {
+    pred_to_numbers.emplace(t,idx++);
+    D(0, "{}: Score: {} expr: {}", idx-1, *pos, t->to_raw_string());
+    ++pos;
+  }
+  D(0,"Total pred: #{}", idx);
 }
 
-// if n == 0, will get all
-// if cands is empty: no good predicates
-void Enumerator::GetNCandidatesRemoveInPrev(smt::TermVec & cands, size_t n) {
+void Enumerator::DebugRegSelRemove(const smt::Term & sel, const std::string & action) {
+  auto pos = pred_to_numbers.find(sel);
+  assert(pos != pred_to_numbers.end());
+  std::cout << "  -> " << action << " no. " << pos->second << std::endl;
+}
 
-  if ( CheckPredDisjFailInit() )
-    return;
-
-  smt::Term F_and_T = AND(prev_, trans_);
-  //smt::Term Pre_not_conj = NOT(ANDN_pre(per_cex_info_.predicates_nxt));
-  // convert predicates_nxt to unprimed ones and and them together
-
-  //smt::Term init_base_term = OR( AND(Pre_not_conj, F_and_T) ,to_next_(init_) );
-  smt::UnorderedTermSet inpreds (per_cex_info_.predicates_nxt.begin(), per_cex_info_.predicates_nxt.end());
-  // inpreds.insert(init_base_term); // in preds will not include base_term
-  // will assemble that in GetOneCandidateRemoveInPrev
-  unsigned init_preds_n = inpreds.size();
-  
-  struct stack_state {
-    smt::UnorderedTermSet choice_set;
-    smt::UnorderedTermSet::iterator pos;
-    stack_state(const smt::UnorderedTermSet & in) : choice_set(in), pos(choice_set.begin())  {
-      assert(pos != choice_set.end());
-    } };
-  std::vector<stack_state> stack; // we don't need to copy inpreds, we only need to 
-
-  // first round
-  smt::UnorderedTermSet init_choice; // base term is already removed from it
-  auto new_base = GetOneCandidateRemoveInPrev( /*in*/ inpreds, /*out*/ init_choice,  /*IN*/ F_and_T, true);
-  if (init_choice.empty()) {
-    return; // no good pred
+void Enumerator::DebugRegResult(const std::list<smt::Term> & inpreds) {
+  std::cout << "     result : {" ;
+  for (const auto & p : inpreds) {
+    auto pos = pred_to_numbers.find(p);
+    assert(pos != pred_to_numbers.end());
+    std::cout << pos->second << ", ";
   }
-  // assemble the output HERE
-  cands.push_back(AssembleCandFromUnsatCore(new_base, init_choice));
-  stack.push_back(init_choice);
+  std::cout << "}" << std::endl;
+}
 
-  while(n == 0 || (cands.size() < n) ) {
-    // change inpreds to not include the one under pos
-    assert (stack.back().pos != stack.back().choice_set.end());
-    assert(IN(*(stack.back().pos), inpreds));
-    inpreds.erase(*(stack.back().pos));
+#else
 
-    smt::UnorderedTermSet choice_set;
-    new_base = GetOneCandidateRemoveInPrev( /*in*/ inpreds, /*out*/ choice_set,  /*IN*/ F_and_T, false);
-    if (choice_set.empty()) { // bad attempt : becomes sat
-      assert(!IN(*(stack.back().pos), inpreds));
-      inpreds.insert( *(stack.back().pos) ); // add it back
-      ++ stack.back().pos; // move iterator to next candidate
+void Enumerator::DebugRegAllpred(const smt::UnorderedTermSet & inpreds) {
+}
 
-      while( !stack.empty() && stack.back().pos == stack.back().choice_set.end()) {
-        stack.pop_back();
-        if (!stack.empty()) {
-          assert(!IN(*(stack.back().pos), inpreds));
-          inpreds.insert( *(stack.back().pos) );
-          ++ stack.back().pos;
-        }
-      }; // backtrack
-      if (stack.empty()) {
-        assert(inpreds.size() == init_preds_n); // we should have been add/remove properly
-        return;
-      }
-    } else {
-      // make the output
-      cands.push_back(AssembleCandFromUnsatCore(new_base, choice_set));
-      stack.push_back(stack_state(choice_set));
-    }
-    // if choice_set is empty, we need to backtrack
-    // else push the choice and foreach one remove it from inpreds
-  }  // while (get n cands)
-} // GetAllCandidates
+void Enumerator::DebugRegSelRemove(const smt::Term & sel, const std::string & action) {
+}
 
-smt::Term Enumerator::GetOneCandidateRemoveInPrev(const smt::UnorderedTermSet & in, smt::UnorderedTermSet & unsatcore, 
-  const smt::Term & F_and_T, bool first_check) {
+void Enumerator::DebugRegResult(const smt::UnorderedTermSet & res) {
+}
 
-  unsatcore.clear();
-  unsatcore.insert(in.begin(), in.end());
-  smt::Term Pre_not_conj = NOT(ANDN_pre(unsatcore));
-  smt::Term base = OR( AND(Pre_not_conj, F_and_T) ,to_next_(init_) );
-  unsatcore.insert(base);
+#endif
 
-  D(0, "Enumerate: pred: {}", unsatcore.size());
-  unsigned n_iter = 0;
-  GlobalTimer.RegisterEventStart("Enum.SMTQuery", n_iter );
-
-  do {
-
-    solver_->push();
-
-    // for(const auto & p: inpreds) {
-    //   D(0, "Assert pred: {}, sort: {}", p->to_string(), p->get_sort()->to_string());
-    // }
-    
-    ++ n_iter;
-    D(0, "Unsat enum iter #{}, core size {} ", n_iter, unsatcore.size());
-    auto res = solver_->check_sat_assuming(unsatcore);
-    if (res.is_sat()) {
-      // we cannot find a good set of predicates
-      if (n_iter != 1) {
-        std::cout << "---------- DUMPING constraints ---------" << unsatcore.size() << std::endl;
-        unsigned idx = 0;
-        for (const auto & p : unsatcore) {
-          std::cout << ">>> p" << idx << (p == base ? 'b' : ' ')  << " : " << p->to_raw_string() << std::endl;
-          idx ++;
-        }
-      }
-      assert (n_iter == 1);
-
-      if (first_check) {
-        DebugPredicates(in, base, init_, true); // rm_pre
-
-        std::unordered_set<smt::Term> varset;
-        cex_->get_varset(varset);
-        bool fail_at_init = check_failed_at_init(F_and_T); // it is okay to not pass /\\ not (/\\ p)
-        assert(!fail_at_init); // o.w. we should have catch it earlier
-
-        extract_model_(varset, fail_at_init); // must before pop
-      }
-      // will replace var to its prime and then use the next part
-      // inside it will store the model to a necesary place
-      solver_->pop();
-
-      GlobalTimer.RegisterEventEnd("Enum.SMTQuery", n_iter );
-      unsatcore.clear();
-      return nullptr; // no good candidates
-    }
-
-    auto old_size = unsatcore.size();
-    unsatcore.clear();
-    solver_->get_unsat_core(unsatcore);
-    solver_->pop();
-
-    assert (unsatcore.size() <= old_size);
-    assert (!unsatcore.empty());
-    assert(IN(base, unsatcore)); // otherwise just the conjunction of preds are unsat
-    // if dump
-    for(const auto & p: unsatcore) {
-      if (p == base)
-        D(0, "Unsat base: (F/\\T)\\/INIT' ");
-      else
-        D(0, "Unsat pred: {}", p->to_raw_string());
-    }
-    
-    if (unsatcore.size() == old_size) {
-      D(0, "Unsat enum done, iter {}, core size {}", n_iter, unsatcore.size());
-      break;
-    } // else continue to shrink
-
-    // remove the base term and change it to a new one
-    unsatcore.erase(base);
-
-    Pre_not_conj = NOT(ANDN_pre(unsatcore)); // in unsatcore are all cand(s')
-    base = OR( AND(Pre_not_conj, F_and_T) ,to_next_(init_) );
-
-    unsatcore.insert(base);
-    
-  } while(GlobalAPdrConfig.UNSAT_CORE_RUN_MULITTIMES);
-
-  GlobalTimer.RegisterEventEnd("Enum.SMTQuery", n_iter );
-
-  assert(IN(base, unsatcore));
-  unsatcore.erase(base);
-  assert(!unsatcore.empty());
-  return base;
-} // GetOneCandidate
-
-
-template <class T> smt::Term Enumerator::ANDN_pre(const T & prime_p)
-{
-    smt::Term ret = nullptr;
-    for (const auto & p : prime_p) {
-      const smt::Term & t = per_cex_info_.pred_next_to_pred_curr.at(p);
-      if (ret == nullptr)
-        ret = t;
-      else
-        ret = AND(ret, t);
-    }
-    assert(ret);
-    return ret;
-  }
 
 
 } // namespace unsat_enum

@@ -133,7 +133,7 @@ bool Apdr::propose_new_lemma_to_block(fcex_t * pre, fcex_t * post) {
   // if failed
 } // propose_new_lemma_to_block
 
-void Apdr::use_itp_or_not_cube(Model * model_to_block, Lemma::LemmaOrigin cex_type,
+void Apdr::use_itp_or_not_cube(Model * model_to_block, Lemma::LCexOrigin cex_type,
    unsigned fidx, unsigned prefidx) {
 
   { // interpolant
@@ -254,7 +254,7 @@ std::pair<Model *, bool> Apdr::do_sygus(
   extract_model_output_ = NULL;
   // this function will change sygus_failed_at_init and extract_model_output_
   // by the lambda function extract_model_func_
-  sygus_enumerator.GetNCandidates(lemmas_btor, GlobalAPdrConfig.UNSAT_CORE_MULTI);
+  sygus_enumerator.GetOneCandidateViaMUS(lemmas_btor); // , GlobalAPdrConfig.UNSAT_CORE_MULTI
   assert(lemmas_btor.empty() == (extract_model_output_ != NULL));
   //if(extract_model_output_)
   //  assert(!extract_model_output_->cube.empty()); // it can be empty
