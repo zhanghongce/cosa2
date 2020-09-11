@@ -282,7 +282,7 @@ static void insert_preds_score_descending(const smt::UnorderedTermSet & initial_
 } // insert_preds_score_descending
 
 
-void Enumerator::GetOneCandidateViaMUS(smt::TermVec & cands) {
+void Enumerator::GetOneCandidate(smt::TermVec & cands, bool iterative_reduction, bool mus_traverse_reduction) {
 
   //let's first get sat/unsat and initial unsat core
   smt::Term F_and_T = AND(prev_, trans_);
@@ -292,6 +292,26 @@ void Enumerator::GetOneCandidateViaMUS(smt::TermVec & cands) {
   if (!GetInitialUnsatCore(base_term, F_and_T, initial_core))
     return;
   assert (!initial_core.empty());
+
+  if (iterative_reduction) {
+    unsigned prev_unsat_core_size = initial_core.size();
+    D(0, "[IterativeReduction] Initial core size {}",prev_unsat_core_size);
+    do {
+      smt::UnorderedTermSet core_out;
+      MinimizeUnsatCore(base_term, initial_core, core_out);
+      initial_core.swap(core_out); // let's avoid copying: initial_core = core_out
+      if (initial_core.size() == prev_unsat_core_size)
+        break;
+      prev_unsat_core_size = initial_core.size();
+    } while(true);
+    D(0, "[IterativeReduction] End core size {}",prev_unsat_core_size);
+  }
+
+  if (!mus_traverse_reduction) {
+    cands.push_back(AssembleCandFromUnsatCore(base_term, initial_core));
+    return;
+  }
+
 
   std::list<smt::Term> pred_sets;
   std::list<unsigned> pred_scores;
@@ -327,6 +347,25 @@ void Enumerator::GetOneCandidateViaMUS(smt::TermVec & cands) {
 // base term should already been removed
 smt::Term Enumerator::AssembleCandFromUnsatCore(const smt::Term & base_term, 
   const std::list<smt::Term> & unsatcore) {
+  //bool base_term_in = false;
+  smt::Term ret = nullptr;
+  for (const auto & t : unsatcore) {
+    assert (t != base_term);
+      //base_term_in = true;
+    auto t_curr = per_cex_info_.pred_next_to_pred_curr.at(t);
+    if (ret == nullptr)
+      ret = t_curr;
+    else
+      ret = AND(ret, t_curr);
+  }
+  assert (ret); // unsatcore should not be empty
+  return NOT(ret);
+} // AssembleCandFromSet
+
+
+// base term should already been removed
+smt::Term Enumerator::AssembleCandFromUnsatCore(const smt::Term & base_term, 
+  const smt::UnorderedTermSet & unsatcore) {
   //bool base_term_in = false;
   smt::Term ret = nullptr;
   for (const auto & t : unsatcore) {
@@ -400,6 +439,17 @@ bool Enumerator::GetInitialUnsatCore(const smt::Term & base_term, const smt::Ter
   solver_->pop();
   return true;
 } // GetInitialUnsatCore
+
+void Enumerator::MinimizeUnsatCore(const smt::Term & base_term,
+  const smt::UnorderedTermSet & core_in, smt::UnorderedTermSet & core_out)
+{
+  solver_->push();
+  solver_->assert_formula(base_term);
+  auto res = solver_->check_sat_assuming(core_in);
+  assert(res.is_unsat());
+  solver_->get_unsat_core(core_out);
+  solver_->pop();
+} // MinimizeUnsatCore
 
 std::list<smt::Term>::iterator Enumerator::GetUnsatCoreWithout(const smt::Term & base_term, 
   std::list<smt::Term> & pred_sets, std::list<smt::Term>::iterator pred_pos, 

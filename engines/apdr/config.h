@@ -37,7 +37,8 @@ namespace cosa {
 
     bool MSAT_INTERPOLANT_ENABLE = true;
     
-    bool UNSAT_CORE_RUN_MULITTIMES = true;
+    bool UNSATCORE_FIXPOINT_REDUCTION = true;
+    bool UNSATCORE_MUS_REDUCTION = true;
     unsigned UNSAT_CORE_MULTI = 1; // 0 : all , you may want different things for may/must
     bool SUBSUME_NO_PUSH_RETRY = true; // if a cex is subsume, its lemma will not be retried
 

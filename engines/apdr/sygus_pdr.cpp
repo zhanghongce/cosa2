@@ -254,7 +254,9 @@ std::pair<Model *, bool> Apdr::do_sygus(
   extract_model_output_ = NULL;
   // this function will change sygus_failed_at_init and extract_model_output_
   // by the lambda function extract_model_func_
-  sygus_enumerator.GetOneCandidateViaMUS(lemmas_btor); // , GlobalAPdrConfig.UNSAT_CORE_MULTI
+  sygus_enumerator.GetOneCandidate(lemmas_btor, 
+    GlobalAPdrConfig.UNSATCORE_FIXPOINT_REDUCTION,
+    GlobalAPdrConfig.UNSATCORE_MUS_REDUCTION); // , GlobalAPdrConfig.UNSAT_CORE_MULTI
   assert(lemmas_btor.empty() == (extract_model_output_ != NULL));
   //if(extract_model_output_)
   //  assert(!extract_model_output_->cube.empty()); // it can be empty

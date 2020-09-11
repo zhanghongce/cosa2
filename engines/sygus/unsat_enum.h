@@ -53,6 +53,8 @@ protected:
   PerCexInfo & setup_cex_info(VarTermManager & var_term_extractor);
   void terms_to_predicates();
   
+  // I'm a bit lazy to write template
+  smt::Term AssembleCandFromUnsatCore(const smt::Term & base_term, const smt::UnorderedTermSet & unsatcore);
   smt::Term AssembleCandFromUnsatCore(const smt::Term & base_term, const std::list<smt::Term> & unsatcore);
   void DebugPredicates(const smt::TermVec & inpreds, const smt::Term & base, const smt::Term & init, bool rm_pre) ;
   bool check_failed_at_init(const smt::Term & F_and_T) ;
@@ -73,7 +75,8 @@ public:
   static void ClearCache() {  cex_term_map_.clear(); }
   static cex_term_map_t & GetCexToPreCexInfoMap() { return cex_term_map_; }
 
-  void GetOneCandidateViaMUS(smt::TermVec & cands) ;
+  void GetOneCandidate(smt::TermVec & cands, bool iterative_reduction, bool mus_traverse_reduction);
+
   //void GetNCandidates(smt::TermVec & cands, size_t n) ;
 
   //void GetNCandidatesRemoveInPrev(smt::TermVec & cands, size_t n) ;
@@ -102,6 +105,11 @@ protected:
   bool CheckPredDisjFailInit();
 
   //template <class T> smt::Term ANDN_pre(const T & prime_p);
+
+  // for iterative core reduction
+  void MinimizeUnsatCore(const smt::Term & base_term,
+    const smt::UnorderedTermSet & core_in, smt::UnorderedTermSet & core_out);
+  
 
 private:
   // debug purpose
