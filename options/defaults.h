@@ -29,7 +29,8 @@ enum Engine
   BMC_SP,
   KIND,
   INTERP,
-  APDR
+  APDR,
+  TOCHC
 };
 
 static const std::unordered_map<std::string, Engine> str2engine(
@@ -37,7 +38,9 @@ static const std::unordered_map<std::string, Engine> str2engine(
       { "bmc-sp", BMC_SP },
       { "ind", KIND },
       { "interp", INTERP },
-      { "apdr", APDR } });
+      { "apdr", APDR },
+      { "chc", TOCHC }
+    });
 
 const Engine to_engine(std::string s)
 {

@@ -15,6 +15,7 @@
  **/
 
 #include <iostream>
+#include <fstream>
 #include "assert.h"
 
 #include "optionparser.h"
@@ -35,6 +36,7 @@
 #include "kinduction.h"
 #include "printers/btor2_witness_printer.h"
 #include "printers/vcd_witness_printer.h"
+#include "printers/chc_printer.h"
 #include "prop.h"
 #include "utils/logger.h"
 #include "utils/signal_handler.h"
@@ -55,6 +57,7 @@ enum optionIndex
   PROP,
   VERBOSITY,
   VCDNAME,
+  CHC_FNAME,
   PROPFILE,
   // for detail config
   PDR_ITP_MODE,
@@ -139,6 +142,12 @@ const option::Descriptor usage[] = {
     "vcd",
     Arg::NonEmpty,
     "  --vcd \tName of Value Change Dump (VCD) if witness exists." },
+  { CHC_FNAME,
+    0,
+    "",
+    "chc",
+    Arg::NonEmpty,
+    "  --chc \tName of the output CHC file." },
   { PROPFILE,
     0,
     "",
@@ -267,6 +276,7 @@ int main(int argc, char ** argv)
   unsigned int bound = default_bound;
   unsigned int verbosity = default_verbosity;
   std::string vcd_name;
+  std::string chc_name;
   std::string property_file_name;
   unsigned int itp_mode = 0;
   unsigned int lemma_gen_mode = GlobalAPdrConfig.LEMMA_GEN_MODE;
@@ -285,6 +295,7 @@ int main(int argc, char ** argv)
       case PROP: prop_idx = atoi(opt.arg); break;
       case VERBOSITY: verbosity = atoi(opt.arg); break;
       case VCDNAME: vcd_name = opt.arg; break;
+      case CHC_FNAME: chc_name = opt.arg; break;
       case PROPFILE: property_file_name = opt.arg; break;
 
       case PDR_ITP_MODE: itp_mode = atoi(opt.arg); break;
@@ -322,6 +333,12 @@ int main(int argc, char ** argv)
                           "setup smt-switch with MathSAT and reconfigure using --with-msat.\n"
                           "Note: MathSAT has a custom license and you must assume all "
                           "responsibility for meeting the license requirements.");
+      #endif
+    } else if (engine == TOCHC) {
+      #ifdef WITH_MSAT
+        s = MsatSolverFactory::create(false);
+      #else
+        s = BoolectorSolverFactory::create(false);
       #endif
     } else if (engine == APDR) {
       #ifdef WITH_MSAT
@@ -383,7 +400,20 @@ int main(int argc, char ** argv)
         RegisterApdrSigHandler();
       }
       
-      r = check_prop(engine, bound, p, s, second_solver, cex);
+      
+      if (engine != TOCHC)
+        r = check_prop(engine, bound, p, s, second_solver, cex);
+      else {
+        ChcPrinter printer(p);
+        if (chc_name.empty())
+          printer.Export(std::cout);
+        else {
+          std::ofstream fout(chc_name);
+          if(!fout.is_open())
+            throw CosaException("Unable to open "  + chc_name + " for write.");
+          printer.Export(fout);
+        }
+      }
 
       if (engine == APDR)
         UnregisterApdrSigHandler();
