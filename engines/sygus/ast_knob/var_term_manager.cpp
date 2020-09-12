@@ -35,6 +35,11 @@ unsigned VarTermManager::GetMoreTerms(Model * pre, Model * post, TermLearner & t
   assert(IN(var_string, terms_cache_)); // should already done this
 
   PerVarsetInfo & varset_info = terms_cache_.at(var_string);
+  
+  assert(varset_info.state.stage != PerVarsetInfo::state_t::EXTRACTBITS);
+  assert(GlobalAPdrConfig.TERM_MODE != GlobalAPdrConfig.VAR_C_EXT);
+  // if we already extract bits, we should be forever good
+
   switch(varset_info.state.stage) {
     case PerVarsetInfo::state_t::WPARTIAL:
       // increase to WALL
@@ -50,7 +55,15 @@ unsigned VarTermManager::GetMoreTerms(Model * pre, Model * post, TermLearner & t
       // and do the same as FROMCEX, so continue
     case PerVarsetInfo::state_t::FROMCEX:
       // stay FROMCEX, just try if we can do anything more
-      return term_learner.learn_terms_from_cex(pre, post, varset_info);
+      {
+        auto nterms = term_learner.learn_terms_from_cex(pre, post, varset_info);
+        if (nterms != 0)
+          return nterms;
+        // else
+        varset_info.state.stage = PerVarsetInfo::state_t::EXTRACTBITS;
+      }
+    case PerVarsetInfo::state_t::EXTRACTBITS:
+      return term_learner.vars_extract_bit_level(post, varset_info);
     default:
       assert(false);
   }
@@ -58,7 +71,7 @@ unsigned VarTermManager::GetMoreTerms(Model * pre, Model * post, TermLearner & t
 } // GetMoreTerms
 
 // we just won't compute canonical_string twice
-const PerVarsetInfo & VarTermManager::SetupTermsForVar(
+const PerVarsetInfo & VarTermManager::SetupTermsForVarModelNormal(
   Model * m, const std::string & canonical_string) {
 
   bool collect_constant = width_to_constants_.empty();
@@ -105,20 +118,97 @@ const PerVarsetInfo & VarTermManager::SetupTermsForVar(
 
 
 // will distinguish constants and terms because we don't need c==c or c=/=c
-const PerVarsetInfo & VarTermManager::GetAllTermsForVarsInModel(Model * m) {
+const PerVarsetInfo & VarTermManager::GetAllTermsForVarsInModel(Model * m , smt::SmtSolver & s) {
 
   std::string var_string = m->vars_to_canonical_string();
   auto pos = terms_cache_.find(var_string);
   if ( pos != terms_cache_.end() )  {
     return pos->second;
   }
-
-  return SetupTermsForVar(m, var_string);
+  if (GlobalAPdrConfig.TERM_MODE == GlobalAPdrConfig.FROM_DESIGN_LEARN_EXT)
+    return SetupTermsForVarModelNormal(m, var_string);
+  if (GlobalAPdrConfig.TERM_MODE == GlobalAPdrConfig.VAR_C_EXT)
+    return SetupTermsForVarModeExt(m, var_string, s);
+  assert(false);
 } // GetAllTermsFor
 
 // Later you may need to insert
 
 // -------------------------------------------------------------------------
+
+
+const PerVarsetInfo & VarTermManager::SetupTermsForVarModeExt(
+  Model * m, const std::string & canonical_string, smt::SmtSolver & solver_) {
+  
+
+  bool collect_constant = width_to_constants_.empty();
+  std::unordered_set<smt::Term> varset;
+  m->get_varset(varset);
+
+  terms_cache_t::iterator pos; bool succ;
+  std::tie(pos, succ) = terms_cache_.emplace(canonical_string, 
+    PerVarsetInfo(PerVarsetInfo::state_t::EXTRACTBITS));
+
+  if (collect_constant) {
+    // now TERM_EXTRACT_DEPTH
+    ConstantExtractor extractor(width_to_constants_, constants_strings_);
+
+    for (auto && t : terms_to_check_)
+      extractor.WalkBFS(t);
+    
+    // -> width_to_constants_
+    // todo make sure bit-1 has 1 and only 1 value
+  }
+  // if collect constants
+
+  auto & term_cache_item = pos->second;
+  // const auto & terms = term_cache_item.terms; // extractor.GetTerms();
+
+  assert(!varset.empty());
+
+  // insert vars and their extracts
+  insert_vars_and_extracts(term_cache_item, varset, solver_);
+
+  if (term_cache_item.terms.find(1) == term_cache_item.terms.end()  ||
+        term_cache_item.terms.at(1).constants.empty()) {
+    auto c0 = solver_->make_term(0);
+    term_cache_item.terms_strings.insert(c0->to_raw_string());
+    term_cache_item.terms[1].constants.push_back(c0);
+  }
+
+  return term_cache_item;
+
+} // SetupTermsForVar
+
+
+
+// -------------------------------------------------------------------------
+
+void VarTermManager::insert_vars_and_extracts(
+  PerVarsetInfo & term_cache_item /*OUT*/ , const smt::UnorderedTermSet & varset, smt::SmtSolver & solver_  ) 
+{
+  for (const auto & v : varset) {
+    unsigned width;
+    if (v->get_sort()->get_sort_kind() == smt::SortKind::BOOL )
+      width = 1;
+    else if (v->get_sort()->get_sort_kind() == smt::SortKind::BV )
+      width = v->get_sort()->get_width();
+    else
+      continue;
+    auto res = term_cache_item.terms_strings.insert(v->to_raw_string());
+    if(res.second) {
+      term_cache_item.terms[width].terms.push_back(v);
+      if (width > 1) {
+        for (unsigned idx = 0; idx < width; ++idx) {
+          auto t = solver_->make_term(smt::Op(smt::PrimOp::Extract, idx, idx), v);
+          auto res = term_cache_item.terms_strings.insert(t->to_raw_string());
+          if (res.second)
+            term_cache_item.terms[1].terms.push_back(t);
+        } // for each bit       
+      } // if width > 1
+    } // if insert successful    
+  } // for each var
+} // insert_vars_and_extracts
 
 unsigned VarTermManager::insert_from_termsmap_w_width(
   const std::map<unsigned, smt::TermVec> & terms /*IN*/, PerVarsetInfo & term_cache_item /*OUT*/ , 

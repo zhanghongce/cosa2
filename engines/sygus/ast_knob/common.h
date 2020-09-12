@@ -45,7 +45,7 @@ struct PerVarsetInfo {
   // --- type definition --- //
   typedef std::map<unsigned, smt::TermVec> width_term_map_t;
   struct state_t  {
-    enum stage_t {EMPTY, WPARTIAL, WALL, FROMCEX} stage;
+    enum stage_t {EMPTY, WPARTIAL, WALL, FROMCEX, EXTRACTBITS} stage;
     unsigned partial_width_done;
     // you don't need to cache those constants, already in width_to_constants_
     state_t() : stage(EMPTY), partial_width_done(0) {}

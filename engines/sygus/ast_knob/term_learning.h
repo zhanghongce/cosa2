@@ -49,6 +49,7 @@ public:
     parent_map_(parent_map) {}
     
   unsigned learn_terms_from_cex(Model * pre, Model * post, /*OUTPUT*/  PerVarsetInfo & varset_info );
+  unsigned vars_extract_bit_level(Model * post,  /*OUTPUT*/  PerVarsetInfo & varset_info) ;
   
 protected:
   smt::Term trans_;

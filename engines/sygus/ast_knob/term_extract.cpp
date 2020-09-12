@@ -130,6 +130,38 @@ void ParentExtract::PostChild(const smt::Term & ast) {
   } // end of op
 } // PostChild
 
+// ---------------------------------------------- //
+//                                                //
+//              Constant Extract                  //
+//                                                //
+// ---------------------------------------------- //
+
+bool ConstantExtractor::Skip(const smt::Term & ast) {
+  return (IN(ast, walked_nodes_));
+}
+
+void ConstantExtractor::PreChild(const smt::Term & ast) {
+ // walked_nodes_.insert(ast);
+}
+
+void ConstantExtractor::PostChild(const smt::Term & ast) {
+  walked_nodes_.insert(ast);
+
+  if (! ast->is_value() )
+    return;
+
+  unsigned width;
+  auto sort_kind = ast->get_sort()->get_sort_kind() ;
+  if ( sort_kind == smt::SortKind::BOOL)
+    width = 1; // also make it bv?
+  else if (sort_kind == smt::SortKind::BV)
+    width = ast->get_sort()->get_width();
+  else
+    return;
+  auto ret = constants_strs_.insert(ast->to_raw_string());
+  if(ret.second)
+    width_constant_map[width].push_back(ast);
+} // PostChild
 
 
 } // namespace unsat_enum

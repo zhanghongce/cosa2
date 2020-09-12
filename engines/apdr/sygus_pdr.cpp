@@ -260,6 +260,10 @@ std::pair<Model *, bool> Apdr::do_sygus(
   assert(lemmas_btor.empty() == (extract_model_output_ != NULL));
   //if(extract_model_output_)
   //  assert(!extract_model_output_->cube.empty()); // it can be empty
+
+  if (GlobalAPdrConfig.TERM_MODE == GlobalAPdrConfig.VAR_C_EXT)
+    assert(!lemmas_btor.empty());
+
   return std::make_pair(extract_model_output_, sygus_failed_at_init);
 } // do_sygus
 

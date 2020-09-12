@@ -33,6 +33,28 @@ namespace unsat_enum {
 TermLearner::to_full_model_map_t TermLearner::to_full_model_map;
 
 
+unsigned TermLearner::vars_extract_bit_level(Model * post,  /*OUTPUT*/  PerVarsetInfo & varset_info) {
+  smt::UnorderedTermSet vars;
+  post->get_varset(vars);
+  unsigned nterm = 0;
+  for (const auto & v : vars) {
+    if (!(v->get_sort()->get_sort_kind() == smt::SortKind::BV &&
+          v->get_sort()->get_width() > 1 ))
+      continue;
+    auto width = v->get_sort()->get_width();
+    for (unsigned idx = 0; idx < width; ++idx) {
+      auto t = solver_->make_term(smt::Op(smt::PrimOp::Extract, idx, idx), v);
+      ParentExtract::RegisterNewParentRelation(v, t);
+      nterm += varset_info.TermLearnerInsertTerm(t) ? 1 : 0;
+    }
+  }
+
+  GlobalTimer.RegisterEventCount("TermLearner.NewTermBl", nterm);
+  return nterm;
+} // vars_extract_bit_level
+
+
+
 // return learned new terms
 unsigned TermLearner::learn_terms_from_cex(Model * pre, Model * post, /*OUTPUT*/  PerVarsetInfo & varset_info ) {
   // you will need the full model of pre !
@@ -42,7 +64,7 @@ unsigned TermLearner::learn_terms_from_cex(Model * pre, Model * post, /*OUTPUT*/
 
   auto post_prop = NOT(to_next_(post->to_expr_btor(solver_)));
   unsigned delta_term_num = 0;
-  GlobalTimer.RegisterEventStart("TermLearner.NewTerm", 0);
+  GlobalTimer.RegisterEventStart("TermLearner.NewTermRepl", 0);
   D(0, "[TermLearner] Pre model : {}", full_pre->to_string() );
   D(0, "[TermLearner] Post model : {}", post->to_string() );
   solver_->push();
@@ -57,7 +79,7 @@ unsigned TermLearner::learn_terms_from_cex(Model * pre, Model * post, /*OUTPUT*/
     delta_term_num += extract_complement(varset_info);
 
   solver_->pop();
-  GlobalTimer.RegisterEventEnd("TermLearner.NewTerm", delta_term_num);
+  GlobalTimer.RegisterEventEnd("TermLearner.NewTermRepl", delta_term_num);
   D(0, "  [TermLearner] Learn new terms #{}", delta_term_num);
   return delta_term_num;  
 } // learn_terms_from_cex

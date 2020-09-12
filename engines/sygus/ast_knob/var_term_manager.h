@@ -39,7 +39,7 @@ public:
   
   
   // this includes Constant Terms (will be inserted)
-  const PerVarsetInfo & GetAllTermsForVarsInModel(Model * m);
+  const PerVarsetInfo & GetAllTermsForVarsInModel(Model * m, smt::SmtSolver & s);
   unsigned GetMoreTerms(Model * pre, Model * post, TermLearner & term_learner); // return delta terms
 
 protected:
@@ -58,10 +58,16 @@ protected:
     const std::map<unsigned, smt::TermVec> & terms /*IN*/, PerVarsetInfo & term_cache_item /*OUT*/ , 
     unsigned width_bound_low /*IN*/, unsigned width_bound_high /*IN*/) ;
 
+  void insert_vars_and_extracts(PerVarsetInfo & term_cache_item /*OUT*/,
+    const smt::UnorderedTermSet & varset, smt::SmtSolver & solver_  );
+
   // 2. ----------------------------------------------
   // helps with the Terms
-  const PerVarsetInfo & SetupTermsForVar(
+  const PerVarsetInfo & SetupTermsForVarModelNormal(
     Model * m, const std::string & canonical_string);
+
+  const PerVarsetInfo & SetupTermsForVarModeExt(
+    Model * m, const std::string & canonical_string, smt::SmtSolver & s);
     
 }; // class VarTermManager
 

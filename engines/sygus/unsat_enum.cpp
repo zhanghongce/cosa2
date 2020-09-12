@@ -92,7 +92,7 @@ PerCexInfo & Enumerator::setup_cex_info(VarTermManager & var_term_extractor) {
     bool nouse;
     std::tie(cex_term_map_pos ,  nouse) =
       cex_term_map_.emplace(cex_ptr, 
-          PerCexInfo( var_term_extractor.GetAllTermsForVarsInModel(cex_ptr) ));
+          PerCexInfo( var_term_extractor.GetAllTermsForVarsInModel(cex_ptr, solver_) ));
   }
 
   PerCexInfo & per_cex_info = cex_term_map_pos->second;

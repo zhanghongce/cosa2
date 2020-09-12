@@ -90,6 +90,26 @@ protected:
 
 }; // ParentExtract
 
+class ConstantExtractor: public Walker {
+public:
+  // ----------- TYPE --------------- //
+  typedef std::map<unsigned, std::vector<smt::Term>> width_constant_map_t;
+
+  ConstantExtractor(width_constant_map_t & out,
+    std::unordered_set<std::string> & cnstr_strs
+    ) : width_constant_map(out), constants_strs_(cnstr_strs)  {}
+
+protected:
+  width_constant_map_t & width_constant_map;
+  std::unordered_set<std::string> & constants_strs_;
+  std::unordered_set<smt::Term> walked_nodes_;
+
+  virtual bool Skip(const smt::Term & ast) override;
+  virtual void PreChild(const smt::Term & ast) override;
+  virtual void PostChild(const smt::Term & ast) override;
+
+}; // ConstantExtractor
+
 } // namespace unsat_enum
 
 }  // namespace cosa
