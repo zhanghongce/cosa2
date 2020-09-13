@@ -61,13 +61,6 @@ ChcPrinter::ChcPrinter (const Property & p):
     arg_inv_prime_use_.push_back(name_next);
     state_to_next_map_.emplace(name, name_next);
   }
-  for (const auto &s : next_states_) {
-    auto name = sygus::name_sanitize(s->to_string());
-    auto sort = s->get_sort()->to_string();
-    prime_var_def_ += "(declare-var " + name + " " + sort + ")\n";
-    arg_lists_trans_.push_back("("+name + " " + sort+")");
-    arg_lists_call_trans_.push_back(name);
-  }
   for (const auto &s : inputs_) {
     auto name = sygus::name_sanitize(s->to_string());
     auto sort = s->get_sort()->to_string();
@@ -77,9 +70,21 @@ ChcPrinter::ChcPrinter (const Property & p):
     arg_lists_call_init_.push_back(name);
     arg_lists_call_trans_.push_back(name);
 
+    arg_inv_type_.push_back(sort);
+
     auto name_next = sygus::name_sanitize(ts_.next(s)->to_string());
+    arg_inv_prime_use_.push_back(name_next);
     state_to_next_map_.emplace(name, name_next);
   }
+
+  for (const auto &s : next_states_) {
+    auto name = sygus::name_sanitize(s->to_string());
+    auto sort = s->get_sort()->to_string();
+    prime_var_def_ += "(declare-var " + name + " " + sort + ")\n";
+    arg_lists_trans_.push_back("("+name + " " + sort+")");
+    arg_lists_call_trans_.push_back(name);
+  }
+
   for (const auto &s : next_inputs_) {
     auto name = sygus::name_sanitize(s->to_string());
     auto sort = s->get_sort()->to_string();
