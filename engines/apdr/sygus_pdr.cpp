@@ -188,17 +188,27 @@ std::pair<Model *, bool> Apdr::gen_lemma(
 
   // call gen_sygus
   sygus_info_helper_.SetItpForCurrentRound(NULL, fidx);
-  auto ret = do_sygus(Fprev_btor, cex , sygus_info_helper_, lemmas_btor);
-  for (const auto & t : lemmas_btor) {
-    D(2, "         [lemma-gen] get sygus {}.", t->to_string());
-    lemmas_msat.push_back(bv_to_bool_msat(to_itp_solver_.transfer_term(t, false), itp_solver_));
-  }
-    
-  // an alternative : if fail, do something here
-  // do the amendment here and return no may-block
 
-  return ret;
+  while(true) {
+    auto ret = do_sygus(Fprev_btor, cex , sygus_info_helper_, lemmas_btor);
+    for (const auto & t : lemmas_btor) {
+      D(2, "         [lemma-gen] get sygus {}.", t->to_string());
+      lemmas_msat.push_back(bv_to_bool_msat(to_itp_solver_.transfer_term(t, false), itp_solver_));
+    }
+    // an alternative : if fail, do something here
+    // do the amendment here and return no may-block
+    if (lemmas_btor.empty() && !GlobalAPdrConfig.USE_MAY_BLOCK) {
+      // does not allow may block - so eagerly fix the problem here
+      fcex_t pre(fidx, ret.first, false, LCexOrigin::MayBlock()), // 
+            post(fidx+1, cex, true, LCexOrigin::MustBlock(0));   // only fidx and cex are used
 
+      bool can_block = propose_new_lemma_to_block(&pre, &post);
+      if (!can_block) {
+        throw CosaException("No good terms");
+      }
+    } else
+      return ret;
+  } // end of while true
 } // Apdr::gen_lemma
 
 
