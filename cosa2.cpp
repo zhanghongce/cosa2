@@ -63,7 +63,8 @@ enum optionIndex
   PDR_ITP_MODE,
   LEMMA_GEN_MODE,
   INTERNAL_SYGUS_BVCOMP,
-  STRENGTHEN_OFF,
+  MAY_BLOCK_OFF,
+  NO_SYGUIDE,
 
   SYNTAX_TREE_DEPTH,
   UNSAT_CORE_N,
@@ -174,12 +175,18 @@ const option::Descriptor usage[] = {
     "bvcomp",
     Arg::Numeric,
     "  --bvcomp \tbits: 4(bvult) 2(bvule) 1(override)" },
-  { STRENGTHEN_OFF,
+  { MAY_BLOCK_OFF,
     0,
     "",
-    "strengthen-off",
+    "mayblock-off",
     Arg::None,
-    "  --strengthen-off \tDo not try to block CTG (counterexample-to-generalization)" },
+    "  --mayblock-off \tDo not generate MAY-BLOCK goals" },
+  { NO_SYGUIDE,
+    0,
+    "",
+    "no-syg",
+    Arg::None,
+    "  --no-syg \tDo not use syntax guidance" },
   { SYNTAX_TREE_DEPTH,
     0,
     "",
@@ -287,7 +294,8 @@ int main(int argc, char ** argv)
   std::string property_file_name;
   unsigned int itp_mode = 0;
   unsigned int lemma_gen_mode = GlobalAPdrConfig.LEMMA_GEN_MODE;
-  bool strengthen_off = options[STRENGTHEN_OFF] != NULL;
+  bool mayblock_off = options[MAY_BLOCK_OFF] != NULL;
+  bool syguide_off = options[NO_SYGUIDE] != NULL;
   unsigned int bvcomp_mode = 0; // 000 no bvult, no bvule, no override
   unsigned ncore = GlobalAPdrConfig.UNSAT_CORE_MULTI;
   unsigned sdepth = GlobalAPdrConfig.TERM_EXTRACT_DEPTH;
@@ -356,6 +364,8 @@ int main(int argc, char ** argv)
       GlobalAPdrConfig.UNSAT_CORE_MULTI = ncore;
       GlobalAPdrConfig.TERM_EXTRACT_DEPTH = sdepth;
       GlobalAPdrConfig.TERM_MODE = (APdrConfig::TERM_MODE_T)syntax_mode;
+      GlobalAPdrConfig.USE_MAY_BLOCK = !mayblock_off;
+      GlobalAPdrConfig.INTERPOLANT_ONLY = syguide_off;
 
       s = BoolectorSolverFactory::create(false); // let's create it with a wrapper in case translation failed
       s->set_opt("produce-models", "true");

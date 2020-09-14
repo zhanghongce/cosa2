@@ -92,6 +92,9 @@ void Apdr::reset_sygus_syntax() {
 
 bool Apdr::propose_new_lemma_to_block(fcex_t * pre, fcex_t * post) {
   // TODO: here
+  assert(!GlobalAPdrConfig.INTERPOLANT_ONLY);
+  // if you only use interpolant, you should not need this
+
   PUSH_STACK(APdrConfig::Apdr_working_state_t::MAKE_NEW_TERM);
   unsigned proposing_new_terms_round = 0;
   unsigned n_new_terms;
