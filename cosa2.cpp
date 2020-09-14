@@ -66,7 +66,8 @@ enum optionIndex
   STRENGTHEN_OFF,
 
   SYNTAX_TREE_DEPTH,
-  UNSAT_CORE_N
+  UNSAT_CORE_N,
+  SYNTAX_MODE
   
 };
 
@@ -191,6 +192,12 @@ const option::Descriptor usage[] = {
     "ncore",
     Arg::Numeric,
     "  --ncore \tUnsat core num : 0 for all (enum), >0 for some restriction on ncore" },
+  { SYNTAX_MODE,
+    0,
+    "",
+    "synmode",
+    Arg::Numeric,
+    "  --synmode \tSyntax model : 0: terms and slice, 1: var constant slice, 2: split, 3: lte" },
   { 0, 0, 0, 0, 0, 0 }
 };
 /*********************************** end Option Handling setup
@@ -284,6 +291,7 @@ int main(int argc, char ** argv)
   unsigned int bvcomp_mode = 0; // 000 no bvult, no bvule, no override
   unsigned ncore = GlobalAPdrConfig.UNSAT_CORE_MULTI;
   unsigned sdepth = GlobalAPdrConfig.TERM_EXTRACT_DEPTH;
+  unsigned syntax_mode = GlobalAPdrConfig.TERM_MODE;
 
   for (int i = 0; i < parse.optionsCount(); ++i) {
     option::Option & opt = buffer[i];
@@ -304,6 +312,7 @@ int main(int argc, char ** argv)
       
       case UNSAT_CORE_N: ncore = atoi(opt.arg); break;
       case SYNTAX_TREE_DEPTH: sdepth = atoi(opt.arg); break;
+      case SYNTAX_MODE: syntax_mode = atoi(opt.arg); break;
 
       case UNKNOWN_OPTION:
         // not possible because Arg::Unknown returns ARG_ILLEGAL
@@ -346,6 +355,7 @@ int main(int argc, char ** argv)
       GlobalAPdrConfig.LEMMA_GEN_MODE = (APdrConfig::LEMMA_GEN_MODE_T)lemma_gen_mode;
       GlobalAPdrConfig.UNSAT_CORE_MULTI = ncore;
       GlobalAPdrConfig.TERM_EXTRACT_DEPTH = sdepth;
+      GlobalAPdrConfig.TERM_MODE = (APdrConfig::TERM_MODE_T)syntax_mode;
 
       s = BoolectorSolverFactory::create(false); // let's create it with a wrapper in case translation failed
       s->set_opt("produce-models", "true");
