@@ -30,6 +30,8 @@
 #define OR(x, y)     (solver_->make_term(smt::Or, (x), (y)))
 #define NOT(x)       (solver_->make_term(smt::Not, (x)))
 #define EQ(x, y)     (solver_->make_term(smt::Equal, (x), (y)))
+#define LT(x, y)     (solver_->make_term(smt::BVUlt, (x), (y)))
+#define LE(x, y)     (solver_->make_term(smt::BVUle, (x), (y)))
 #define NEQ(x, y)     (NOT(EQ( (x) , (y) )))
 
 
@@ -43,7 +45,7 @@
   #define INFO(...) logger.log(1, __VA_ARGS__)
 #endif
 
-#define TERM_TABLE_DEBUG_LVL 0
+#define TERM_TABLE_DEBUG_LVL 1
 
 namespace cosa {
 
@@ -182,9 +184,19 @@ void Enumerator::TermsDumping() const {
 #endif
 } // term dumping
 
+#define ADD_PRED(pred_curr) \
+        if (!((pred_curr)->is_value())) { \
+          auto pred_next = to_next_(pred_curr); \
+          next_to_curr.emplace(pred_next, pred_curr); \
+          preds.push_back(pred_next); \
+        }
+
 void Enumerator::terms_to_predicates() {
 
   GlobalTimer.RegisterEventStart("Enum.PredGen", per_cex_info_.predicates_nxt.size() );
+
+  bool use_lt = per_cex_info_.varset_info.use_lt();
+  bool use_lte = per_cex_info_.varset_info.use_lte();
 
   auto & preds = per_cex_info_.predicates_nxt;
   auto & next_to_curr = per_cex_info_.pred_next_to_pred_curr;
@@ -212,11 +224,25 @@ void Enumerator::terms_to_predicates() {
         const auto & tval = value_map.at(t);
         
         auto pred_curr = (cval == tval) ? EQ(c, t) : NEQ(c, t);
-        if (pred_curr->is_value())
-          continue;
-        auto pred_next = to_next_(pred_curr);
-        next_to_curr.emplace(pred_next, pred_curr);
-        preds.push_back(pred_next);
+        ADD_PRED(pred_curr)
+
+        // use_lt
+        if (use_lt && width > 1 && !(cval == tval)) {
+          auto pred_curr = (cval < tval) ? LT(c, t) : LT(t, c);
+          ADD_PRED(pred_curr)
+        }
+
+        if (use_lte && width > 1) {
+          if(cval == tval || cval < tval) {
+            auto pred = LE(c,t);
+            ADD_PRED(pred)
+          } 
+          if (tval == cval || tval < cval) {
+            auto pred = LE(t,c);
+            ADD_PRED(pred)
+          }
+        } // use le
+
       }
     } // end of c-t
     
@@ -229,11 +255,26 @@ void Enumerator::terms_to_predicates() {
         const auto & t2 = terms.at(idx2);
         const auto & tval2 = value_map.at( t2 );
         auto pred_curr = (tval1 == tval2) ? EQ(t1, t2) : NEQ(t1, t2);
-        if (pred_curr->is_value())
-          continue;
-        auto pred_next = to_next_(pred_curr);
-        next_to_curr.emplace(pred_next, pred_curr);
-        preds.push_back(pred_next);
+        ADD_PRED(pred_curr)
+
+        // use_lt
+        if (use_lt && width > 1 && !(tval1 == tval2)) {
+          auto pred_curr = (tval1 < tval2) ? LT(t1, t2) : LT(t2, t1);
+          ADD_PRED(pred_curr)
+        }
+
+        if (use_lte && width > 1) {
+          if(tval1 == tval2 || tval1 < tval2) {
+            auto pred = LE(t1,t2);
+            ADD_PRED(pred)
+          } 
+          if (tval2 == tval1 || tval2 < tval1) {
+            auto pred = LE(t2,t1);
+            ADD_PRED(pred)
+          }
+        } // use le
+
+
       }
     } // end of t-t
 
@@ -397,7 +438,7 @@ bool Enumerator::check_failed_at_init(const smt::Term & F_and_T) {
 
 void Enumerator::DebugPredicates(const smt::TermVec & inpreds, const smt::Term & base, const smt::Term & init, bool rm_pre) {
 
-#if 0
+#if 1
   bool base_term_in = false;
   for (const auto & p : inpreds) {
     if (p == base) {
@@ -406,6 +447,15 @@ void Enumerator::DebugPredicates(const smt::TermVec & inpreds, const smt::Term &
       auto t_curr = per_cex_info_.pred_next_to_pred_curr.at(p);
       D(0, "{} on s': {} ", t_curr->to_raw_string(), solver_->get_value(p)->to_string());
     }
+  }
+  {
+    smt::UnorderedTermSet pre_set;
+    cex_->get_varset(pre_set);
+    smt::UnorderedTermSet post_set;
+    for (const auto & v : pre_set)
+      post_set.insert(to_next_(v));
+    Model m(solver_, post_set);
+    D(0, "Post model: {}", m.to_string());
   }
 #endif
 

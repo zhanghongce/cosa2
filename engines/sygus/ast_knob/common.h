@@ -45,7 +45,7 @@ struct PerVarsetInfo {
   // --- type definition --- //
   typedef std::map<unsigned, smt::TermVec> width_term_map_t;
   struct state_t  {
-    enum stage_t {EMPTY, WPARTIAL, WALL, FROMCEX, EXTRACTBITS} stage;
+    enum stage_t {EMPTY, WPARTIAL, WALL, FROMCEX, EXTRACTBITS, VCLT, VCLTE} stage;
     unsigned partial_width_done;
     // you don't need to cache those constants, already in width_to_constants_
     state_t() : stage(EMPTY), partial_width_done(0) {}
@@ -63,6 +63,9 @@ struct PerVarsetInfo {
   bool TermLearnerInsertTerm(const smt::Term & t);
   bool TermLearnerIsOut(const smt::Term & p) const {
     return all_terms.find(p) == all_terms.end(); }
+
+  bool use_lt() const { return state.stage == state_t::VCLT; }
+  bool use_lte() const { return state.stage == state_t::VCLTE; }
 
 protected: // let's restrict the accesses to these fields
   friend class VarTermManager; 

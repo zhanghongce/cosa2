@@ -48,10 +48,15 @@ namespace cosa {
     unsigned INITIAL_TERM_INC   = 8;
     unsigned ACCUMULATED_TERM_BOUND = 0; // let's try 0 first
 
-    enum { 
+    enum TERM_MODE_T{ 
       FROM_DESIGN_LEARN_EXT = 0,
-      VAR_C_EXT  } TERM_MODE = VAR_C_EXT; //FROM_DESIGN_LEARN_EXT;
+      VAR_C_EXT = 1,
+      SPLIT_FROM_DESIGN = 2,
+      VAR_C_EQ_LT = 3
+    } TERM_MODE = FROM_DESIGN_LEARN_EXT; //FROM_DESIGN_LEARN_EXT;
+
     bool USE_MAY_BLOCK = true;
+    bool INTERPOLANT_ONLY = false;
     
     // ------------- SyGuS Configuration ---------------------------------
 

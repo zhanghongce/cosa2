@@ -17,8 +17,12 @@
 #pragma once
 
 #include "walker.h"
+#include "common.h"
 
 #include <map>
+#include <set>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace cosa {
   
@@ -29,8 +33,9 @@ public:
   // ----------- TYPE --------------- //
   struct node_info_t {
     bool in;
+    bool related;
     unsigned level;
-    node_info_t() : in(false), level(0) {}
+    node_info_t() : in(false), related(false), level(0) {}
   };
   
   
@@ -38,9 +43,13 @@ public:
   // if level > 0, then we will count level, otherwise, we don't care about the levels
   TermExtractor(const std::unordered_set<smt::Term> & varset, bool collect_constants, unsigned level,
       std::map<unsigned, std::vector<smt::Term>> & width_to_term_table,
-      std::unordered_set<smt::Term> & all_terms_set) :
+      std::unordered_set<smt::Term> & all_terms_set
+      //std::unordered_set<smt::Term> & related_terms_set
+      ) :
     related_vars_(varset), collect_constants_(collect_constants), level_(level),
-    width_to_terms_(width_to_term_table), all_terms_(all_terms_set) { }
+    width_to_terms_(width_to_term_table), all_terms_(all_terms_set)
+    //related_terms_(related_terms_set) 
+    { }
     
   //const std::map<unsigned, std::vector<smt::Term>> & GetTermsByWidth() const { return width_to_terms_; }
   //const std::unordered_set<smt::Term> & GetAllTerms() const { return all_terms_; }
@@ -57,6 +66,7 @@ protected:
   std::map<unsigned, std::vector<smt::Term>> & width_to_terms_;
   std::map<unsigned, std::vector<smt::Term>> width_to_constants_; // const is not needed, as you may not always need it
   std::unordered_set<smt::Term> & all_terms_;
+  // std::unordered_set<smt::Term> & related_terms_;
   
   virtual bool Skip(const smt::Term & ast) override;
   virtual void PreChild(const smt::Term & ast) override;
@@ -109,6 +119,34 @@ protected:
   virtual void PostChild(const smt::Term & ast) override;
 
 }; // ConstantExtractor
+
+
+class SliceExtractor: public Walker {
+public:
+  using width_term_map_t = PerVarsetInfo::width_term_map_t;
+  //typedef std::map<unsigned, PerWidthInfo> width_terms_map_t;
+  typedef std::pair<unsigned, unsigned> ext_position_t;
+  typedef std::unordered_map<smt::Term, std::set<ext_position_t>> sv2exts_t;
+
+  SliceExtractor(
+    /*OUTPUT*/ std::unordered_set<std::string> & term_str, 
+    /*OUTPUT*/ width_term_map_t & ext_terms,
+    /*INPUT*/  const std::unordered_set<smt::Term> & varset) :
+    term_strs_(term_str), ext_terms_(ext_terms), related_vars_(varset) { }
+  const sv2exts_t & GetSvSlice() const { return sv2exts_; }
+
+protected:
+  std::unordered_set<smt::Term> walked_nodes_;
+  std::unordered_set<std::string> & term_strs_;
+  width_term_map_t & ext_terms_; // point to width 1
+  sv2exts_t sv2exts_;
+  const std::unordered_set<smt::Term> & related_vars_; 
+
+  virtual bool Skip(const smt::Term & ast) override;
+  virtual void PreChild(const smt::Term & ast) override;
+  virtual void PostChild(const smt::Term & ast) override;
+
+}; // SliceExtractor
 
 } // namespace unsat_enum
 

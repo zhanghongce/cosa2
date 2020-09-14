@@ -54,12 +54,24 @@ protected:
   // 1. ----------------------------------------------
   // helps with the insertions
   void insert_from_constmap(const PerVarsetInfo::width_term_map_t & w_c_map) ;
+
+  void term_const_w1_const(PerVarsetInfo & term_cache_item /*OUT*/, smt::SmtSolver & solver_);
+  void const_to_per_varset(PerVarsetInfo & term_cache_item /*OUT*/, 
+    unsigned width_bound_low /*IN*/, unsigned width_bound_high /*IN*/, unsigned & nterm_walked);
+
   unsigned insert_from_termsmap_w_width(
     const std::map<unsigned, smt::TermVec> & terms /*IN*/, PerVarsetInfo & term_cache_item /*OUT*/ , 
     unsigned width_bound_low /*IN*/, unsigned width_bound_high /*IN*/) ;
 
   void insert_vars_and_extracts(PerVarsetInfo & term_cache_item /*OUT*/,
     const smt::UnorderedTermSet & varset, smt::SmtSolver & solver_  );
+
+  void insert_vars_only(
+    PerVarsetInfo & term_cache_item /*OUT*/ , const smt::UnorderedTermSet & varset);
+
+  void insert_split(
+    PerVarsetInfo & term_cache_item /*OUT*/ , const smt::UnorderedTermSet & varset,
+    smt::SmtSolver & s) ;
 
   // 2. ----------------------------------------------
   // helps with the Terms
@@ -68,7 +80,13 @@ protected:
 
   const PerVarsetInfo & SetupTermsForVarModeExt(
     Model * m, const std::string & canonical_string, smt::SmtSolver & s);
-    
+
+  const PerVarsetInfo & SetupTermsForVarModelVC(
+    Model * m, const std::string & canonical_string);
+  
+  const PerVarsetInfo & SetupTermsForVarModeSplit(
+    Model * m, const std::string & canonical_string, smt::SmtSolver & solver_);
+  
 }; // class VarTermManager
 
 } // namespace unsat_enum

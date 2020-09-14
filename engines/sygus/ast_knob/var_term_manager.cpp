@@ -37,10 +37,14 @@ unsigned VarTermManager::GetMoreTerms(Model * pre, Model * post, TermLearner & t
   PerVarsetInfo & varset_info = terms_cache_.at(var_string);
   
   assert(varset_info.state.stage != PerVarsetInfo::state_t::EXTRACTBITS);
+  assert(varset_info.state.stage != PerVarsetInfo::state_t::VCLT);
+  assert(varset_info.state.stage != PerVarsetInfo::state_t::VCLTE);
   assert(GlobalAPdrConfig.TERM_MODE != GlobalAPdrConfig.VAR_C_EXT);
   // if we already extract bits, we should be forever good
 
   switch(varset_info.state.stage) {
+    case PerVarsetInfo::state_t::VCLT:
+    case PerVarsetInfo::state_t::VCLTE:
     case PerVarsetInfo::state_t::WPARTIAL:
       // increase to WALL
       {
@@ -129,6 +133,11 @@ const PerVarsetInfo & VarTermManager::GetAllTermsForVarsInModel(Model * m , smt:
     return SetupTermsForVarModelNormal(m, var_string);
   if (GlobalAPdrConfig.TERM_MODE == GlobalAPdrConfig.VAR_C_EXT)
     return SetupTermsForVarModeExt(m, var_string, s);
+  if (GlobalAPdrConfig.TERM_MODE == GlobalAPdrConfig.SPLIT_FROM_DESIGN)
+    return SetupTermsForVarModeSplit(m, var_string, s);
+  if (GlobalAPdrConfig.TERM_MODE == GlobalAPdrConfig.VAR_C_EQ_LT)
+    return SetupTermsForVarModelVC(m, var_string); // just var and constant, you don't need a lot more
+
   assert(false);
 } // GetAllTermsFor
 
@@ -137,10 +146,93 @@ const PerVarsetInfo & VarTermManager::GetAllTermsForVarsInModel(Model * m , smt:
 // -------------------------------------------------------------------------
 
 
+const PerVarsetInfo & VarTermManager::SetupTermsForVarModeSplit(
+  Model * m, const std::string & canonical_string, smt::SmtSolver & solver_)
+{
+
+  bool collect_constant = width_to_constants_.empty();
+  std::unordered_set<smt::Term> varset;
+  m->get_varset(varset);
+
+  terms_cache_t::iterator pos; bool succ;
+  std::tie(pos, succ) = terms_cache_.emplace(canonical_string, 
+    PerVarsetInfo(PerVarsetInfo::state_t::EXTRACTBITS)); //WPARTIAL is better
+    // EXTRACTBITS is simply see if we need more
+
+  if (collect_constant) {
+    // now TERM_EXTRACT_DEPTH
+    ConstantExtractor extractor(width_to_constants_, constants_strings_);
+
+    for (auto && t : terms_to_check_)
+      extractor.WalkBFS(t);
+    
+    // -> width_to_constants_
+    // todo make sure bit-1 has 1 and only 1 value
+  }
+  // if collect constants
+
+  auto & term_cache_item = pos->second;
+  // const auto & terms = term_cache_item.terms; // extractor.GetTerms();
+
+  assert(!varset.empty());
+  insert_vars_only(term_cache_item, varset);
+
+  insert_split(term_cache_item, varset, solver_);
+  unsigned nouse = 0;
+  const_to_per_varset(term_cache_item, 0, (unsigned)(-1), nouse);
+
+  // make sure there is at least a one for bv1
+  if (term_cache_item.terms.find(1) == term_cache_item.terms.end()  ||
+        term_cache_item.terms.at(1).constants.empty()) {
+    auto c0 = solver_->make_term(0);
+    term_cache_item.terms_strings.insert(c0->to_raw_string());
+    term_cache_item.terms[1].constants.push_back(c0);
+  }
+
+  return term_cache_item;
+} // SetupTermsForVarModeSplit
+
+const PerVarsetInfo & VarTermManager::SetupTermsForVarModelVC(
+  Model * m, const std::string & canonical_string)
+{
+  bool collect_constant = width_to_constants_.empty();
+  std::unordered_set<smt::Term> varset;
+  m->get_varset(varset);
+
+  terms_cache_t::iterator pos; bool succ;
+  std::tie(pos, succ) = terms_cache_.emplace(canonical_string, 
+    PerVarsetInfo(PerVarsetInfo::state_t::VCLTE)); // see if we need more 
+  // auto determine is needed!
+
+  if (collect_constant) {
+    // now TERM_EXTRACT_DEPTH
+    ConstantExtractor extractor(width_to_constants_, constants_strings_);
+
+    for (auto && t : terms_to_check_)
+      extractor.WalkBFS(t);
+    
+    // -> width_to_constants_
+    // todo make sure bit-1 has 1 and only 1 value
+  }
+  // if collect constants
+
+  auto & term_cache_item = pos->second;
+  // const auto & terms = term_cache_item.terms; // extractor.GetTerms();
+
+  assert(!varset.empty());
+  insert_vars_only(term_cache_item, varset);
+
+  unsigned nouse = 0;
+  const_to_per_varset(term_cache_item, 0, (unsigned)(-1), nouse);
+
+  return term_cache_item;
+} // SetupTermsForVarModelVC
+
+
+
 const PerVarsetInfo & VarTermManager::SetupTermsForVarModeExt(
   Model * m, const std::string & canonical_string, smt::SmtSolver & solver_) {
   
-
   bool collect_constant = width_to_constants_.empty();
   std::unordered_set<smt::Term> varset;
   m->get_varset(varset);
@@ -168,21 +260,62 @@ const PerVarsetInfo & VarTermManager::SetupTermsForVarModeExt(
 
   // insert vars and their extracts
   insert_vars_and_extracts(term_cache_item, varset, solver_);
+  unsigned nouse = 0;
+  const_to_per_varset(term_cache_item, 0, (unsigned)(-1), nouse);
 
-  if (term_cache_item.terms.find(1) == term_cache_item.terms.end()  ||
-        term_cache_item.terms.at(1).constants.empty()) {
-    auto c0 = solver_->make_term(0);
-    term_cache_item.terms_strings.insert(c0->to_raw_string());
-    term_cache_item.terms[1].constants.push_back(c0);
-  }
+  // make sure there is at least a one
+  term_const_w1_const(term_cache_item, solver_);
 
   return term_cache_item;
-
 } // SetupTermsForVar
 
 
 
 // -------------------------------------------------------------------------
+
+void VarTermManager::insert_split(
+  PerVarsetInfo & term_cache_item /*OUT*/ , const smt::UnorderedTermSet & varset,
+  smt::SmtSolver & solver_) 
+{
+  SliceExtractor extractor(term_cache_item.terms_strings, term_cache_item.terms_buffer, varset);
+
+  for (auto && t : terms_to_check_)
+    extractor.WalkBFS(t);
+  
+  const auto & sv_slices = extractor.GetSvSlice();
+  for (const auto & sv_slice_pair : sv_slices) {
+    const auto & sv = sv_slice_pair.first;
+    const auto & slices = sv_slice_pair.second;
+    for (const auto & lr_pair : slices) {
+      auto t = solver_->make_term(smt::Op(smt::PrimOp::Extract, lr_pair.first, lr_pair.second), sv);
+      assert(lr_pair.first>=lr_pair.second);
+      auto w = lr_pair.first-lr_pair.second+1;
+      auto res = term_cache_item.terms_strings.insert(t->to_raw_string());
+      if (res.second)
+        term_cache_item.terms[w].terms.push_back(t);
+      // Parent relation? All_terms ?
+    }
+  }
+} // insert_split
+
+
+void VarTermManager::insert_vars_only(
+  PerVarsetInfo & term_cache_item /*OUT*/ , const smt::UnorderedTermSet & varset)
+{
+
+  for (const auto & v : varset) {
+    unsigned width;
+    if (v->get_sort()->get_sort_kind() == smt::SortKind::BOOL )
+      width = 1;
+    else if (v->get_sort()->get_sort_kind() == smt::SortKind::BV )
+      width = v->get_sort()->get_width();
+    else
+      continue;
+    auto res = term_cache_item.terms_strings.insert(v->to_raw_string());
+    if(res.second)
+      term_cache_item.terms[width].terms.push_back(v);
+  }
+} // insert_vars_only
 
 void VarTermManager::insert_vars_and_extracts(
   PerVarsetInfo & term_cache_item /*OUT*/ , const smt::UnorderedTermSet & varset, smt::SmtSolver & solver_  ) 
@@ -210,6 +343,35 @@ void VarTermManager::insert_vars_and_extracts(
   } // for each var
 } // insert_vars_and_extracts
 
+void VarTermManager::term_const_w1_const(PerVarsetInfo & term_cache_item /*OUT*/, smt::SmtSolver & solver_) {
+  if (term_cache_item.terms.find(1) == term_cache_item.terms.end()  ||
+        term_cache_item.terms.at(1).constants.empty()) {
+    auto c0 = solver_->make_term(0);
+    term_cache_item.terms_strings.insert(c0->to_raw_string());
+    term_cache_item.terms[1].constants.push_back(c0);
+  }
+} // term_const_w1_const
+
+void VarTermManager::const_to_per_varset(PerVarsetInfo & term_cache_item /*OUT*/, 
+  unsigned width_bound_low /*IN*/, unsigned width_bound_high /*IN*/, unsigned & nterm_walked)
+{
+  // insert constants to 
+  for (auto && w_cs_pair : width_to_constants_) {
+    auto width = w_cs_pair.first;
+    if (! (width >= width_bound_low && width < width_bound_high))
+      continue;
+
+    const auto &cvec = w_cs_pair.second;
+    for (auto && c : cvec) {
+      auto ins_res = term_cache_item.terms_strings.insert(c->to_raw_string());
+      if(ins_res.second) {
+        term_cache_item.terms[width].constants.push_back(c);
+        ++ nterm_walked;
+      } // end if really inserted
+    }
+  } // end of for each width_constant_pair
+} //const_to_per_varset
+
 unsigned VarTermManager::insert_from_termsmap_w_width(
   const std::map<unsigned, smt::TermVec> & terms /*IN*/, PerVarsetInfo & term_cache_item /*OUT*/ , 
   unsigned width_bound_low /*IN*/, unsigned width_bound_high /*IN*/) 
@@ -230,22 +392,7 @@ unsigned VarTermManager::insert_from_termsmap_w_width(
       }     
     } // end for each term
   } // end for terms
-
-  // insert constants to 
-  for (auto && w_cs_pair : width_to_constants_) {
-    auto width = w_cs_pair.first;
-    if (! (width >= width_bound_low && width < width_bound_high))
-      continue;
-
-    const auto &cvec = w_cs_pair.second;
-    for (auto && c : cvec) {
-      auto ins_res = term_cache_item.terms_strings.insert(c->to_raw_string());
-      if(ins_res.second) {
-        term_cache_item.terms[width].constants.push_back(c);
-        ++ nterm_walked;
-      } // end if really inserted
-    }
-  } // end of for each width_constant_pair
+  const_to_per_varset(term_cache_item, width_bound_low, width_bound_high, nterm_walked);
   return nterm_walked;
 } // insert_from_termsmap_w_width
 
