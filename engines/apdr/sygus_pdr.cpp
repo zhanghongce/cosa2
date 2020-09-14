@@ -133,9 +133,10 @@ bool Apdr::propose_new_lemma_to_block(fcex_t * pre, fcex_t * post) {
   // if failed
 } // propose_new_lemma_to_block
 
-void Apdr::use_itp_or_not_cube(Model * model_to_block, Lemma::LCexOrigin cex_type,
-   unsigned fidx, unsigned prefidx) {
-
+void Apdr::get_itp_as_lemmas(Model * model_to_block, unsigned prefidx,
+  smt::TermVec & lemmas_msat /*OUT*/,
+  smt::TermVec & lemmas_btor /*OUT*/ ) {
+  
   { // interpolant
     smt::Term prop_msat = NOT_msat(model_to_block->to_expr_msat(itp_solver_, to_itp_solver_));
 
@@ -150,10 +151,8 @@ void Apdr::use_itp_or_not_cube(Model * model_to_block, Lemma::LCexOrigin cex_typ
 
     if(itp_msat) {
       itp_btor = to_btor_.transfer_term(itp_msat, false);
-      Lemma * itp = new_lemma(itp_btor, itp_msat, model_to_block, cex_type);
-      frames.at(fidx).push_back(itp);
-      D(1, "[propose-new-term] @F{} use itp: {}",  fidx, 
-        itp_btor->to_raw_string());
+      lemmas_msat.push_back(itp_msat);
+      lemmas_btor.push_back(itp_btor);
       return;
     }
   } // interpolant
@@ -165,10 +164,21 @@ void Apdr::use_itp_or_not_cube(Model * model_to_block, Lemma::LCexOrigin cex_typ
     auto prop_btor = NOT(model_to_block->to_expr_btor(solver_));
     auto prop_msat = NOT_msat(model_to_block->to_expr_msat(itp_solver_, to_itp_solver_));
 
-    Lemma * itp = new_lemma(prop_btor, prop_msat, model_to_block, cex_type);
-    frames.at(fidx).push_back(itp);
+    lemmas_msat.push_back(prop_msat);
+    lemmas_btor.push_back(prop_btor);
     return;
   }
+} // get_itp_as_lemmas
+
+void Apdr::use_itp_or_not_cube(Model * model_to_block, Lemma::LCexOrigin cex_type,
+   unsigned fidx, unsigned prefidx)
+{
+  smt::TermVec lemmas_msat;
+  smt::TermVec lemmas_btor;
+  get_itp_as_lemmas(model_to_block, prefidx, lemmas_msat, lemmas_btor);
+  assert(!lemmas_btor.empty() && !lemmas_msat.empty());
+  Lemma * itp = new_lemma(lemmas_btor.at(0), lemmas_msat.at(0), model_to_block, cex_type);
+  frames.at(fidx).push_back(itp);
 } // UseItpOrNotCube
 
 // extract_model_t
@@ -185,6 +195,11 @@ std::pair<Model *, bool> Apdr::gen_lemma(
     Model * cex,
     smt::TermVec & lemmas_msat /*OUT*/,
     smt::TermVec & lemmas_btor /*OUT*/ ) {
+  
+  if (GlobalAPdrConfig.INTERPOLANT_ONLY) {
+    get_itp_as_lemmas(cex, fidx, lemmas_msat, lemmas_btor);
+    return std::make_pair<Model *, bool>(NULL, false);
+  }
 
   // call gen_sygus
   sygus_info_helper_.SetItpForCurrentRound(NULL, fidx);

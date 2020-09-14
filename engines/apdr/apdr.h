@@ -207,6 +207,10 @@ public:
   // within pre/post, you have fidx
   void use_itp_or_not_cube(Model * model_to_block, LCexOrigin cex_type,
     unsigned fidx, unsigned prefidx);
+
+  void get_itp_as_lemmas(Model * model_to_block, unsigned prefidx,
+    smt::TermVec & lemmas_msat /*OUT*/,
+    smt::TermVec & lemmas_btor /*OUT*/ );
   
   // return may block model and fail at init
   std::pair<Model *, bool> gen_lemma(
