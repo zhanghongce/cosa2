@@ -35,85 +35,59 @@ static std::string body_paranthesis_auto(const std::string & in) {
   return body;
 }
 
+/*
+
+  std::string var_type_; // (type1 type2 type3 ...)
+
+  std::string var_use_; // n1 n2 n3 ...
+  std::string var_prime_use_; // n1' n2' n3'
+
+  std::string primal_declare_;       // ((name type) (name type))
+  std::string primal_prime_declare_; // ((name type) (name type) and prime variables)
+
+*/
 
 ChcPrinter::ChcPrinter (const Property & p):
   ts_(p.transition_system()), property_(p),
   states_(ts_.states()), next_states_(ts_.next_states()), inputs_(ts_.inputs()), next_inputs_(ts_.next_inputs())
 {
-  std::vector<std::string> arg_lists_init_;
-  std::vector<std::string> arg_lists_trans_;
-  std::vector<std::string> arg_lists_call_init_;
-  std::vector<std::string> arg_lists_call_trans_;
-  std::vector<std::string> arg_inv_type_;
-  std::vector<std::string> arg_inv_prime_use_;
+  std::vector<std::string> var_type_list;
+
+  std::vector<std::string> var_use_list;
+  std::vector<std::string> var_prime_use_list;
+
+  std::vector<std::string> primal_declare_list;
+  std::vector<std::string> prime_declare_list;
 
   for (const auto &s : states_) {
     auto name = sygus::name_sanitize(s->to_string());
     auto sort = s->get_sort()->to_string();
-    primal_var_def_ += "(declare-var " + name + " " + sort + ")\n";
-    arg_lists_init_.push_back("("+name + " " + sort+")");
-    arg_lists_trans_.push_back("("+name + " " + sort+")");
-    arg_lists_call_init_.push_back(name);
-    arg_lists_call_trans_.push_back(name);
-    arg_inv_type_.push_back(sort);
+    primal_declare_list.push_back("("+name + " " + sort+")");
+    var_use_list.push_back(name);
+    var_type_list.push_back(sort);
 
     auto name_next = sygus::name_sanitize(ts_.next(s)->to_string());
-    arg_inv_prime_use_.push_back(name_next);
-    state_to_next_map_.emplace(name, name_next);
+    prime_declare_list.push_back("("+name_next + " " + sort+")");
+    var_prime_use_list.push_back(name_next);
   }
   for (const auto &s : inputs_) {
     auto name = sygus::name_sanitize(s->to_string());
     auto sort = s->get_sort()->to_string();
-    input_var_def_ += "(declare-var " + name + " " + sort + ")\n";
-    arg_lists_init_.push_back("("+name + " " + sort+")");
-    arg_lists_trans_.push_back("("+name + " " + sort+")");
-    arg_lists_call_init_.push_back(name);
-    arg_lists_call_trans_.push_back(name);
-
-    arg_inv_type_.push_back(sort);
+    primal_declare_list.push_back("("+name + " " + sort+")");
+    var_use_list.push_back(name);
+    var_type_list.push_back(sort);
 
     auto name_next = sygus::name_sanitize(ts_.next(s)->to_string());
-    arg_inv_prime_use_.push_back(name_next);
-    state_to_next_map_.emplace(name, name_next);
+    prime_declare_list.push_back("("+name_next + " " + sort+")");
+    var_prime_use_list.push_back(name_next);
   }
 
-  for (const auto &s : next_states_) {
-    auto name = sygus::name_sanitize(s->to_string());
-    auto sort = s->get_sort()->to_string();
-    prime_var_def_ += "(declare-var " + name + " " + sort + ")\n";
-    arg_lists_trans_.push_back("("+name + " " + sort+")");
-    arg_lists_call_trans_.push_back(name);
-  }
-
-  for (const auto &s : next_inputs_) {
-    auto name = sygus::name_sanitize(s->to_string());
-    auto sort = s->get_sort()->to_string();
-    input_var_def_ += "(declare-var " + name + " " + sort + ")\n";
-    //arg_lists_init_.push_back("("+name + " " + sort+")");
-    arg_lists_trans_.push_back("("+name + " " + sort+")");
-    //arg_lists_call_init_.push_back(name);
-    arg_lists_call_trans_.push_back(name);
-  }
-
-  trans_def_ = "(define-fun Trans \n    (" + sygus::Join(arg_lists_trans_, " ") +")\n    Bool\n     "
-    + body_paranthesis_auto(ts_.trans()->to_string()) + ")";
-  trans_use_ = "(Trans " + sygus::Join(arg_lists_call_trans_, " ") + ")";
-
-  // (define-fun Fprev (state_arg_def_) Bool (...))
-  // (Fprev )
-  state_arg_def_ = sygus::Join(arg_lists_init_, " ");
-  state_arg_use_ = sygus::Join(arg_lists_call_init_, " ");
-
-  init_def_ = "(define-fun Init \n    (" + state_arg_def_ +")\n     Bool\n     "
-    + body_paranthesis_auto(ts_.init()->to_string()) + ")";
-  init_use_ = "(Init " + state_arg_use_ + ")";
-
-  property_def_ = "(define-fun P \n   (" + state_arg_def_ + ")\n    Bool\n     "
-    +  body_paranthesis_auto(property_.prop()->to_string()) + ")";
-  property_use_ = "(P " + state_arg_use_ + ")";
-
-  inv_var_type_ =  "(" + sygus::Join(arg_inv_type_, " ") + ")";
-  inv_var_prime_use_ = sygus::Join(arg_inv_prime_use_, " ");
+  var_type_ = "("+sygus::Join(var_type_list, " ")+")";
+  var_use_ = sygus::Join(var_use_list, " ");
+  var_prime_use_ = sygus::Join(var_prime_use_list, " ");
+  primal_declare_ = "("+sygus::Join(primal_declare_list, " ") + ")";
+  primal_prime_declare_ = "("+sygus::Join(primal_declare_list, " ") + " " + sygus::Join(prime_declare_list, " ") + ")";
+  
 
 } // ChcPrinter::ChcPrinter
 
@@ -138,61 +112,38 @@ ChcPrinter::ChcPrinter (const Property & p):
 
 static std::string syntax_constraints_template = R"**(
 
-;----------------------------------------
-;  CHC generated from BTOR
-;  Generated by COSA2 (Pono)
-;----------------------------------------
+(set-logic HORN)
+(declare-fun INV %vartype% Bool)
 
-(set-option :fp.engine spacer)
+(assert (forall %allvardecl% (=> %init% (INV %varuse%))))
 
-%INIT%
-%TRANS%
-%P%
+(assert (forall %allvardecl% (=> (and (INV %varuse%) %trans%) (INV %varuseprime%))))
 
-%S%
-%SP%
-%I%
+(assert (forall %allvardecl% (=> (and (INV %varuse%) (not %prop%)) false)))
 
-(declare-rel INV %INVvartype%)
-(declare-rel fail ())
-
-(rule (=> 
-  %inituse%
-  (INV  %INVvaruse%)))
-
-(rule (=> (and
-  (INV  %INVvaruse%)
-  %tuse%)
-  (INV  %INVvaruseprime%)))
-
-(rule (=> (and
-  (INV %INVvaruse%) 
-  (not %Puse%))
-  fail))
-
-(query fail :print-certificate true)
-
+(check-sat)
 )**";
 
 void ChcPrinter::Export(std::ostream & os) const {
+  
+  auto trans_ = body_paranthesis_auto(ts_.trans()->to_string());
+  auto init_ = body_paranthesis_auto(ts_.init()->to_string());
+  auto prop_ = body_paranthesis_auto(property_.prop()->to_string());
 
   os << 
-    sygus::ReplaceAll(sygus::ReplaceAll(sygus::ReplaceAll(sygus::ReplaceAll(sygus::ReplaceAll(sygus::ReplaceAll(
-    sygus::ReplaceAll(sygus::ReplaceAll(sygus::ReplaceAll(sygus::ReplaceAll(sygus::ReplaceAll(sygus::ReplaceAll(
+    sygus::ReplaceAll(sygus::ReplaceAll(
+    sygus::ReplaceAll(sygus::ReplaceAll(
+    sygus::ReplaceAll(sygus::ReplaceAll(
+    sygus::ReplaceAll(sygus::ReplaceAll(
       syntax_constraints_template, 
-
-      "%INIT%"           , init_def_          ) ,
-      "%TRANS%"          , trans_def_         ) ,
-      "%P%"              , property_def_      ) ,
-      "%S%"              , primal_var_def_    ) ,
-      "%SP%"             , prime_var_def_     ) ,
-      "%I%"              , input_var_def_     ) ,
-      "%INVvartype%"     , inv_var_type_      ) ,
-      "%INVvaruse%"      , state_arg_use_     ) ,
-      "%INVvaruseprime%" , inv_var_prime_use_ ) ,
-      "%inituse%"        , init_use_          ) ,
-      "%tuse%"           , trans_use_         ) ,
-      "%Puse%"           , property_use_      ) ;
+      "%vartype%", var_type_),
+      "%primalvardecl%", primal_declare_), // not used 
+      "%allvardecl%", primal_prime_declare_),
+      "%init%", init_),
+      "%trans%", trans_),
+      "%prop%", prop_),
+      "%varuse%", var_use_),
+      "%varuseprime%", var_prime_use_);
 
 } // ChcPrinter::Export
 

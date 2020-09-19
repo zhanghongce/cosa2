@@ -26,7 +26,7 @@
 
 namespace cosa {
 
-class ChcPrinter : public ChcPrinterBase{
+class ChcRelPrinter : public ChcPrinterBase{
 
 protected:
   const TransitionSystem & ts_;
@@ -37,22 +37,30 @@ protected:
   const smt::UnorderedTermSet & inputs_;
   const smt::UnorderedTermSet & next_inputs_;
 
+  std::string primal_var_def_;
+  std::string prime_var_def_;
+  std::string input_var_def_;
 
-  std::string var_type_; // (type1 type2 type3 ...)
+  std::string trans_def_;
+  std::string trans_use_;
+  std::string init_def_;
+  std::string init_use_;
+  std::string property_def_;
+  std::string property_use_;
+  std::string inv_var_type_;
+  std::string inv_var_prime_use_;
+  
+  std::string state_arg_def_;
+  std::string state_arg_use_;
 
-  std::string var_use_; // n1 n2 n3 ...
-  std::string var_prime_use_; // n1' n2' n3'
-
-  std::string primal_declare_;       // ((name type) (name type))
-  std::string primal_prime_declare_; // ((name type) (name type) and prime variables)
-
+  std::unordered_map<std::string, std::string> state_to_next_map_;
 
 
 public:
-  ChcPrinter (const Property & p);
+  ChcRelPrinter (const Property & p);
 
   virtual void Export(std::ostream & os) const override;
 
-}; // class ChcPrinter
+}; // class ChcRelPrinter
 
 } // namespace cosa
