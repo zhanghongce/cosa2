@@ -61,6 +61,14 @@ void TransitionSystem::assign_next(const Term & state, const Term & val)
       And, trans_, solver_->make_term(Equal, next_map_.at(state), val));
 }
 
+void TransitionSystem::check_eq_inputs()
+{
+  for (const auto & s : next_states_) {
+    if (nxt_state_updates_.find(s) == nxt_state_updates_.end())
+      snxt_no_next_.insert(s);
+  }
+}
+
 void TransitionSystem::add_invar(const Term & constraint)
 {
   // TODO: only check this in debug mode

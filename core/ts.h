@@ -36,6 +36,10 @@ class TransitionSystem
   
   virtual ~TransitionSystem(){};
 
+  /* check which state has no next (essentially an input)
+   */
+  void check_eq_inputs();
+
   /* Sets initial states to the provided formula
    * @param init the new initial state constraints
    */
@@ -141,6 +145,7 @@ class TransitionSystem
 
   const smt::UnorderedTermSet & next_states() const { return next_states_; };
   const smt::UnorderedTermSet & next_inputs() const { return next_inputs_; };
+  const smt::UnorderedTermSet & stateprime_no_next() const { return snxt_no_next_; };
 
   const smt::UnorderedTermSet & inputs() const { return inputs_; };
 
@@ -225,7 +230,7 @@ class TransitionSystem
   // next state update function
   smt::UnorderedTermMap state_updates_; // state -> update function
   smt::UnorderedTermMap nxt_state_updates_; // nxt_state -> update_function
-  
+  smt::UnorderedTermSet snxt_no_next_;
 
   // system state variables
   smt::UnorderedTermSet states_;
