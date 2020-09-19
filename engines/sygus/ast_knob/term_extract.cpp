@@ -221,10 +221,10 @@ void SliceExtractor::PostChild(const smt::Term & ast) {
     } // for each var
     if (has_related_vars) {
       auto width = ast->get_sort()->get_width();
-      auto insert_res = term_strs_.insert(ast->to_raw_string());
-      if (insert_res.second) { // if insertion succeed
-        ext_terms_[width].push_back(ast);
-      }
+      //if (insert_res.second) { // if insertion succeed
+      // this is just term buffer, does not matter
+      ext_terms_[width].push_back(ast);
+      //}
     }
 
   } // if it is extract (slice)

@@ -36,7 +36,7 @@
 
 
 
-#define DEBUG
+//#define DEBUG
 #ifdef DEBUG
   #define D(...) logger.log( __VA_ARGS__ )
   #define INFO(...) D(0, __VA_ARGS__)
@@ -45,7 +45,7 @@
   #define INFO(...) logger.log(1, __VA_ARGS__)
 #endif
 
-#define TERM_TABLE_DEBUG_LVL 1
+#define TERM_TABLE_DEBUG_LVL 0
 
 namespace cosa {
 
@@ -601,14 +601,10 @@ void Enumerator::DebugRegResult(const std::list<smt::Term> & inpreds) {
 
 #else
 
-void Enumerator::DebugRegAllpred(const smt::UnorderedTermSet & inpreds) {
-}
 
-void Enumerator::DebugRegSelRemove(const smt::Term & sel, const std::string & action) {
-}
-
-void Enumerator::DebugRegResult(const smt::UnorderedTermSet & res) {
-}
+void Enumerator::DebugRegAllpred(const std::list<smt::Term> & inpreds, const std::list<unsigned> & scores) {}
+void Enumerator::DebugRegSelRemove(const smt::Term & sel, const std::string & action) {}
+void Enumerator::DebugRegResult(const std::list<smt::Term> & inpreds) {}
 
 #endif
 

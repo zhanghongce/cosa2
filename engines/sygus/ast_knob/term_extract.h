@@ -129,15 +129,13 @@ public:
   typedef std::unordered_map<smt::Term, std::set<ext_position_t>> sv2exts_t;
 
   SliceExtractor(
-    /*OUTPUT*/ std::unordered_set<std::string> & term_str, 
     /*OUTPUT*/ width_term_map_t & ext_terms,
     /*INPUT*/  const std::unordered_set<smt::Term> & varset) :
-    term_strs_(term_str), ext_terms_(ext_terms), related_vars_(varset) { }
+    ext_terms_(ext_terms), related_vars_(varset) { }
   const sv2exts_t & GetSvSlice() const { return sv2exts_; }
 
 protected:
   std::unordered_set<smt::Term> walked_nodes_;
-  std::unordered_set<std::string> & term_strs_;
   width_term_map_t & ext_terms_; // point to width 1
   sv2exts_t sv2exts_;
   const std::unordered_set<smt::Term> & related_vars_; 

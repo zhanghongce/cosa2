@@ -45,7 +45,9 @@ unsigned TermLearner::vars_extract_bit_level(Model * post,  /*OUTPUT*/  PerVarse
     for (unsigned idx = 0; idx < width; ++idx) {
       auto t = solver_->make_term(smt::Op(smt::PrimOp::Extract, idx, idx), v);
       ParentExtract::RegisterNewParentRelation(v, t);
-      nterm += varset_info.TermLearnerInsertTerm(t) ? 1 : 0;
+      bool is_new = varset_info.TermLearnerInsertTerm(t) ;
+      //std::cout << "Extract " << v->to_raw_string() << "[" << idx << "] is_new:" << is_new << std::endl;
+      nterm += is_new ? 1 : 0;
     }
   }
 
@@ -235,8 +237,8 @@ unsigned TermLearner::replace_hierachically(
   smt::TermVec new_terms;
   unsigned ret = replace_hierachically_w_parent(orig, repl, varset_info, new_terms);
   for (const auto & nt : new_terms)
-    std::cout << nt->to_raw_string() << std::endl;
-  std::cout << "ret = " << ret << std::endl;
+    D(3, "{}", nt->to_raw_string() );
+  D(3, "ret = {}", ret);
   assert(ret == new_terms.size());
   if (ret != 0) {
     ParentExtract extractor;

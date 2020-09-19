@@ -35,6 +35,16 @@ namespace cosa {
 
 // ---------------------------------------------------------------------
 
+#ifdef DEBUG
+  #define LOGCAT (std::cout)
+#else
+  struct nouse {
+    template <class T>
+    nouse & operator<<(const T &) {return *this;}
+  };
+  static nouse __nouse__;
+  #define LOGCAT (__nouse__)
+#endif
 
 // -----------------------------------------------------------------------
 // HERE begins Apdr's function definitions
@@ -393,24 +403,25 @@ bool Apdr::recursive_block(Model * cube, unsigned idx, Lemma::LCexOrigin cex_ori
       // revsersely traverse
       fcex_t * pre = NULL, * post = NULL;
       unsigned idx;
-      std::cout << "|P|="  << cexs_to_block.size() << " init";
+
+      LOGCAT << "|P|="  << cexs_to_block.size() << " init";
       for (idx = cexs_to_block.size()-1; idx > 0; --idx) {
         if (!(cexs_to_block.at(idx).can_transit_to_next) ){
           pre = & (cexs_to_block.at(idx));
           post = & (cexs_to_block.at(idx-1));
 
-          std::cout << "--aT--> F" << cexs_to_block.size()-idx;
+          LOGCAT << "--aT--> F" << cexs_to_block.size()-idx;
           break;          
         }
         // else
-        std::cout << "--cT--> F" << cexs_to_block.size()-idx;
+        LOGCAT << "--cT--> F" << cexs_to_block.size()-idx;
       } // reverse find
-      std::cout << std::endl;
+      LOGCAT << "\n";
 
-      std::cout << "Before CEX stack dump: ";
+      LOGCAT << "Before CEX stack dump: ";
       for (auto pos = cexs_to_block.rbegin(); pos != cexs_to_block.rend(); ++pos)
-        std::cout << "F"<<pos->fidx << (pos->can_transit_to_next ?  "--c-->" : "--a-->");
-      std::cout << "(" << cexs_to_block.at(0).cex_origin.dist_to_fail() << ") not P" << std::endl;
+        LOGCAT << "F"<<pos->fidx << (pos->can_transit_to_next ?  "--c-->" : "--a-->");
+      LOGCAT << "(" << cexs_to_block.at(0).cex_origin.dist_to_fail() << ") not P\n";
 
       if (idx == 0) { // always able to transit_to_next 
         CHECK_PROP_FAIL(cexs_to_block);
@@ -445,10 +456,10 @@ bool Apdr::recursive_block(Model * cube, unsigned idx, Lemma::LCexOrigin cex_ori
         eager_push_lemmas(post_fidx, old_fsize); // push at F[post_fidx] lstart = old_fsize
       }
 
-      std::cout << "After CEX stack dump: ";
+      LOGCAT << "After CEX stack dump: ";
       for (auto pos = cexs_to_block.rbegin(); pos != cexs_to_block.rend(); ++pos) 
-        std::cout << "F"<<pos->fidx << (pos->can_transit_to_next ?  "--c-->" : "--a-->");
-      std::cout << "(" << cexs_to_block.at(0).cex_origin.dist_to_fail() << ") not P" << std::endl;
+        LOGCAT << "F"<<pos->fidx << (pos->can_transit_to_next ?  "--c-->" : "--a-->");
+      LOGCAT << "(" << cexs_to_block.at(0).cex_origin.dist_to_fail() << ") not P\n";
       assert(cexs_to_block.size() == prev_frame_sizes.size());
 
       continue;

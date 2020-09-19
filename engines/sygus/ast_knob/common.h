@@ -48,7 +48,7 @@ struct PerVarsetInfo {
     enum stage_t {EMPTY, WPARTIAL, WALL, FROMCEX, EXTRACTBITS, VCLT, VCLTE} stage;
     unsigned partial_width_done;
     // you don't need to cache those constants, already in width_to_constants_
-    state_t() : stage(EMPTY), partial_width_done(0) {}
+    //state_t() : stage(EMPTY), partial_width_done(0) {}
     explicit state_t(stage_t s) : stage(s), partial_width_done(0)  {}
   }; // class state_t
 
@@ -56,7 +56,7 @@ struct PerVarsetInfo {
   std::unordered_set<std::string> terms_strings;
   // --- more info --- //
 
-  PerVarsetInfo() {}
+  //PerVarsetInfo() {}
   PerVarsetInfo(state_t::stage_t s): state(s) {}
 
   // if true, inserting is done

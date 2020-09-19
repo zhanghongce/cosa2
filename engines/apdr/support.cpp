@@ -193,7 +193,9 @@ void Apdr::cut_vars_curr(std::unordered_set<smt::Term> & v, bool cut_curr_input)
       // will not remove input var
       if (!ts_.is_curr_var(*pos) && 
           ts_.inputs().find(*pos) == ts_.inputs().end()) {
-        assert(ts_.next_inputs().find(*pos) != ts_.next_inputs().end());
+        assert(
+          ts_.next_inputs().find(*pos) != ts_.next_inputs().end() ||
+          ts_.stateprime_no_next().find(*pos) != ts_.stateprime_no_next().end());
         pos = v.erase(pos);
       } else
         ++pos;

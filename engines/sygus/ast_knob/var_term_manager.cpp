@@ -37,8 +37,10 @@ unsigned VarTermManager::GetMoreTerms(Model * pre, Model * post, TermLearner & t
   PerVarsetInfo & varset_info = terms_cache_.at(var_string);
   
   assert(varset_info.state.stage != PerVarsetInfo::state_t::EXTRACTBITS);
+#if 0
   assert(varset_info.state.stage != PerVarsetInfo::state_t::VCLT);
   assert(varset_info.state.stage != PerVarsetInfo::state_t::VCLTE);
+#endif
   assert(GlobalAPdrConfig.TERM_MODE != GlobalAPdrConfig.VAR_C_EXT);
   // if we already extract bits, we should be forever good
 
@@ -50,6 +52,7 @@ unsigned VarTermManager::GetMoreTerms(Model * pre, Model * post, TermLearner & t
       {
         unsigned nterm_walked = insert_from_termsmap_w_width(
           varset_info.terms_buffer /*IN*/, varset_info /*OUT*/, varset_info.state.partial_width_done, (unsigned)(-1) );
+        varset_info.state.stage = PerVarsetInfo::state_t::WALL;
         if (nterm_walked != 0)
           return nterm_walked;
       } // else will continue to WALL (same as from cex)
@@ -156,7 +159,7 @@ const PerVarsetInfo & VarTermManager::SetupTermsForVarModeSplit(
 
   terms_cache_t::iterator pos; bool succ;
   std::tie(pos, succ) = terms_cache_.emplace(canonical_string, 
-    PerVarsetInfo(PerVarsetInfo::state_t::EXTRACTBITS)); //WPARTIAL is better
+    PerVarsetInfo(PerVarsetInfo::state_t::WPARTIAL)); //WPARTIAL is better
     // EXTRACTBITS is simply see if we need more
 
   if (collect_constant) {
@@ -277,7 +280,7 @@ void VarTermManager::insert_split(
   PerVarsetInfo & term_cache_item /*OUT*/ , const smt::UnorderedTermSet & varset,
   smt::SmtSolver & solver_) 
 {
-  SliceExtractor extractor(term_cache_item.terms_strings, term_cache_item.terms_buffer, varset);
+  SliceExtractor extractor(term_cache_item.terms_buffer, varset);
 
   for (auto && t : terms_to_check_)
     extractor.WalkBFS(t);
@@ -331,15 +334,15 @@ void VarTermManager::insert_vars_and_extracts(
     auto res = term_cache_item.terms_strings.insert(v->to_raw_string());
     if(res.second) {
       term_cache_item.terms[width].terms.push_back(v);
-      if (width > 1) {
-        for (unsigned idx = 0; idx < width; ++idx) {
-          auto t = solver_->make_term(smt::Op(smt::PrimOp::Extract, idx, idx), v);
-          auto res = term_cache_item.terms_strings.insert(t->to_raw_string());
-          if (res.second)
-            term_cache_item.terms[1].terms.push_back(t);
-        } // for each bit       
-      } // if width > 1
     } // if insert successful    
+    if (width > 1) {
+      for (unsigned idx = 0; idx < width; ++idx) {
+        auto t = solver_->make_term(smt::Op(smt::PrimOp::Extract, idx, idx), v);
+        auto res = term_cache_item.terms_strings.insert(t->to_raw_string());
+        if (res.second)
+          term_cache_item.terms[1].terms.push_back(t);
+      } // for each bit       
+    } // if width > 1
   } // for each var
 } // insert_vars_and_extracts
 
