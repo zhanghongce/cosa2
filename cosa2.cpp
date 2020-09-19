@@ -37,6 +37,7 @@
 #include "printers/btor2_witness_printer.h"
 #include "printers/vcd_witness_printer.h"
 #include "printers/chc_printer.h"
+#include "printers/chcrel_printer.h"
 #include "prop.h"
 #include "utils/logger.h"
 #include "utils/signal_handler.h"
@@ -65,6 +66,8 @@ enum optionIndex
   INTERNAL_SYGUS_BVCOMP,
   MAY_BLOCK_OFF,
   NO_SYGUIDE,
+  
+  NO_NAMES,
 
   SYNTAX_TREE_DEPTH,
   UNSAT_CORE_N,
@@ -193,6 +196,12 @@ const option::Descriptor usage[] = {
     "sdepth",
     Arg::Numeric,
     "  --sdepth \tAST depth : 0 for any, >0 for some restriction" },
+  { NO_NAMES,
+    0,
+    "",
+    "no-names",
+    Arg::None,
+    "  --no-names \tDo not perserve btor symbol names" },
   { UNSAT_CORE_N,
     0,
     "",
@@ -296,6 +305,7 @@ int main(int argc, char ** argv)
   unsigned int lemma_gen_mode = GlobalAPdrConfig.LEMMA_GEN_MODE;
   bool mayblock_off = options[MAY_BLOCK_OFF] != NULL;
   bool syguide_off = options[NO_SYGUIDE] != NULL;
+  bool keep_names = options[NO_NAMES] == NULL;
   unsigned int bvcomp_mode = 0; // 000 no bvult, no bvule, no override
   unsigned ncore = GlobalAPdrConfig.UNSAT_CORE_MULTI;
   unsigned sdepth = GlobalAPdrConfig.TERM_EXTRACT_DEPTH;
@@ -351,7 +361,7 @@ int main(int argc, char ** argv)
                           "Note: MathSAT has a custom license and you must assume all "
                           "responsibility for meeting the license requirements.");
       #endif
-    } else if (engine == TOCHC) {
+    } else if (engine == TOCHCREL || engine == TOCHC) {
       #ifdef WITH_MSAT
         s = MsatSolverFactory::create(false);
       #else
@@ -396,7 +406,8 @@ int main(int argc, char ** argv)
     if (file_ext == "btor2" || file_ext == "btor") {
       logger.log(2, "Parsing BTOR2 file: {}", filename);
       FunctionalTransitionSystem fts(s);
-      BTOR2Encoder btor_enc(filename, fts, true);
+      BTOR2Encoder btor_enc(filename, fts, true, keep_names);
+      fts.check_eq_inputs();
       Smtlib2PropertyParser prop_parser(s, fts);
       if (!property_file_name.empty()) {
         bool succ = prop_parser.ParsePropertyFromFile(property_file_name);
@@ -421,18 +432,27 @@ int main(int argc, char ** argv)
       }
       
       
-      if (engine != TOCHC)
+      if (engine != TOCHCREL && engine != TOCHC)
         r = check_prop(engine, bound, p, s, second_solver, cex);
       else {
-        ChcPrinter printer(p);
+        r = ProverResult::UNKNOWN;
+        ChcPrinterBase * printer;
+        if (engine == TOCHC) 
+          printer = new ChcPrinter(p);
+        else if(engine == TOCHCREL)
+          printer = new ChcRelPrinter(p);
+        else
+          throw CosaException("Does not know which CHC printer to use.");
+
         if (chc_name.empty())
-          printer.Export(std::cout);
+          printer->Export(std::cout);
         else {
           std::ofstream fout(chc_name);
           if(!fout.is_open())
             throw CosaException("Unable to open "  + chc_name + " for write.");
-          printer.Export(fout);
+          printer->Export(fout);
         }
+        delete printer;
       }
 
       if (engine == APDR)

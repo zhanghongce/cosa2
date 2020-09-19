@@ -30,7 +30,8 @@ enum Engine
   KIND,
   INTERP,
   APDR,
-  TOCHC
+  TOCHC,
+  TOCHCREL
 };
 
 static const std::unordered_map<std::string, Engine> str2engine(
@@ -39,7 +40,8 @@ static const std::unordered_map<std::string, Engine> str2engine(
       { "ind", KIND },
       { "interp", INTERP },
       { "apdr", APDR },
-      { "chc", TOCHC }
+      { "chc", TOCHC },
+      { "chcrel", TOCHCREL }
     });
 
 const Engine to_engine(std::string s)
