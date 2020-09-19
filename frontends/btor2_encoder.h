@@ -37,10 +37,11 @@ namespace cosa {
 class BTOR2Encoder
 {
  public:
-  BTOR2Encoder(std::string filename, TransitionSystem & ts, bool name_sanitize = false)
-      : ts_(ts), solver_(ts.solver()), to_sanitize_name_(name_sanitize)
+  BTOR2Encoder(std::string filename, TransitionSystem & ts, bool name_sanitize = false, bool keep_names = true)
+      : ts_(ts), solver_(ts.solver()), to_sanitize_name_(name_sanitize), keep_names_(keep_names)
   {
-    preprocess(filename);
+    if (keep_names_)
+      preprocess(filename);
     parse(filename);
   };
 
@@ -101,6 +102,7 @@ class BTOR2Encoder
   bool negated_;
   size_t witness_id_{ 0 };  ///< id of any introduced witnesses for properties
   bool to_sanitize_name_;
+  bool keep_names_;
 };
 }  // namespace cosa
 

@@ -313,7 +313,9 @@ void BTOR2Encoder::parse(const std::string& filename)
     /******************************** Handle special cases
      * ********************************/
     if (l_->tag == BTOR2_TAG_state) {
-      if (l_->symbol) {
+      if (!keep_names_)
+        symbol_ = "state" + to_string(l_->id);
+      else if (l_->symbol) {
         symbol_ = name_sanitize(l_->symbol);
       } else {
         auto renaming_lookup_pos = state_renaming_table.find(l_->id);
@@ -331,7 +333,7 @@ void BTOR2Encoder::parse(const std::string& filename)
       id2statenum[l_->id] = num_states;
       num_states++;
     } else if (l_->tag == BTOR2_TAG_input) {
-      if (l_->symbol) {
+      if (l_->symbol && keep_names_) {
         symbol_ = name_sanitize(l_->symbol);
       } else {
         symbol_ = "input" + to_string(l_->id);
@@ -340,7 +342,7 @@ void BTOR2Encoder::parse(const std::string& filename)
       terms_[l_->id] = input;
       inputsvec_.push_back(input);
     } else if (l_->tag == BTOR2_TAG_output) {
-      if (l_->symbol) {
+      if (l_->symbol && keep_names_) {
         symbol_ = name_sanitize(l_->symbol);
       } else {
         symbol_ = "output" + to_string(l_->id);
@@ -745,7 +747,7 @@ void BTOR2Encoder::parse(const std::string& filename)
     // use the symbol to name the term (if applicable)
     // input, output, and state already named
     if (l_->symbol && l_->tag != BTOR2_TAG_input && l_->tag != BTOR2_TAG_output
-        && l_->tag != BTOR2_TAG_state && terms_.find(l_->id) != terms_.end()) {
+        && l_->tag != BTOR2_TAG_state && terms_.find(l_->id) != terms_.end() && keep_names_) {
       try {
         ts_.name_term(name_sanitize(l_->symbol), terms_.at(l_->id));
       }
