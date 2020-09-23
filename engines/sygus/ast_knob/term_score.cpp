@@ -47,12 +47,18 @@ void TermScore::PreChild(const smt::Term & ast) {
 
 void TermScore::PostChild(const smt::Term & ast) {
  // for all its child, add parent pointer to the map
+  unsigned width = 1;
+  if (ast->get_sort()->get_sort_kind() == smt::SortKind::BOOL)
+    width = 1;
+  else if (ast->get_sort()->get_sort_kind() == smt::SortKind::BV)
+    width = ast->get_sort()->get_width();
+
   if (ast->is_symbolic_const()) {
-    scores_.emplace(ast,term_score_t(0));
+    scores_.emplace(ast,term_score_t(0)); // width*2
   } else if ( ast->is_value() ) { 
-    scores_.emplace(ast,term_score_t(1));    
+    scores_.emplace(ast,term_score_t(1)); // width
   } else { // we will hope it is op
-    auto ret = scores_.emplace(ast,term_score_t(1));    
+    auto ret = scores_.emplace(ast,term_score_t(1));   // width  
     for(auto && c : *ast) { // for each of its child node
       ret.first->second.score += scores_.at(c).score;
       //  iterator->the score
