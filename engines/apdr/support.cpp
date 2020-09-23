@@ -447,6 +447,7 @@ std::string Apdr::print_frame_stat() const {
   } else {
     for(unsigned idx = 0; idx < 10; ++ idx)
       output += std::to_string(frames.at(idx).size()) + ' ';
+    output += "...";
     for(unsigned idx = frames.size()-10; idx < frames.size(); ++ idx)
       output += std::to_string(frames.at(idx).size()) + ' ';
   }
