@@ -57,7 +57,7 @@ const Engine to_engine(std::string s)
  * *********************************/
 static const Engine default_engine = APDR;
 static const unsigned int default_prop_idx = 0;
-static const unsigned int default_bound = 100;
+static const unsigned int default_bound = 1000;
 static const unsigned int default_verbosity = 3;
 /********************************* End Default Values
  * ********************************/
