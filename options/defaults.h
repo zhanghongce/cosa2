@@ -29,7 +29,6 @@ enum Engine
   BMC_SP,
   KIND,
   INTERP,
-  APDR,
   TOCHC,
   TOCHCREL
 };
@@ -39,7 +38,6 @@ static const std::unordered_map<std::string, Engine> str2engine(
       { "bmc-sp", BMC_SP },
       { "ind", KIND },
       { "interp", INTERP },
-      { "apdr", APDR },
       { "chc", TOCHC },
       { "chcrel", TOCHCREL }
     });
@@ -55,7 +53,7 @@ const Engine to_engine(std::string s)
 
 /************************************ Default Values
  * *********************************/
-static const Engine default_engine = APDR;
+static const Engine default_engine = TOCHCREL;
 static const unsigned int default_prop_idx = 0;
 static const unsigned int default_bound = 100;
 static const unsigned int default_verbosity = 3;

@@ -64,13 +64,6 @@ if (NOT EXISTS "${PROJECT_SOURCE_DIR}/deps/btor2tools/src")
 endif()
 
 
-if (NOT EXISTS "${PROJECT_SOURCE_DIR}/deps/smtlib2parser/build/src/libsmtparser.a")
-  message(FATAL_ERROR "Missing smtlib2parser library -- try running ./contrib/setup-smtlib2parser.sh")
-endif()
-
-if (NOT EXISTS "${PROJECT_SOURCE_DIR}/deps/z3/install")
-  message(FATAL_ERROR "Missing z3 -- try running ./contrib/setup-z3.sh")
-endif()
 
 
 # Generate the SMV parser using Flex/Bison
@@ -96,41 +89,18 @@ add_library(cosa2 "${COSA2_LIB_TYPE}"
   "${PROJECT_SOURCE_DIR}/engines/bmc_simplepath.cpp"
   "${PROJECT_SOURCE_DIR}/engines/kinduction.cpp"
   "${PROJECT_SOURCE_DIR}/utils/logger.cpp"
-  "${PROJECT_SOURCE_DIR}/utils/signal_handler.cpp"
   "${PROJECT_SOURCE_DIR}/utils/multitimer.cpp"
   "${PROJECT_SOURCE_DIR}/utils/str_util.cpp"
   "${PROJECT_SOURCE_DIR}/utils/exec.cpp"
   "${PROJECT_SOURCE_DIR}/utils/term_analysis.cpp"
   "${PROJECT_SOURCE_DIR}/frontends/btor2_encoder.cpp"
   "${PROJECT_SOURCE_DIR}/frontends/smv_encoder.cpp"
-  "${PROJECT_SOURCE_DIR}/frontends/smtlib2parser.cpp"
-  "${PROJECT_SOURCE_DIR}/frontends/smtlib2parser_callback_fn.cpp"
-  "${PROJECT_SOURCE_DIR}/frontends/smt_property_parser.cpp"
   "${PROJECT_SOURCE_DIR}/printers/vcd_witness_printer.cpp"
   "${PROJECT_SOURCE_DIR}/printers/chc_printer.cpp"
   "${PROJECT_SOURCE_DIR}/printers/chcrel_printer.cpp"
+  "${PROJECT_SOURCE_DIR}/engines/sygus/ast_knob/syntax.cpp"
   "${BISON_SMVParser_OUTPUTS}"
   "${FLEX_SMVScanner_OUTPUTS}"
-  "${PROJECT_SOURCE_DIR}/engines/sygus/evalcond.cpp"
-  "${PROJECT_SOURCE_DIR}/engines/sygus/gen_sygus_query.cpp"
-  "${PROJECT_SOURCE_DIR}/engines/sygus/partial_model.cpp"
-  "${PROJECT_SOURCE_DIR}/engines/sygus/unsat_enum.cpp"
-  "${PROJECT_SOURCE_DIR}/engines/sygus/ast_knob/common.cpp"
-  "${PROJECT_SOURCE_DIR}/engines/sygus/ast_knob/syntax.cpp"
-  "${PROJECT_SOURCE_DIR}/engines/sygus/ast_knob/walker.cpp"
-  "${PROJECT_SOURCE_DIR}/engines/sygus/ast_knob/opextract.cpp"
-  "${PROJECT_SOURCE_DIR}/engines/sygus/ast_knob/term_extract.cpp"
-  "${PROJECT_SOURCE_DIR}/engines/sygus/ast_knob/term_score.cpp"
-  "${PROJECT_SOURCE_DIR}/engines/sygus/ast_knob/term_learning.cpp"
-  "${PROJECT_SOURCE_DIR}/engines/sygus/ast_knob/var_term_manager.cpp"
-  "${PROJECT_SOURCE_DIR}/engines/apdr/config.cpp"
-  "${PROJECT_SOURCE_DIR}/engines/apdr/apdr.cpp"
-  "${PROJECT_SOURCE_DIR}/engines/apdr/support.cpp"
-  "${PROJECT_SOURCE_DIR}/engines/apdr/apdr_push.cpp"
-  "${PROJECT_SOURCE_DIR}/engines/apdr/lemma.cpp"
-  "${PROJECT_SOURCE_DIR}/engines/apdr/sygus_pdr.cpp"
-  "${PROJECT_SOURCE_DIR}/engines/apdr/transferts.cpp"
-  "${PROJECT_SOURCE_DIR}/engines/apdr/sort_convert_util.cpp"
   )
 
 target_include_directories(cosa2 PUBLIC
@@ -140,13 +110,11 @@ target_include_directories(cosa2 PUBLIC
   "${PROJECT_SOURCE_DIR}/contrib/optionparser-1.7/src"
   "${PROJECT_SOURCE_DIR}/deps/btor2tools/src"
   "${PROJECT_SOURCE_DIR}/deps/smt-switch/local/include"
-  "${PROJECT_SOURCE_DIR}/deps/smtlib2parser/include"
   # generated Bison headers go in build directory
   "${CMAKE_CURRENT_BINARY_DIR}"
   )
 
 
-target_link_libraries(cosa2 PUBLIC "${PROJECT_SOURCE_DIR}/deps/z3/install/lib/libz3.a")
 target_link_libraries(cosa2 PUBLIC "${PROJECT_SOURCE_DIR}/deps/smt-switch/local/lib/libsmt-switch-btor.a")
 if (WITH_MSAT)
   target_link_libraries(cosa2 PUBLIC "${PROJECT_SOURCE_DIR}/deps/smt-switch/local/lib/libsmt-switch-msat.a")
@@ -156,7 +124,6 @@ if (WITH_CVC4)
 endif()
 target_link_libraries(cosa2 PUBLIC "${PROJECT_SOURCE_DIR}/deps/smt-switch/local/lib/libsmt-switch.a")
 target_link_libraries(cosa2 PUBLIC "${PROJECT_SOURCE_DIR}/deps/btor2tools/build/lib/libbtor2parser.a")
-target_link_libraries(cosa2 PUBLIC "${PROJECT_SOURCE_DIR}/deps/smtlib2parser/build/src/libsmtparser.a")
 target_link_libraries(cosa2 PUBLIC gmp)
 target_link_libraries(cosa2 PUBLIC pthread)
 target_link_libraries(cosa2 PUBLIC y)
@@ -176,8 +143,7 @@ target_include_directories(cosa2-bin PUBLIC
   "${PROJECT_SOURCE_DIR}/contrib/"
   "${PROJECT_SOURCE_DIR}/contrib/optionparser-1.7/src"
   "${PROJECT_SOURCE_DIR}/deps/btor2tools/src"
-  "${PROJECT_SOURCE_DIR}/deps/smt-switch/local/include"
-  "${PROJECT_SOURCE_DIR}/deps/z3/install/include")
+  "${PROJECT_SOURCE_DIR}/deps/smt-switch/local/include")
 
 target_link_libraries(cosa2-bin PUBLIC cosa2)
 

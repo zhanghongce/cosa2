@@ -25,13 +25,11 @@
 #endif
 
 #include "bmc.h"
-#include "apdr/apdr.h"
 #include "bmc_simplepath.h"
 #include "core/fts.h"
 #include "defaults.h"
 #include "frontends/btor2_encoder.h"
 #include "frontends/smv_encoder.h"
-#include "frontends/smt_property_parser.h"
 #include "interpolant.h"
 #include "kinduction.h"
 #include "printers/btor2_witness_printer.h"
@@ -40,7 +38,6 @@
 #include "printers/chcrel_printer.h"
 #include "prop.h"
 #include "utils/logger.h"
-#include "utils/signal_handler.h"
 
 using namespace cosa;
 using namespace smt;
@@ -55,7 +52,6 @@ enum optionIndex
   HELP,
   ENGINE,
   BOUND,
-  PROP,
   VERBOSITY,
   VCDNAME,
   CHC_FNAME,
@@ -122,19 +118,13 @@ const option::Descriptor usage[] = {
     "engine",
     Arg::NonEmpty,
     "  --engine, -e <engine> \tSelect engine from [bmc, bmc-sp, ind, "
-    "interp, apdr]." },
+    "interp, chc, chcrel]." },
   { BOUND,
     0,
     "k",
     "bound",
     Arg::Numeric,
     "  --bound, -k \tBound to check up until (default: 10)." },
-  { PROP,
-    0,
-    "p",
-    "prop",
-    Arg::Numeric,
-    "  --prop, -p \tProperty index to check (default: 0)." },
   { VERBOSITY,
     0,
     "v",
@@ -153,67 +143,12 @@ const option::Descriptor usage[] = {
     "chc",
     Arg::NonEmpty,
     "  --chc \tName of the output CHC file." },
-  { PROPFILE,
-    0,
-    "",
-    "propfile",
-    Arg::NonEmpty,
-    "  --propfile \tName of the file that supplies extra properties." },
-  // pdr configurations
-  { PDR_ITP_MODE,
-    0,
-    "",
-    "itpmode",
-    Arg::Numeric,
-    "  --itpmode \tInterpolant mode : 0 for normal, 3 for bit-level interpolant" },
-  { LEMMA_GEN_MODE,
-    0,
-    "",
-    "lemma-gen-mode",
-    Arg::Numeric,
-    "  --lemma-gen-mode \tLemma generation : 1(itp) 2(v) 4(syn) 6(all) 8(sygus-only) 9(itp-sygus-nosyn-update)" },
-  { INTERNAL_SYGUS_BVCOMP,
-    0,
-    "",
-    "bvcomp",
-    Arg::Numeric,
-    "  --bvcomp \tbits: 4(bvult) 2(bvule) 1(override)" },
-  { MAY_BLOCK_OFF,
-    0,
-    "",
-    "mayblock-off",
-    Arg::None,
-    "  --mayblock-off \tDo not generate MAY-BLOCK goals" },
-  { NO_SYGUIDE,
-    0,
-    "",
-    "no-syg",
-    Arg::None,
-    "  --no-syg \tDo not use syntax guidance" },
-  { SYNTAX_TREE_DEPTH,
-    0,
-    "",
-    "sdepth",
-    Arg::Numeric,
-    "  --sdepth \tAST depth : 0 for any, >0 for some restriction" },
   { NO_NAMES,
     0,
     "",
     "no-names",
     Arg::None,
     "  --no-names \tDo not perserve btor symbol names" },
-  { UNSAT_CORE_N,
-    0,
-    "",
-    "ncore",
-    Arg::Numeric,
-    "  --ncore \tUnsat core num : 0 for all (enum), >0 for some restriction on ncore" },
-  { SYNTAX_MODE,
-    0,
-    "",
-    "synmode",
-    Arg::Numeric,
-    "  --synmode \tSyntax model : 0: terms and slice, 1: var constant slice, 2: split, 3: lte" },
   { 0, 0, 0, 0, 0, 0 }
 };
 /*********************************** end Option Handling setup
@@ -241,13 +176,7 @@ ProverResult check_prop(Engine engine,
   } else if (engine == INTERP) {
     assert(second_solver != NULL);
     prover = std::make_shared<InterpolantMC>(p, s, second_solver);
-  } else if (engine == APDR) {
-    Apdr * ptr = new Apdr(p, s, second_solver,
-      std::unordered_set<smt::Term>(), std::unordered_set<smt::Term> ());
-    GlobalAPdrConfig.ApdrInterface = ptr;    
-    prover = std::shared_ptr<Apdr> ( ptr );
-  }
-    else {
+  } else {
     throw CosaException("Unimplemented engine.");
   }
 
@@ -255,8 +184,6 @@ ProverResult check_prop(Engine engine,
   if (r == FALSE) {
     prover->witness(cex);
   }
-
-  GlobalAPdrConfig.ApdrInterface = NULL;
 
   return r;
 }
@@ -300,16 +227,7 @@ int main(int argc, char ** argv)
   unsigned int verbosity = default_verbosity;
   std::string vcd_name;
   std::string chc_name;
-  std::string property_file_name;
-  unsigned int itp_mode = 0;
-  unsigned int lemma_gen_mode = GlobalAPdrConfig.LEMMA_GEN_MODE;
-  bool mayblock_off = options[MAY_BLOCK_OFF] != NULL;
-  bool syguide_off = options[NO_SYGUIDE] != NULL;
   bool keep_names = options[NO_NAMES] == NULL;
-  unsigned int bvcomp_mode = 0; // 000 no bvult, no bvule, no override
-  unsigned ncore = GlobalAPdrConfig.UNSAT_CORE_MULTI;
-  unsigned sdepth = GlobalAPdrConfig.TERM_EXTRACT_DEPTH;
-  unsigned syntax_mode = GlobalAPdrConfig.TERM_MODE;
 
   for (int i = 0; i < parse.optionsCount(); ++i) {
     option::Option & opt = buffer[i];
@@ -318,20 +236,9 @@ int main(int argc, char ** argv)
         // not possible, because handled further above and exits the program
       case ENGINE: engine = to_engine(opt.arg); break;
       case BOUND: bound = atoi(opt.arg); break;
-      case PROP: prop_idx = atoi(opt.arg); break;
       case VERBOSITY: verbosity = atoi(opt.arg); break;
       case VCDNAME: vcd_name = opt.arg; break;
-      case CHC_FNAME: chc_name = opt.arg; break;
-      case PROPFILE: property_file_name = opt.arg; break;
-
-      case PDR_ITP_MODE: itp_mode = atoi(opt.arg); break;
-      case LEMMA_GEN_MODE: lemma_gen_mode = atoi(opt.arg); break;
-      case INTERNAL_SYGUS_BVCOMP: bvcomp_mode = atoi(opt.arg); break;
-      
-      case UNSAT_CORE_N: ncore = atoi(opt.arg); break;
-      case SYNTAX_TREE_DEPTH: sdepth = atoi(opt.arg); break;
-      case SYNTAX_MODE: syntax_mode = atoi(opt.arg); break;
-
+      case CHC_FNAME: chc_name = opt.arg; break;      
       case UNKNOWN_OPTION:
         // not possible because Arg::Unknown returns ARG_ILLEGAL
         // which aborts the parse with an error
@@ -367,30 +274,6 @@ int main(int argc, char ** argv)
       #else
         s = BoolectorSolverFactory::create(false);
       #endif
-    } else if (engine == APDR) {
-      #ifdef WITH_MSAT
-      // need mathsat for interpolant based model checking
-      GlobalAPdrConfig.LEMMA_GEN_MODE = (APdrConfig::LEMMA_GEN_MODE_T)lemma_gen_mode;
-      GlobalAPdrConfig.UNSAT_CORE_MULTI = ncore;
-      GlobalAPdrConfig.TERM_EXTRACT_DEPTH = sdepth;
-      GlobalAPdrConfig.TERM_MODE = (APdrConfig::TERM_MODE_T)syntax_mode;
-      GlobalAPdrConfig.USE_MAY_BLOCK = !mayblock_off;
-      GlobalAPdrConfig.INTERPOLANT_ONLY = syguide_off;
-
-      s = BoolectorSolverFactory::create(false); // let's create it with a wrapper in case translation failed
-      s->set_opt("produce-models", "true");
-      s->set_opt("incremental", "true");
-      s->set_opt("produce-unsat-cores", "true");
-      Configurations::MsatInterpolatorConfiguration cfg;
-      cfg.interpolation_mode = std::to_string( std::min(itp_mode,4U) );
-      second_solver = MsatSolverFactory::create_interpolating_solver(cfg);
-      #else
-      throw CosaException("APDR-based model checking requires MathSAT and "
-                          "this version of cosa2 is built without MathSAT.\nPlease "
-                          "setup smt-switch with MathSAT and reconfigure using --with-msat.\n"
-                          "Note: MathSAT has a custom license and you must assume all "
-                          "responsibility for meeting the license requirements.");
-      #endif
     } else {
       // boolector is faster but doesn't support interpolants
       s = BoolectorSolverFactory::create(false);
@@ -408,13 +291,7 @@ int main(int argc, char ** argv)
       FunctionalTransitionSystem fts(s);
       BTOR2Encoder btor_enc(filename, fts, true, keep_names);
       fts.check_eq_inputs();
-      Smtlib2PropertyParser prop_parser(s, fts);
-      if (!property_file_name.empty()) {
-        bool succ = prop_parser.ParsePropertyFromFile(property_file_name);
-        if (!succ)
-          throw CosaException("Parsing property file : " + filename + " failed, with msg :" + prop_parser.GetParserErrorMessage());
-      }
-      const TermVec & propvec = property_file_name.empty() ? btor_enc.propvec() : prop_parser.propvec();
+      const TermVec & propvec = btor_enc.propvec();
       unsigned int num_props = propvec.size();
       if (prop_idx >= num_props) {
         throw CosaException(
@@ -426,10 +303,6 @@ int main(int argc, char ** argv)
 
       Property p(fts, prop);
       vector<UnorderedTermMap> cex;
-
-      if (engine == APDR) {
-        RegisterApdrSigHandler();
-      }
       
       
       if (engine != TOCHCREL && engine != TOCHC)
@@ -454,9 +327,6 @@ int main(int argc, char ** argv)
         }
         delete printer;
       }
-
-      if (engine == APDR)
-        UnregisterApdrSigHandler();
 
       // print btor output
       if (r == FALSE) {

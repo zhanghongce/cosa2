@@ -50,7 +50,10 @@ if [ ! -d "$DEPS/smt-switch" ]; then
     ./contrib/setup-btor.sh
 
     if [[ "$WITH_MSAT" != default ]]; then
-        ./contrib/setup-msat.sh $MSAT_OPTS
+        #./contrib/setup-msat.sh $MSAT_OPTS
+        wget https://mathsat.fbk.eu/download.php?file=mathsat-5.6.3-linux-x86_64.tar.gz -O mathsat.tar.gz
+        tar xzf mathsat.tar.gz -C ./deps/
+        mv deps/mathsat* deps/mathsat
     fi
 
     if [[ "$WITH_CVC4" != default ]]; then
