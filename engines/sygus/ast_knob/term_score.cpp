@@ -54,11 +54,11 @@ void TermScore::PostChild(const smt::Term & ast) {
     width = ast->get_sort()->get_width();
 
   if (ast->is_symbolic_const()) {
-    scores_.emplace(ast,term_score_t(0)); // width*2
+    scores_.emplace(ast,term_score_t(width*2)); // width*2
   } else if ( ast->is_value() ) { 
-    scores_.emplace(ast,term_score_t(1)); // width
+    scores_.emplace(ast,term_score_t(width)); // width
   } else { // we will hope it is op
-    auto ret = scores_.emplace(ast,term_score_t(1));   // width  
+    auto ret = scores_.emplace(ast,term_score_t(width));   // width  
     for(auto && c : *ast) { // for each of its child node
       ret.first->second.score += scores_.at(c).score;
       //  iterator->the score
