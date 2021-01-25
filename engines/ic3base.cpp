@@ -377,6 +377,7 @@ ProverResult IC3Base::step(int i)
     return step_01();
   }
 
+check_frames();
   // reached_k_ is the number of transitions that have been checked
   // at this point there are reached_k_ + 1 frames that don't
   // intersect bad, and reached_k_ + 2 frames overall
@@ -402,6 +403,7 @@ ProverResult IC3Base::step(int i)
   }
 
   reset_solver();
+check_frames();
 
   ++reached_k_;
 
@@ -571,6 +573,7 @@ bool IC3Base::rel_ind_check(size_t i,
 bool IC3Base::block_all()
 {
   assert(!solver_context_);
+check_frames();
   ProofGoalQueue proof_goals;
   IC3Formula goal;
   while (reaches_bad(goal)) {
@@ -632,6 +635,7 @@ bool IC3Base::block_all()
         assert(collateral.term);
         assert(collateral.children.size());
         constrain_frame(idx, collateral);
+check_frames();
 
         // re-add the proof goal at a higher frame if not blocked
         // up to the frontier
@@ -644,6 +648,7 @@ bool IC3Base::block_all()
         // could not block this proof goal
         assert(collateral.term);
         proof_goals.new_proof_goal(collateral, pg->idx - 1, pg);
+check_frames();
       }
     }  // end while(!proof_goals.empty())
 
@@ -651,6 +656,7 @@ bool IC3Base::block_all()
   }                                       // end while(reaches_bad(goal))
 
   assert(proof_goals.empty());
+check_frames();
   return true;
 }
 

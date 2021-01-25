@@ -1011,7 +1011,7 @@ bool SygusPdr::reaches_bad(IC3Formula & out) {
     auto curr_fidx = frontier_idx();
 
     for (const auto & f : frames_.at(prev_fidx)) {
-      assert(IN(f.term, lemma2cube_));
+      assert(IN(f.term, lemma2cube_)); // for btor it is okay
       syntax_analysis::IC3FormulaModel * m = lemma2cube_.at(f.term);
       if(m->is_must_block()) {
         cached_proof_goals.insert(m);
@@ -1019,7 +1019,7 @@ bool SygusPdr::reaches_bad(IC3Formula & out) {
     }
 
     for (const auto & f : frames_.at(curr_fidx)) {
-      assert(IN(f.term, lemma2cube_));
+      assert(IN(f.term, lemma2cube_)); // for btor it is okay
       syntax_analysis::IC3FormulaModel * m = lemma2cube_.at(f.term);
       if(m->is_must_block())
         cached_proof_goals.erase(m);
@@ -1038,6 +1038,19 @@ bool SygusPdr::reaches_bad(IC3Formula & out) {
   } // else
   return IC3Base::reaches_bad(out);
 } // reaches_bad
+
+
+void SygusPdr::check_frames() const {
+  for (unsigned idx = 1; idx <= frontier_idx(); ++idx) {
+    auto & lemmas = frames_.at(idx);
+    for (const auto & l : lemmas) {
+      if (!IN(l.term, lemma2cube_)) {
+        logger.log(0,"F{} lemma {} has no cube", idx, l.term->to_string());
+      }
+    }
+  }
+}
+
 
 }  // namespace pono
 

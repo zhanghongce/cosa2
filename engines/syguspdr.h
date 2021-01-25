@@ -63,6 +63,7 @@ class SygusPdr : public IC3Base
    *  same goal upon checking.
    */
   virtual bool reaches_bad(IC3Formula & out) override;
+  virtual void check_frames() const override;
 
   virtual IC3Formula get_model_ic3formula() const override;
 
@@ -155,8 +156,8 @@ class SygusPdr : public IC3Base
   std::unique_ptr<OpAbstractor> op_abstractor_;
   void build_ts_related_info();
   smt::Term next_curr_replace(const smt::Term & in) const;
-  
-  bool test_ts_has_op(const std::unordered_set<PrimOp> & prim_ops) const;
+
+  bool test_ts_has_op(const std::unordered_set<smt::PrimOp> & prim_ops) const;
 }; // class SygusPdr
 
 }  // namespace pono
