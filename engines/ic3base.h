@@ -383,7 +383,6 @@ class IC3Base : public Prover
                      const IC3Formula & c,
                      IC3Formula & out,
                      bool get_pred = true);
-virtual void check_frames() const {}
   // Helper methods
 
   /** Attempt to block all proof goals

@@ -167,8 +167,8 @@ void SygusPdr::initialize()
     // op_abstractor_ = std::make_unique<OpUfAbstractor>(
     //   orig_ts_, ts_, std::unordered_set<PrimOp>({BVMul, BVUdiv, BVSdiv, BVSmod, BVSrem, BVUrem}), bad_, 4);
     if (options_.sygus_term_mode_ == SyGuSTermMode::TERM_MODE_AUTO)
-      options_.sygus_term_mode_ = op_abstractor_->has_abstracted() ? 
-        (SyGuSTermMode::SPLIT_FROM_DESIGN) : (SyGuSTermMode::FROM_DESIGN_LEARN_EXT);
+      options_.sygus_term_mode_ = op_abstractor_->has_abstracted() ? (SyGuSTermMode::SPLIT_FROM_DESIGN) : 
+              (test_ts_has_op({BVAdd, BVSub}) ? (SyGuSTermMode::FROM_DESIGN_LEARN_EXT) : SyGuSTermMode::VAR_C_EXT);
     // we need to reset trans function in the base class
     reset_solver();
   } else {

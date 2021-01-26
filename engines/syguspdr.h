@@ -63,7 +63,7 @@ class SygusPdr : public IC3Base
    *  same goal upon checking.
    */
   virtual bool reaches_bad(IC3Formula & out) override;
-  virtual void check_frames() const override;
+  void check_frames() const;
 
   virtual IC3Formula get_model_ic3formula() const override;
 

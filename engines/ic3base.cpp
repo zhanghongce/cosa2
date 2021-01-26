@@ -377,7 +377,6 @@ ProverResult IC3Base::step(int i)
     return step_01();
   }
 
-check_frames();
   // reached_k_ is the number of transitions that have been checked
   // at this point there are reached_k_ + 1 frames that don't
   // intersect bad, and reached_k_ + 2 frames overall
@@ -403,7 +402,6 @@ check_frames();
   }
 
   reset_solver();
-check_frames();
 
   ++reached_k_;
 
@@ -573,7 +571,6 @@ bool IC3Base::rel_ind_check(size_t i,
 bool IC3Base::block_all()
 {
   assert(!solver_context_);
-check_frames();
   ProofGoalQueue proof_goals;
   IC3Formula goal;
   while (reaches_bad(goal)) {
@@ -635,7 +632,6 @@ check_frames();
         assert(collateral.term);
         assert(collateral.children.size());
         constrain_frame(idx, collateral);
-check_frames();
 
         // re-add the proof goal at a higher frame if not blocked
         // up to the frontier
@@ -648,7 +644,6 @@ check_frames();
         // could not block this proof goal
         assert(collateral.term);
         proof_goals.new_proof_goal(collateral, pg->idx - 1, pg);
-check_frames();
       }
     }  // end while(!proof_goals.empty())
 
@@ -656,7 +651,6 @@ check_frames();
   }                                       // end while(reaches_bad(goal))
 
   assert(proof_goals.empty());
-check_frames();
   return true;
 }
 
@@ -706,7 +700,10 @@ bool IC3Base::propagate(size_t i)
       // got unsat-core based generalization
       assert(gen.term);
       assert(gen.children.size());
-      constrain_frame(i + 1, ic3formula_negate(gen), false);
+      if (options_.ic3_unsatcore_gen_)
+        constrain_frame(i + 1, ic3formula_negate(gen), false);
+      else
+        constrain_frame(i + 1, c, false);
     } else {
       // have to keep this one at this frame
       Fi[k++] = c;
