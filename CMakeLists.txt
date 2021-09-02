@@ -157,6 +157,7 @@ set(SOURCES
   "${PROJECT_SOURCE_DIR}/engines/syguspdr.cpp"
   "${PROJECT_SOURCE_DIR}/frontends/btor2_encoder.cpp"
   "${PROJECT_SOURCE_DIR}/frontends/smv_encoder.cpp"
+  "${PROJECT_SOURCE_DIR}/frontends/property_if.cpp"
   "${PROJECT_SOURCE_DIR}/frontends/smv_node.cpp"
   "${PROJECT_SOURCE_DIR}/frontends/vmt_encoder.cpp"
   "${PROJECT_SOURCE_DIR}/modifiers/array_abstractor.cpp"

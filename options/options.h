@@ -156,6 +156,7 @@ class PonoOptions
 
   // Pono options
   Engine engine_;
+  std::string property_file_;
   unsigned int prop_idx_;
   unsigned int bound_;
   unsigned int verbosity_;

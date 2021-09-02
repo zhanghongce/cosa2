@@ -31,6 +31,7 @@ enum optionIndex
   UNKNOWN_OPTION,
   HELP,
   ENGINE,
+  PROPERTY_FILE,
   BOUND,
   PROP,
   VERBOSITY,
@@ -122,6 +123,13 @@ const option::Descriptor usage[] = {
     Arg::NonEmpty,
     "  --engine, -e <engine> \tSelect engine from [bmc, bmc-sp, ind, "
     "interp, mbic3, ic3bits, ic3ia, msat-ic3ia, ic3sa, sygus-pdr]." },
+  { PROPERTY_FILE,
+    0,
+    "",
+    "property-file",
+    Arg::NonEmpty,
+    "  --property-file <file-name> \tThe name of property file."
+  },
   { BOUND,
     0,
     "k",
@@ -486,6 +494,7 @@ ProverResult PonoOptions::parse_and_set_options(int argc,
         case HELP:
           // not possible, because handled further above and exits the program
         case ENGINE: engine_ = to_engine(opt.arg); break;
+        case PROPERTY_FILE: property_file_ = opt.arg; break;
         case BOUND: bound_ = atoi(opt.arg); break;
         case PROP: prop_idx_ = atoi(opt.arg); break;
         case VERBOSITY: verbosity_ = atoi(opt.arg); break;

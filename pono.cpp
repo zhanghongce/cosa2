@@ -31,6 +31,7 @@
 #include "frontends/btor2_encoder.h"
 #include "frontends/smv_encoder.h"
 #include "frontends/vmt_encoder.h"
+#include "frontends/property_if.h"
 #include "modifiers/control_signals.h"
 #include "modifiers/mod_ts_prop.h"
 #include "modifiers/prop_monitor.h"
@@ -290,6 +291,7 @@ int main(int argc, char ** argv)
       logger.log(2, "Parsing BTOR2 file: {}", pono_options.filename_);
       FunctionalTransitionSystem fts(s);
       BTOR2Encoder btor_enc(pono_options.filename_, fts);
+
       const TermVec & propvec = btor_enc.propvec();
       unsigned int num_props = propvec.size();
       if (pono_options.prop_idx_ >= num_props) {
@@ -300,6 +302,12 @@ int main(int argc, char ** argv)
       }
 
       Term prop = propvec[pono_options.prop_idx_];
+
+      if(!pono_options.property_file_.empty()) {
+        PropertyInterface prop_if (pono_options.property_file_,fts);
+        prop_if.AddAssumptionsToTS();
+        prop = prop_if.AddAssertions(prop);
+      }
 
       vector<UnorderedTermMap> cex;
       res = check_prop(pono_options, prop, fts, s, cex);
