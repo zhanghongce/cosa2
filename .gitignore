@@ -35,3 +35,7 @@
 build/*
 deps/*
 
+samples/*
+vcdExamples/*
+.vscode/*
+

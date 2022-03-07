@@ -315,6 +315,8 @@ void BTOR2Encoder::parse(const std::string& filename)
     if (l_->tag == BTOR2_TAG_state) {
       if (!keep_names_)
         symbol_ = "state" + to_string(l_->id);
+        if (l_->symbol)
+          logger.log(1, "state `{}` is renamed as `{}`", l_->symbol, symbol_);
       else if (l_->symbol) {
         symbol_ = name_sanitize(l_->symbol);
       } else {
@@ -337,6 +339,8 @@ void BTOR2Encoder::parse(const std::string& filename)
         symbol_ = name_sanitize(l_->symbol);
       } else {
         symbol_ = "input" + to_string(l_->id);
+        if (l_->symbol)
+          logger.log(1, "input `{}` is renamed as `{}`", l_->symbol, symbol_);
       }
       Term input = ts_.make_input(symbol_, linesort_);
       terms_[l_->id] = input;
@@ -346,6 +350,8 @@ void BTOR2Encoder::parse(const std::string& filename)
         symbol_ = name_sanitize(l_->symbol);
       } else {
         symbol_ = "output" + to_string(l_->id);
+        if (l_->symbol)
+          logger.log(1, "output `{}` is renamed as `{}`", l_->symbol, symbol_);
       }
       ts_.name_term(symbol_, termargs_[0]);
       terms_[l_->id] = termargs_[0];

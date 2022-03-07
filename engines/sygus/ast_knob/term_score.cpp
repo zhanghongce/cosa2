@@ -54,9 +54,9 @@ void TermScore::PostChild(const smt::Term & ast) {
     width = ast->get_sort()->get_width();
 
   if (ast->is_symbolic_const()) {
-    scores_.emplace(ast,term_score_t(width*2)); // width*2
-  } else if ( ast->is_value() ) { 
     scores_.emplace(ast,term_score_t(width)); // width
+  } else if ( ast->is_value() ) { 
+    scores_.emplace(ast,term_score_t(width*2)); // width*2
   } else { // we will hope it is op
     auto ret = scores_.emplace(ast,term_score_t(width));   // width  
     for(auto && c : *ast) { // for each of its child node

@@ -67,6 +67,7 @@ unsigned TermLearner::learn_terms_from_cex(Model * pre, Model * post, /*OUTPUT*/
   auto post_prop = NOT(to_next_(post->to_expr_btor(solver_)));
   unsigned delta_term_num = 0;
   GlobalTimer.RegisterEventStart("TermLearner.NewTermRepl", 0);
+  D(0, "[TermLearner] Pre partial : {}", pre->to_string() );
   D(0, "[TermLearner] Pre model : {}", full_pre->to_string() );
   D(0, "[TermLearner] Post model : {}", post->to_string() );
   solver_->push();

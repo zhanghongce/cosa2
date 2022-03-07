@@ -78,7 +78,7 @@ void Apdr::initialize() {
   // reverse populate msat_to_btor's cache
   ts_msat_.setup_reverse_translator(to_btor_);
 
-  has_assumptions = !is_valid(ts_.constraint());
+  has_assumptions = true; //!is_valid(ts_.constraint());
 
   // vars initialization
   for (auto && v : keep_vars_) {
@@ -190,8 +190,8 @@ void Apdr::initialize() {
     sygus_term_manager_.RegisterTermsToWalk(ts_.constraint());
     parent_relation_extractor.WalkBFS(ts_.constraint());
 
-    sygus_term_manager_.RegisterTermsToWalk(property_.prop());
-    parent_relation_extractor.WalkBFS(property_.prop());
+    //sygus_term_manager_.RegisterTermsToWalk(property_.prop());
+    //parent_relation_extractor.WalkBFS(property_.prop());
   }
 
   { // now create TermLearner
