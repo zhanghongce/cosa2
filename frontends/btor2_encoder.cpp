@@ -313,11 +313,16 @@ void BTOR2Encoder::parse(const std::string& filename)
     /******************************** Handle special cases
      * ********************************/
     if (l_->tag == BTOR2_TAG_state) {
-      if (!keep_names_)
+      if (!keep_names_) {
         symbol_ = "state" + to_string(l_->id);
         if (l_->symbol)
           logger.log(1, "state `{}` is renamed as `{}`", l_->symbol, symbol_);
-      else if (l_->symbol) {
+        else {
+          auto renaming_lookup_pos = state_renaming_table.find(l_->id);
+          if (renaming_lookup_pos != state_renaming_table.end() )
+            logger.log(1, "state `{}` is renamed as `{}`", renaming_lookup_pos->second, symbol_);
+        }
+      } else if (l_->symbol) {
         symbol_ = name_sanitize(l_->symbol);
       } else {
         auto renaming_lookup_pos = state_renaming_table.find(l_->id);
