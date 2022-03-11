@@ -6,7 +6,7 @@ Btor2CHC is built on top of CoSA2 (now named as [Pono](https://github.com/upscal
 ```
 git clone git@github.com:zhanghongce/cosa2.git btor2chc
 cd btor2chc
-git checkout -b btor2chc origin/btor2chc
+git checkout -b btor2chc-v2 origin/btor2chc-v2
 ./contrib/setup-smt-switch.sh --with-msat
 ./contrib/setup-btor2tools.sh
 ./contrib/setup-bison.sh
@@ -21,8 +21,8 @@ And you should get a binary `cosa2` under the `build` directory.
 
 Btor2CHC supports both the main CHC format and the rule dialect.
 
-* To convert Btor2 to the main CHC format: `cosa2 -e chc --no-names -v 1 --chc output.chc input.btor`
-* To convert Btor2 to the rule dialect: `cosa2 -e chcrel --no-names -v 1 --chc output.chc input.btor`
+* To convert Btor2 to the rule dialect that Z3 supports: `cosa2 -e chcrel --no-names -v 1 --chc output.chc input.btor`
+* To convert Btor2 to the classic CHC format: `cosa2 -e chc --no-names -v 1 --chc output.chc input.btor`
 
 The `--no-names` option is to ask Btor2CHC to mask the variable names in Btor2. We have seem some cases that Btor2 variables can have such name like `push` and it will overwhelm the CHC solver.
 
