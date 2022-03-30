@@ -1,4 +1,13 @@
-# Pono: an SMT-based model checker built on [smt-switch](https://github.com/makaimann/smt-switch)
+# ILAng-Pono: A variant of Pono to work better with the [ILAng framework](https://github.com/PrincetonUniversity/ILAng)
+
+Add-ons compared to vanilla Pono:
+* Property interface (this will allow ILAng to pass SMT-LIB2 properties directly to Pono, this is helpful to talk about assumptions and assertions around Verilog arrays).
+* Environment invariant synthesis (a variant of SyGuS-APDR to allow faster environment invariant synthesis in per-instruction modular refinement checking).
+
+Please also check the variant of [ILAng framework](https://github.com/zhanghongce/ILA-Tools/tree/refinement-upgrade) which supports [refinement specification version 2](https://hongcez.gitbook.io/ilang-doc/verification/refinement).
+
+
+## Pono: an SMT-based model checker built on [smt-switch](https://github.com/makaimann/smt-switch)
 Pono is a performant, adaptable, and extensible SMT-based model checker implemented in C++. It was developed as the next
 generation of [CoSA](https://github.com/cristian-mattarei/CoSA) and thus was originally named _cosa2_.
 
