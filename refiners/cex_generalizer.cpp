@@ -76,7 +76,7 @@ CexGeneralizer::CexGeneralizer(
   auto translate_term = [&termtrans](const Term & t) -> Term { 
     return termtrans.transfer_term(t); };
 
-  // TODO: what if not the first prop?
+  // only handle the first property
   assert (btor_enc.propvec().size() == 1);
   auto prop = translate_term(btor_enc.propvec().at(0));
 
@@ -92,26 +92,22 @@ CexGeneralizer::CexGeneralizer(
 
   auto cex_length = cex.size();
   for (size_t k = 0; k < cex_length; ++k) {
+    // EDAthon code starts here.
     init_conj_trans = ts_.make_term(And, init_conj_trans,
       unroller_.at_time(ts_.trans(), k));
 
     const auto & state_at_cycle_k = cex.at(k);
-    // cout << "@" << k << ":"<< endl;
     for (const auto & term_val_pair : state_at_cycle_k) {
       auto var = translate_term(term_val_pair.first);
-      // cout << var->to_string() << " : ";
       // check if var is statevar or inputvar or none of the above
-      if (sv.find(var) == sv.end() && inpv.find(var) == inpv.end()) {
-        // cout << "skipped.\n";
+      if (sv.find(var) == sv.end() && inpv.find(var) == inpv.end())
         continue; // we don't care about wires
-      }
-      if (k > 0 && inpv.find(var) == inpv.end()) {
-        // cout << "skipped.\n";
+      
+      if (k > 0 && inpv.find(var) == inpv.end())
         continue; // for all later steps svs are not needed
-      }
       
       auto val = translate_term(term_val_pair.second);
-      // cout << val->to_string() << endl;
+      
       auto term_val_eq = ts_.make_term(Equal, var, val);
       // set unroller
       auto term_val_eq_k = unroller_.at_time(term_val_eq, k);
@@ -124,27 +120,26 @@ CexGeneralizer::CexGeneralizer(
   } // end for each clock cycle
   // init_conj_trans := init_conj_trans /\ prop
   init_conj_trans = ts_.make_term(And, init_conj_trans, unroller_.at_time(prop, cex_length));
-  // std::cout << init_conj_trans->to_string() << std::endl;
-  // for (const auto & eq : all_eq_expr)
-  //   std::cout << eq->to_string() << std::endl;
 
-  {
+  { // a sanity check
     ts_new_slv->push();
       ts_new_slv->assert_formula(init_conj_trans);
       auto res = ts_new_slv->check_sat_assuming(all_eq_expr);
-      if (res == SAT) {
+      if (res == SAT) { // This should not happen
+        // print debugging info
+        
         UnorderedTermSet allvars;
         get_free_symbols(init_conj_trans, allvars);
         for (const auto & v : allvars) {
           auto val = ts_new_slv->get_value(v);
-          cout << v->to_string() << " : " << val->to_string() << endl;
+          logger.log(0, "{} : {}",  v->to_string(), val->to_string());
         }
+        throw PonoException("CexGeneralizer: sanity check failed!");
       }
-      assert (res == UNSAT);
     ts_new_slv->pop();
-  }
+  } // end of sanity check
 
-  // to reduce the unsatcore
+  // to reduce the unsatcore using two methods
   TermVec reduced_all_eq_expr;
   reducer.reduce_assump_unsatcore(init_conj_trans, all_eq_expr, reduced_all_eq_expr);
 
@@ -153,7 +148,6 @@ CexGeneralizer::CexGeneralizer(
 
   // translate it back to CexTraceType
   for (const auto & eq : final_reduction) {
-    // std::cout << eq->to_string() << endl;
     const auto & var_val_pair = expr2cex.at(eq);
     cex_trace_insert(var_val_pair.k, var_val_pair.var, var_val_pair.val);
   }
