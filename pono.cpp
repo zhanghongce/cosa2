@@ -39,6 +39,7 @@
 #include "options/options.h"
 #include "printers/btor2_witness_printer.h"
 #include "printers/vcd_witness_printer.h"
+#include "refiners/cex_generalizer.h"
 #include "smt-switch/logging_solver.h"
 #include "smt/available_solvers.h"
 #include "utils/logger.h"
@@ -257,6 +258,15 @@ int main(int argc, char ** argv)
       //      to allow resetting assertions
     }
 
+    // limitations with witness reduction
+    if (pono_options.witness_reduction_ && !pono_options.vcd_name_.empty()) {
+      logger.log(
+          0,
+          "Warning: disabling VCD production. Temporary restriction -- "
+          "Cannot produce waveform if witness is reduced.");
+      pono_options.vcd_name_ = "";
+    }
+
     // limitations with COI
     if (pono_options.static_coi_) {
       if (pono_options.witness_) {
@@ -320,10 +330,15 @@ int main(int argc, char ** argv)
         cout << "b" << pono_options.prop_idx_ << endl;
         assert(pono_options.witness_ || !cex.size());
         if (cex.size()) {
-          print_witness_btor(btor_enc, cex);
-          if (!pono_options.vcd_name_.empty()) {
-            VCDWitnessPrinter vcdprinter(fts, cex);
-            vcdprinter.dump_trace_to_file(pono_options.vcd_name_);
+          if (pono_options.witness_reduction_) {
+            CexGeneralizer cex_reducer(fts, btor_enc, cex);
+            cex_reducer.print_witness_btor(btor_enc, cex_reducer.get_cex_trace());
+          } else {
+            print_witness_btor(btor_enc, cex);
+            if (!pono_options.vcd_name_.empty()) {
+              VCDWitnessPrinter vcdprinter(fts, cex);
+              vcdprinter.dump_trace_to_file(pono_options.vcd_name_);
+            }
           }
         }
       } else if (res == TRUE) {

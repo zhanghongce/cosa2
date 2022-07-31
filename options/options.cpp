@@ -38,6 +38,7 @@ enum optionIndex
   RANDOM_SEED,
   VCDNAME,
   WITNESS,
+  WITNESS_REDUCTION,
   STATICCOI,
   SHOW_INVAR,
   CHECK_INVAR,
@@ -181,6 +182,12 @@ const option::Descriptor usage[] = {
     "witness",
     Arg::None,
     "  --witness \tPrint witness if the property is false." },
+  { WITNESS_REDUCTION,
+    0,
+    "",
+    "witness-reduction",
+    Arg::None,
+    "  --witness-reduction \tTry to generalize witness when witness is available." },
   { STATICCOI,
     0,
     "",
@@ -518,6 +525,7 @@ ProverResult PonoOptions::parse_and_set_options(int argc,
         }
         case LOGGING_SMT_SOLVER: logging_smt_solver_ = true; break;
         case WITNESS: witness_ = true; break;
+        case WITNESS_REDUCTION : witness_reduction_ = true; break;
         case STATICCOI: static_coi_ = true; break;
         case SHOW_INVAR: show_invar_ = true; break;
         case CHECK_INVAR: check_invar_ = true; break;

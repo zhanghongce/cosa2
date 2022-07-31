@@ -210,6 +210,7 @@ bool Prover::compute_witness()
     witness_.push_back(UnorderedTermMap());
     UnorderedTermMap & map = witness_.back();
 
+    // the witness contains all state variables / input variables / named_terms (wires)
     for (const auto &v : ts_.statevars()) {
       const Term &vi = unroller_.at_time(v, i);
       const Term &r = solver_->get_value(vi);
