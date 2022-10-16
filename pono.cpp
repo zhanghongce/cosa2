@@ -42,6 +42,7 @@
 #include "smt-switch/logging_solver.h"
 #include "smt/available_solvers.h"
 #include "utils/logger.h"
+#include "utils/timestamp.h"
 #include "utils/make_provers.h"
 #include "utils/ts_analysis.h"
 
@@ -210,6 +211,8 @@ void profiling_sig_handler(int sig)
 
 int main(int argc, char ** argv)
 {
+  auto begin_time_stamp = timestamp();
+
   PonoOptions pono_options;
   ProverResult res = pono_options.parse_and_set_options(argc, argv);
   if (res == ERROR) return res;
@@ -259,13 +262,6 @@ int main(int argc, char ** argv)
 
     // limitations with COI
     if (pono_options.static_coi_) {
-      if (pono_options.witness_) {
-        logger.log(
-            0,
-            "Warning: disabling witness production. Temporary restriction -- "
-            "Cannot produce witness with option --static-coi");
-        pono_options.witness_ = false;
-      }
       if (pono_options.pseudo_init_prop_) {
         // Issue explained here:
         // https://github.com/upscale-project/pono/pull/160 will be resolved
@@ -320,7 +316,7 @@ int main(int argc, char ** argv)
         cout << "b" << pono_options.prop_idx_ << endl;
         assert(pono_options.witness_ || !cex.size());
         if (cex.size()) {
-          print_witness_btor(btor_enc, cex);
+          print_witness_btor(btor_enc, cex, fts);
           if (!pono_options.vcd_name_.empty()) {
             VCDWitnessPrinter vcdprinter(fts, cex);
             vcdprinter.dump_trace_to_file(pono_options.vcd_name_);
@@ -418,6 +414,13 @@ int main(int argc, char ** argv)
     ProfilerFlush();
     ProfilerStop();
 #endif
+  }
+
+  if (pono_options.print_wall_time_) {
+    auto end_time_stamp = timestamp();
+    auto elapsed_time = timestamp_diff(begin_time_stamp, end_time_stamp);
+    std:cout << "Pono wall clock time (s): " <<
+      time_duration_to_sec_string(elapsed_time) << std::endl;
   }
 
   return res;
