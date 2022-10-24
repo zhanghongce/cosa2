@@ -56,9 +56,14 @@ class PropertyInterfacecex : public pono::CexExtractor
   public:
   ////Build the Constructor//////
     PropertyInterfacecex(const std::string& vcd_file_name,
-                           const std::string& scope, is_reg_t is_reg,
-                           bool reg_only);
-    void cex_parse_to_pono();
+                           const std::string& scope,
+                           bool reg_only, TransitionSystem & ts);
+    smt::Term cex_parse_to_pono_property();
+
+  protected:
+    TransitionSystem & ts_;
+
+    is_reg_t is_reg;
 };
 
 }  // namespace pono

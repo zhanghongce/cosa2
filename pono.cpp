@@ -306,9 +306,9 @@ int main(int argc, char ** argv)
       }
       //////TODO: Add the transformation of the vcd at here!!!!//////////
       if(!pono_options.cex_reader_.empty()){
-       CexExtractor::is_reg_t reg = [](const std::string& check_name)-> bool{ if(check_name.find("RTL.") == 0) return true; return false;};
-        PropertyInterfacecex prop_cex(pono_options.cex_reader_, std::string("RTL"), reg, true);
-        prop_cex.cex_parse_to_pono();
+        PropertyInterfacecex prop_cex(pono_options.cex_reader_, std::string("RTL"), true, fts);
+        prop = prop_cex.cex_parse_to_pono_property();
+        std::cout << prop->to_raw_string() << std::endl;
       }
       vector<UnorderedTermMap> cex;
       res = check_prop(pono_options, prop, fts, s, cex);

@@ -40,12 +40,12 @@ static std::string val2SMTstr(const VCDValue& v) {
 
   switch (v.get_type()) {
   case (VCD_SCALAR):
-    ret << "#b" << VCDValue::VCDBit2Char(v.get_value_bit());
+    ret << VCDValue::VCDBit2Char(v.get_value_bit());
     break;
   case (VCD_VECTOR): {
     const VCDBitVector* vecval = v.get_value_vector();
     // ret << std::to_string(vecval->size()) ;
-    ret << "#b";
+    // ret << "#b";
     for (auto it = vecval->begin(); it != vecval->end(); ++it)
       ret << VCDValue::VCDBit2Char(*it);
   } break;
@@ -181,8 +181,8 @@ void CexExtractor::parse_from(const std::string& vcd_file_name,
 
     std::string val = val2SMTstr(*vlg_val_ptr);
 
-    cex.insert(std::make_pair(vlg_name, val));
-    cex_is_reg.insert(std::make_pair(vlg_name, is_this_var_reg));
+    cex.insert(std::make_pair(check_name, val));
+    cex_is_reg.insert(std::make_pair(check_name, is_this_var_reg));
 
   } // for sig
 
