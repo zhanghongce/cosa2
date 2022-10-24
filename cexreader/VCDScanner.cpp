@@ -1,6 +1,6 @@
-#line 2 "/home/hongce/ila/ILAng-rfmap/build/extern/vcd-parser/src/VCDScanner.cpp"
+#line 2 "/data/zhiyuany/cosa2/cexreader/VCDScanner.cpp"
 
-#line 4 "/home/hongce/ila/ILAng-rfmap/build/extern/vcd-parser/src/VCDScanner.cpp"
+#line 4 "/data/zhiyuany/cosa2/cexreader/VCDScanner.cpp"
 
 #define  YY_INT_ALIGNED short int
 
@@ -998,7 +998,7 @@ char *yytext;
 #include <cstring>
 #include <cstdio>
 
-#include "vcdparser/VCDFileParser.hpp"
+#include "VCDFileParser.hpp"
 #include "VCDParser.hpp"
 
 #undef yywrap

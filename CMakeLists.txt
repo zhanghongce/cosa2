@@ -192,7 +192,7 @@ set(SOURCES
   "${PROJECT_SOURCE_DIR}/cexreader/VCDParser.cpp"
   "${PROJECT_SOURCE_DIR}/cexreader/VCDScanner.cpp"
   "${PROJECT_SOURCE_DIR}/cexreader/VCDValue.cpp"
-  "${PROJECT_SOURCE_DIR}/cexreader/cex_extract.cpp"  
+  "${PROJECT_SOURCE_DIR}/cexreader/cex_extract.cc"  
   "${BISON_SMVParser_OUTPUTS}"
   "${FLEX_SMVScanner_OUTPUTS}"
   )
@@ -292,6 +292,7 @@ set_target_properties(pono-bin PROPERTIES OUTPUT_NAME pono)
 target_include_directories(pono-bin PUBLIC
   "${PROJECT_SOURCE_DIR}/utils"
   "${PROJECT_SOURCE_DIR}/core"
+  "${PROJECT_SOURCE_DIR}/cexreader"
   "${PROJECT_SOURCE_DIR}/contrib/"
   "${PROJECT_SOURCE_DIR}/contrib/optionparser-1.7/src"
   "${PROJECT_SOURCE_DIR}/deps/btor2tools/src"
@@ -342,6 +343,9 @@ install(DIRECTORY "${PROJECT_SOURCE_DIR}/contrib/fmt/"
         DESTINATION include/pono/fmt
         FILES_MATCHING PATTERN "*.h")
 
+install(DIRECTORY "${PROJECT_SOURCE_DIR}/cexreader/"
+        DESTINATION include/pono/cexreader
+        FILES_MATCHING PATTERN "*.h")
 # uninstall target
 # copied from https://gitlab.kitware.com/cmake/community/wikis/FAQ#can-i-do-make-uninstall-with-cmake
 if(NOT TARGET uninstall)

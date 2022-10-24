@@ -291,6 +291,7 @@ class PonoOptions
   bool kind_one_time_base_check_;
   // K-induction: amount of steps by which transition relation is unrolled
   unsigned kind_bound_step_;
+  std::string cex_reader_;
 
 private:
   // Default options

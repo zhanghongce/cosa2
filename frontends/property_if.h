@@ -24,7 +24,7 @@
 #include "smt-switch/smt.h"
 #include "smt-switch/smtlib_reader.h"
 #include "utils/exceptions.h"
-
+#include "cexreader/cex_extract.h"
 namespace pono {
 class PropertyInterface : public smt::SmtLibReader
 {
@@ -49,6 +49,16 @@ class PropertyInterface : public smt::SmtLibReader
   smt::TermVec assertions_;
   smt::TermVec assumptions_;
 
+};
+
+class PropertyInterfacecex : public pono::CexExtractor 
+{
+  public:
+  ////Build the Constructor//////
+    PropertyInterfacecex(const std::string& vcd_file_name,
+                           const std::string& scope, is_reg_t is_reg,
+                           bool reg_only);
+    void cex_parse_to_pono();
 };
 
 }  // namespace pono

@@ -16,7 +16,6 @@
 
 #include "options/options.h"
 #include <iostream>
-#include <string>
 #include <vector>
 #include "optionparser.h"
 #include "utils/exceptions.h"
@@ -91,7 +90,8 @@ enum optionIndex
   KIND_NO_IND_CHECK,
   KIND_NO_IND_CHECK_PROPERTY,
   KIND_ONE_TIME_BASE_CHECK,
-  KIND_BOUND_STEP
+  KIND_BOUND_STEP,
+  CEX_READER
 };
 
 struct Arg : public option::Arg
@@ -594,6 +594,13 @@ const option::Descriptor usage[] = {
     "  --kind-bound-step \tAmount by which bound (unrolling depth) "
     "is increased in k-induction (default: 1)"
     },
+  { CEX_READER,
+    0,
+    "",
+    "cex-reader",
+    Arg::NonEmpty,
+    "  --cex-reader \tread the cex-reader as the start state for the environment invariant, not the SMT2LIB "
+    },
   { 0, 0, 0, 0, 0, 0 }
 };
 /*********************************** end Option Handling setup
@@ -781,10 +788,13 @@ ProverResult PonoOptions::parse_and_set_options(int argc,
         case KIND_NO_IND_CHECK_PROPERTY: kind_no_ind_check_property_ = true; break;
         case KIND_ONE_TIME_BASE_CHECK: kind_one_time_base_check_ = true; break;
         case KIND_BOUND_STEP: kind_bound_step_ = atoi(opt.arg);
+        case CEX_READER: cex_reader_ = opt.arg; break;
 	  if (kind_bound_step_ == 0)
 	    throw PonoException("--kind-bound-step must be greater than 0");
 	  break;
+        
         case UNKNOWN_OPTION:
+        
           // not possible because Arg::Unknown returns ARG_ILLEGAL
           // which aborts the parse with an error
           break;

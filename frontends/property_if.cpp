@@ -16,7 +16,7 @@
 **/
 
 #include "frontends/property_if.h"
-
+#include "cexreader/cex_extract.h"
 using namespace smt;
 using namespace std;
 
@@ -57,6 +57,17 @@ void PropertyInterface::AddAssumptionsToTS() {
     ts_.add_constraint(t);
 }
 
+PropertyInterfacecex::PropertyInterfacecex(const std::string& vcd_file_name,
+                           const std::string& scope, is_reg_t is_reg,
+                           bool reg_only) 
+  {
+  parse_from(vcd_file_name, scope, is_reg, reg_only);
 
 
+  }
+
+void PropertyInterfacecex::cex_parse_to_pono()
+{
+    cex =  CexExtractor::GetCex(); 
+}
 }  // namespace pono

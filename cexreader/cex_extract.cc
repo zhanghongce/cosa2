@@ -1,9 +1,9 @@
 /// \file CounterExample Extractor
 // ---Hongce Zhang
 
-#include <cex_extract.h>
+#include <cexreader/cex_extract.h>
 
-#include <VCDFileParser.hpp>
+#include <cexreader/VCDFileParser.hpp>
 #include <utils/str_util.h>
 #include <utils/logger.h>
 #include <utils/container_shortcut.h>
@@ -156,10 +156,11 @@ void CexExtractor::parse_from(const std::string& vcd_file_name,
     {
       auto pos = check_name.rfind('[');
       if (pos != std::string::npos) {
-        auto rpos = check_name.find(']',pos);
+        auto rpos = check_name.find(']',pos);//If we cannot find, the find function will return the std::string::npos
         // ILA_ERROR_IF(rpos == std::string::npos) 
         //   << "Cex variable name:" << check_name << " has unmatched [] pair";
-        throw PonoException("has unmatched [] pair");
+        if (rpos == std::string::npos)
+          throw PonoException("has unmatched [] pair");
         auto colon_pos = check_name.find(':', pos);
         if (colon_pos != std::string::npos && colon_pos < rpos)
           check_name = check_name.substr(0, pos);
@@ -219,7 +220,6 @@ CexExtractor::CexExtractor(const std::string& fn) {
     cex_is_reg.insert(std::make_pair(name, true));
   }
 }
-
 // -------------------- MEMBERS ------------------ //
 /// return a string to be added to the design
 std::string

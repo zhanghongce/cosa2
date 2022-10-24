@@ -47,7 +47,8 @@ public:
 
   /// create from a existing file
   CexExtractor(const std::string& fin);
-
+  /// @brief Default
+  CexExtractor(){};
   // -------------------- MEMBERS ------------------ //
   /// return a string to be added to the design
   /// the argument actually has no use at all
