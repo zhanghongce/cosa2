@@ -330,13 +330,13 @@ ProverResult check_prop_inv(PonoOptions pono_options,
                 << " does not support getting the invariant." << std::endl;
     }
   }
-  auto cvc5solver = smt::Cvc5SolverFactory(false);
+  auto cvc5solver = smt::Cvc5SolverFactory::create(false);
   auto transferer = smt::TermTranslator(cvc5solver);
   auto invar_in_cvc5 = transferer.transfer_term(invar);
 
   smt::UnorderedTermSet varset;
   varset = get_free_symbols(invar_in_cvc5);
-  auto invar_varname_rewritten = name_changed(invar_in_cvc5, varset, s);
+  auto invar_varname_rewritten = name_changed(invar_in_cvc5, varset, cvc5solver);
   auto varset_new = get_free_symbols(invar_varname_rewritten);
 
     // smt::UnorderedTermSet out;
