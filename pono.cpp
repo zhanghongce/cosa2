@@ -331,9 +331,10 @@ ProverResult check_prop_inv(PonoOptions pono_options,
     }
   }
   smt::UnorderedTermSet varset;
+  s->reset();
   varset = get_free_symbols(invar);
   auto invar_varname_rewritten = name_changed(invar, varset, s);
-
+  auto varset_new = get_free_symbols(invar_varname_rewritten);
 
     // smt::UnorderedTermSet out;
     // Term new_Term;
@@ -346,7 +347,7 @@ ProverResult check_prop_inv(PonoOptions pono_options,
     // name_changed(invar, new_Term,solver);
     // out = get_free_symbols(new_Term);
     std::string sort_list;
-    smt_lib2_front(invar_varname_rewritten, sort_list);
+    smt_lib2_front(varset_new, sort_list);
     std::string folderPath = "inductive_invariant/";
     // fs::path folderPath_p = folderPath;
     if (fs::is_directory(folderPath)==false)	
@@ -357,7 +358,7 @@ ProverResult check_prop_inv(PonoOptions pono_options,
     std::string filename = folderPath + "/" + "inv1" +".smt2";
     
     ofstream res(filename.c_str());
-    res<<"("<<"define-fun"<<" "<<"assumption.0"<<" "<<"("<<sort_list<<")"<<" "<<"Bool"<<" "<<new_Term->to_string()<<" "<<endl;
+    res<<"("<<"define-fun"<<" "<<"assumption.0"<<" "<<"("<<sort_list<<")"<<" "<<"Bool"<<" "<<invar_varname_rewritten->to_string()<<" "<<endl;
     
 
   if (r == TRUE && pono_options.show_invar_ && invar) {
