@@ -330,17 +330,23 @@ ProverResult check_prop_inv(PonoOptions pono_options,
                 << " does not support getting the invariant." << std::endl;
     }
   }
-    smt::UnorderedTermSet out;
-    Term new_Term;
-    std::string var_wrapper;
-    std::string sort_list = "";
-    smt::SmtSolver solver  = BoolectorSolverFactory::create(true);
-     solver->set_logic("BV");
-     solver->set_opt("incremental", "false");
-     solver->set_opt("produce-models", "false");
-    name_changed(invar, new_Term,solver);
-    out = get_free_symbols(new_Term);
-    smt_lib2_front(out,sort_list);
+  smt::UnorderedTermSet varset;
+  varset = get_free_symbols(invar);
+  auto invar_varname_rewritten = name_changed(invar, varset, s);
+
+
+    // smt::UnorderedTermSet out;
+    // Term new_Term;
+    // std::string var_wrapper;
+    // std::string sort_list = "";
+    // smt::SmtSolver solver  = BoolectorSolverFactory::create(true);
+    //  solver->set_logic("BV");
+    //  solver->set_opt("incremental", "false");
+    //  solver->set_opt("produce-models", "false");
+    // name_changed(invar, new_Term,solver);
+    // out = get_free_symbols(new_Term);
+    std::string sort_list;
+    smt_lib2_front(invar_varname_rewritten, sort_list);
     std::string folderPath = "inductive_invariant/";
     // fs::path folderPath_p = folderPath;
     if (fs::is_directory(folderPath)==false)	

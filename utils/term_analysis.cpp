@@ -199,6 +199,19 @@ void get_leaves(const Term & term, UnorderedTermSet & leaves)
 }
 
 
+smt::Term name_changed(const smt::Term & input, const smt::UnorderedTermSet & varset, const SmtSolver & slv) {
+  smt::UnorderedTermMap substitute_map;
+  for(const auto & var: varset) {
+    assert(var->is_symbol());
+    auto sort = var->get_sort();
+    const std::string new_name = "RTL." + var->to_string();
+    auto new_var = slv->make_symbol(new_name, sort);
+    substitute_map.emplace(var, new_var);
+  }
+  return slv->substitute(input, substitute_map);
+}
+
+
 void name_changed(const Term & term, Term & new_Term, smt::SmtSolver &solver)
 {
   TermVec to_visit({ term });
