@@ -26,7 +26,6 @@
 #ifdef WITH_MSAT
 #include "smt-switch/msat_factory.h"
 #endif
-
 #include "core/fts.h"
 #include "frontends/btor2_encoder.h"
 #include "frontends/smv_encoder.h"
@@ -45,11 +44,13 @@
 #include "utils/timestamp.h"
 #include "utils/make_provers.h"
 #include "utils/ts_analysis.h"
-
+#include "utils/term_analysis.h"
+#include <fstream>
+#include <filesystem>
 using namespace pono;
 using namespace smt;
 using namespace std;
-
+namespace fs = std::filesystem;
 ProverResult check_prop(PonoOptions pono_options,
                         Term & prop,
                         TransitionSystem & ts,
@@ -58,7 +59,6 @@ ProverResult check_prop(PonoOptions pono_options,
 {
   // get property name before it is rewritten
   const string prop_name = ts.get_name(prop);
-
   logger.log(1, "Solving property: {}", prop_name);
   logger.log(3, "INIT:\n{}", ts.init());
   logger.log(3, "TRANS:\n{}", ts.trans());
@@ -169,6 +169,7 @@ ProverResult check_prop(PonoOptions pono_options,
                 << " does not support getting the invariant." << std::endl;
     }
   }
+    
 
   if (r == TRUE && pono_options.show_invar_ && invar) {
     logger.log(0, "INVAR: {}", invar);
@@ -208,6 +209,169 @@ void profiling_sig_handler(int sig)
   signal(sig, SIG_DFL);
   raise(sig);
 }
+
+
+ProverResult check_prop_inv(PonoOptions pono_options,
+                        Term & prop,
+                        TransitionSystem & ts,
+                        const SmtSolver & s,
+                        std::vector<UnorderedTermMap> & cex,
+                        int step)
+{
+  // get property name before it is rewritten
+  const string prop_name = ts.get_name(prop);
+  logger.log(1, "Solving property: {}", prop_name);
+  logger.log(3, "INIT:\n{}", ts.init());
+  logger.log(3, "TRANS:\n{}", ts.trans());
+
+  // modify the transition system and property based on options
+  if (!pono_options.clock_name_.empty()) {
+    Term clock_symbol = ts.lookup(pono_options.clock_name_);
+    toggle_clock(ts, clock_symbol);
+  }
+  if (!pono_options.reset_name_.empty()) {
+    std::string reset_name = pono_options.reset_name_;
+    bool negative_reset = false;
+    if (reset_name.at(0) == '~') {
+      reset_name = reset_name.substr(1, reset_name.length() - 1);
+      negative_reset = true;
+    }
+    Term reset_symbol = ts.lookup(reset_name);
+    if (negative_reset) {
+      SortKind sk = reset_symbol->get_sort()->get_sort_kind();
+      reset_symbol = (sk == BV) ? s->make_term(BVNot, reset_symbol)
+                                : s->make_term(Not, reset_symbol);
+    }
+    Term reset_done = add_reset_seq(ts, reset_symbol, pono_options.reset_bnd_);
+    // guard the property with reset_done
+    prop = ts.solver()->make_term(Implies, reset_done, prop);
+  }
+
+
+  if (pono_options.static_coi_) {
+    /* Compute the set of state/input variables related to the
+       bad-state property. Based on that information, rebuild the
+       transition relation of the transition system. */
+    StaticConeOfInfluence coi(ts, { prop }, pono_options.verbosity_);
+  }
+
+  if (pono_options.pseudo_init_prop_) {
+    ts = pseudo_init_and_prop(ts, prop);
+  }
+
+  if (pono_options.promote_inputvars_) {
+    ts = promote_inputvars(ts);
+    assert(!ts.inputvars().size());
+  }
+
+  if (!ts.only_curr(prop)) {
+    logger.log(1,
+               "Got next state or input variables in property. "
+               "Generating a monitor state.");
+    prop = add_prop_monitor(ts, prop);
+  }
+
+  if (pono_options.assume_prop_) {
+    // NOTE: crucial that pseudo_init_prop and add_prop_monitor passes are
+    // before this pass. Can't assume the non-delayed prop and also
+    // delay it
+    prop_in_trans(ts, prop);
+  }
+
+  Property p(s, prop, prop_name);
+
+  // end modification of the transition system and property
+
+  Engine eng = pono_options.engine_;
+
+  std::shared_ptr<Prover> prover;
+  if (pono_options.cegp_abs_vals_) {
+    prover = make_cegar_values_prover(eng, p, ts, s, pono_options);
+  } else if (pono_options.ceg_bv_arith_) {
+    prover = make_cegar_bv_arith_prover(eng, p, ts, s, pono_options);
+  } else if (pono_options.ceg_prophecy_arrays_) {
+    prover = make_ceg_proph_prover(eng, p, ts, s, pono_options);
+  } else {
+    prover = make_prover(eng, p, ts, s, pono_options);
+  }
+  assert(prover);
+
+  // TODO: handle this in a more elegant way in the future
+  //       consider calling prover for CegProphecyArrays (so that underlying
+  //       model checker runs prove unbounded) or possibly, have a command line
+  //       flag to pick between the two
+  ProverResult r;
+  if (pono_options.engine_ == MSAT_IC3IA)
+  {
+    // HACK MSAT_IC3IA does not support check_until
+    r = prover->prove();
+  }
+  else
+  {
+    r = prover->check_until(pono_options.bound_);
+  }
+
+  if (r == FALSE && pono_options.witness_) {
+    bool success = prover->witness(cex);
+    if (!success) {
+      logger.log(
+          0,
+          "Only got a partial witness from engine. Not suitable for printing.");
+    }
+  }
+
+  Term invar;
+  if (r == TRUE && (pono_options.show_invar_ || pono_options.check_invar_)) {
+    try {
+      invar = prover->invar();
+    }
+    catch (PonoException & e) {
+      std::cout << "Engine " << pono_options.engine_
+                << " does not support getting the invariant." << std::endl;
+    }
+  }
+    smt::UnorderedTermSet out;
+    Term new_Term;
+    std::string var_wrapper;
+    std::string sort_list = "";
+    smt::SmtSolver solver  = BoolectorSolverFactory::create(true);
+     solver->set_logic("BV");
+     solver->set_opt("incremental", "false");
+     solver->set_opt("produce-models", "false");
+    name_changed(invar, new_Term,solver);
+    out = get_free_symbols(new_Term);
+    smt_lib2_front(out,sort_list);
+    std::string folderPath = "inductive_invariant/";
+    // fs::path folderPath_p = folderPath;
+    if (fs::is_directory(folderPath)==false)	
+	    {
+          bool a = fs::create_directory(folderPath);
+	    }
+
+    std::string filename = folderPath + "/" + "inv1" +".smt2";
+    
+    ofstream res(filename.c_str());
+    res<<"("<<"define-fun"<<" "<<"assumption.0"<<" "<<"("<<sort_list<<")"<<" "<<"Bool"<<" "<<new_Term->to_string()<<" "<<endl;
+    
+
+  if (r == TRUE && pono_options.show_invar_ && invar) {
+    logger.log(0, "INVAR: {}", invar);
+  }
+
+  if (r == TRUE && pono_options.check_invar_ && invar) {
+    bool invar_passes = check_invar(ts, p.prop(), invar);
+    std::cout << "Invariant Check " << (invar_passes ? "PASSED" : "FAILED")
+              << std::endl;
+    if (!invar_passes) {
+      // shouldn't return true if invariant is incorrect
+      throw PonoException("Invariant Check FAILED");
+    }
+  }
+  return r;
+}
+
+
+
 
 int main(int argc, char ** argv)
 {
@@ -287,18 +451,99 @@ int main(int argc, char ** argv)
       logger.log(2, "Parsing BTOR2 file: {}", pono_options.filename_);
       FunctionalTransitionSystem fts(s);
       BTOR2Encoder btor_enc(pono_options.filename_, fts);
+    Term prop;
+    if (pono_options.find_environment_invariant_){
+      assert(!pono_options.cex_reader_.empty());
+      int step = 0;
+      res = TRUE;
+      while(res== TRUE){  
+        if (step == 0){
+          PropertyInterfacecex prop_cex(pono_options.cex_reader_, std::string("RTL"), true, fts);
+          prop = prop_cex.cex_parse_to_pono_property();
+          std::cout << prop->to_raw_string() << std::endl;
+          vector<UnorderedTermMap> cex;
+          res = check_prop_inv(pono_options, prop, fts, s, cex, step);
+          step = step + 1;
+          // we assume that a prover never returns 'ERROR'
+          assert(res != ERROR);
 
-      const TermVec & propvec = btor_enc.propvec();
-      unsigned int num_props = propvec.size();
-      if (pono_options.prop_idx_ >= num_props) {
-        throw PonoException(
-            "Property index " + to_string(pono_options.prop_idx_)
-            + " is greater than the number of properties in file "
-            + pono_options.filename_ + " (" + to_string(num_props) + ")");
+          // print btor output
+          if (res == FALSE) {
+            cout << "sat" << endl;
+            cout << "b" << pono_options.prop_idx_ << endl;
+            assert(pono_options.witness_ || !cex.size());
+            if (cex.size()) {
+              print_witness_btor(btor_enc, cex, fts);
+              if (!pono_options.vcd_name_.empty()) {
+                VCDWitnessPrinter vcdprinter(fts, cex);
+                vcdprinter.dump_trace_to_file(pono_options.vcd_name_);
+              }
+            }
+
+          } else if (res == TRUE) {
+            cout << "unsat" << endl;
+            cout << "b" << pono_options.prop_idx_ << endl;
+          } else {
+            assert(res == pono::UNKNOWN);
+            cout << "unknown" << endl;
+            cout << "b" << pono_options.prop_idx_ << endl;
+        }
+        }
+        
+      else{
+        std::string step_s = to_string(step-1);
+        std::string dic = "inductive_invariant";
+        std::string property_file = dic + "inv" + step_s + ".smt2";
+        assert(fs::exists(property_file));
+        PropertyInterface prop_if (property_file,fts);
+        prop_if.AddAssumptionsToTS();
+        prop = prop_if.AddAssertions(prop);
+        std::cout << prop->to_raw_string() << std::endl;
+        vector<UnorderedTermMap> cex;
+        res = check_prop_inv(pono_options, prop, fts, s, cex, step);
+        step = step + 1;
+        // we assume that a prover never returns 'ERROR'
+        assert(res != ERROR);
+
+        // print btor output
+        if (res == FALSE) {
+          cout << "sat" << endl;
+          cout << "b" << pono_options.prop_idx_ << endl;
+          assert(pono_options.witness_ || !cex.size());
+          if (cex.size()) {
+            print_witness_btor(btor_enc, cex, fts);
+            if (!pono_options.vcd_name_.empty()) {
+              VCDWitnessPrinter vcdprinter(fts, cex);
+              vcdprinter.dump_trace_to_file(pono_options.vcd_name_);
+            }
+          }
+
+        } else if (res == TRUE) {
+          cout << "unsat" << endl;
+          cout << "b" << pono_options.prop_idx_ << endl;
+        } else {
+          assert(res == pono::UNKNOWN);
+          cout << "unknown" << endl;
+          cout << "b" << pono_options.prop_idx_ << endl;
       }
+      }
+    }
+    }
+    else{
+    if (pono_options.cex_reader_.empty()){
+        const TermVec & propvec = btor_enc.propvec();
+        unsigned int num_props = propvec.size();
+        /// YZY: I am not sure whether we need to comment the following code
 
-      Term prop = propvec[pono_options.prop_idx_];
-
+        if (pono_options.prop_idx_ >= num_props) {
+          throw PonoException(
+              "Property index " + to_string(pono_options.prop_idx_)
+              + " is greater than the number of properties in file "
+              + pono_options.filename_ + " (" + to_string(num_props) + ")");
+        }
+    
+        prop = propvec[pono_options.prop_idx_];
+    }
       if(!pono_options.property_file_.empty()) {
         PropertyInterface prop_if (pono_options.property_file_,fts);
         prop_if.AddAssumptionsToTS();
@@ -309,7 +554,10 @@ int main(int argc, char ** argv)
         PropertyInterfacecex prop_cex(pono_options.cex_reader_, std::string("RTL"), true, fts);
         prop = prop_cex.cex_parse_to_pono_property();
         std::cout << prop->to_raw_string() << std::endl;
+
+          
       }
+
       vector<UnorderedTermMap> cex;
       res = check_prop(pono_options, prop, fts, s, cex);
       // we assume that a prover never returns 'ERROR'
@@ -327,6 +575,7 @@ int main(int argc, char ** argv)
             vcdprinter.dump_trace_to_file(pono_options.vcd_name_);
           }
         }
+
       } else if (res == TRUE) {
         cout << "unsat" << endl;
         cout << "b" << pono_options.prop_idx_ << endl;
@@ -335,7 +584,7 @@ int main(int argc, char ** argv)
         cout << "unknown" << endl;
         cout << "b" << pono_options.prop_idx_ << endl;
       }
-
+    }
     } else if (file_ext == "smv" || file_ext == "vmt" || file_ext == "smt2") {
       logger.log(2, "Parsing SMV/VMT file: {}", pono_options.filename_);
       RelationalTransitionSystem rts(s);

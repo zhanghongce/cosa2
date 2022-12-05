@@ -17,7 +17,7 @@
 #pragma once
 
 #include "smt-switch/smt.h"
-
+#include <iostream>
 namespace pono {
 
 /** returns true iff t is a predicate
@@ -63,6 +63,10 @@ void get_leaves(const smt::Term & term, smt::UnorderedTermSet & leaves);
  * functions the smt-switch btor backend doesn't support getting the sort from a
  * UF
  */
+
+void name_changed(const smt::Term & term, smt::Term & new_Term, smt::SmtSolver & solver);
+void smt_lib2_front(const smt::UnorderedTermSet out, std::string & sort_list);
+
 void get_predicates(const smt::SmtSolver & solver,
                     const smt::Term & term,
                     smt::UnorderedTermSet & out,

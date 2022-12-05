@@ -163,8 +163,14 @@ void CexExtractor::parse_from(const std::string& vcd_file_name,
           throw PonoException("has unmatched [] pair");
         auto colon_pos = check_name.find(':', pos);
         if (colon_pos != std::string::npos && colon_pos < rpos)
-          check_name = check_name.substr(0, pos);
+          check_name = check_name.substr(0, pos); 
       }
+      // auto pos_wrap_l =check_name.rfind('RTL.');
+      // pos_wrap_l = pos_wrap_l + 1;
+      auto pos_wrap_r =check_name.rfind('DOT');
+      // pos_wrap_r = pos_wrap_r;
+      check_name.erase(check_name.begin(),check_name.begin()+pos_wrap_r+3);
+
     }
 
     bool is_this_var_reg = is_reg(check_name);

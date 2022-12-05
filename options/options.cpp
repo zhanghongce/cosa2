@@ -91,7 +91,10 @@ enum optionIndex
   KIND_NO_IND_CHECK_PROPERTY,
   KIND_ONE_TIME_BASE_CHECK,
   KIND_BOUND_STEP,
-  CEX_READER
+  CEX_READER,
+  SYGUS_INITIAL_TERM_WIDTH,
+  FIND_ENV_INV
+
 };
 
 struct Arg : public option::Arg
@@ -601,6 +604,22 @@ const option::Descriptor usage[] = {
     Arg::NonEmpty,
     "  --cex-reader \tread the cex-reader as the start state for the environment invariant, not the SMT2LIB "
     },
+  { SYGUS_INITIAL_TERM_WIDTH,
+    0,
+    "",
+    "sygus-initial-term-width",
+    Arg::Numeric,
+    "  --sygus-initial-term-width \tThe width to distinguish the controller and datapath"
+    "(default: 8)"
+    },
+  { FIND_ENV_INV,
+    0,
+    "",
+    "find-environment-invariant",
+    Arg::None,
+    "  --find-environment-invariant \tFinding the inductive invariant"
+
+    },
   { 0, 0, 0, 0, 0, 0 }
 };
 /*********************************** end Option Handling setup
@@ -787,11 +806,14 @@ ProverResult PonoOptions::parse_and_set_options(int argc,
 	  kind_no_ind_check_init_states_ = true; kind_no_ind_check_property_ = true; break;
         case KIND_NO_IND_CHECK_PROPERTY: kind_no_ind_check_property_ = true; break;
         case KIND_ONE_TIME_BASE_CHECK: kind_one_time_base_check_ = true; break;
-        case KIND_BOUND_STEP: kind_bound_step_ = atoi(opt.arg);
+        case KIND_BOUND_STEP: kind_bound_step_ = atoi(opt.arg); 	 
+         if (kind_bound_step_ == 0)
+	            throw PonoException("--kind-bound-step must be greater than 0");
+	            break;
         case CEX_READER: cex_reader_ = opt.arg; break;
-	  if (kind_bound_step_ == 0)
-	    throw PonoException("--kind-bound-step must be greater than 0");
-	  break;
+        case SYGUS_INITIAL_TERM_WIDTH: sygus_initial_term_width_ = atoi(opt.arg); break;
+        case FIND_ENV_INV: find_environment_invariant_ =  true; break;
+
         
         case UNKNOWN_OPTION:
         
