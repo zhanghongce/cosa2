@@ -466,78 +466,40 @@ int main(int argc, char ** argv)
       assert(!pono_options.cex_reader_.empty());
       int step = 0;
       res = TRUE;
-      while(res== TRUE){  
-        if (step == 0){
-          PropertyInterfacecex prop_cex(pono_options.cex_reader_, std::string("RTL"), true, fts);
-          prop = prop_cex.cex_parse_to_pono_property();
-          std::cout << prop->to_raw_string() << std::endl;
-          vector<UnorderedTermMap> cex;
-          res = check_prop_inv(pono_options, prop, fts, s, cex, step);
-          step = step + 1;
-          // we assume that a prover never returns 'ERROR'
-          assert(res != ERROR);
 
-          // print btor output
-          if (res == FALSE) {
-            cout << "sat" << endl;
-            cout << "b" << pono_options.prop_idx_ << endl;
-            assert(pono_options.witness_ || !cex.size());
-            if (cex.size()) {
-              print_witness_btor(btor_enc, cex, fts);
-              if (!pono_options.vcd_name_.empty()) {
-                VCDWitnessPrinter vcdprinter(fts, cex);
-                vcdprinter.dump_trace_to_file(pono_options.vcd_name_);
-              }
-            }
 
-          } else if (res == TRUE) {
-            cout << "unsat" << endl;
-            cout << "b" << pono_options.prop_idx_ << endl;
-          } else {
-            assert(res == pono::UNKNOWN);
-            cout << "unknown" << endl;
-            cout << "b" << pono_options.prop_idx_ << endl;
-        }
-        }
-        
-      else{
-        std::string step_s = to_string(step-1);
-        std::string dic = "inductive_invariant";
-        std::string property_file = dic + "inv" + step_s + ".smt2";
-        assert(fs::exists(property_file));
-        PropertyInterface prop_if (property_file,fts);
-        prop_if.AddAssumptionsToTS();
-        prop = prop_if.AddAssertions(prop);
-        std::cout << prop->to_raw_string() << std::endl;
-        vector<UnorderedTermMap> cex;
-        res = check_prop_inv(pono_options, prop, fts, s, cex, step);
-        step = step + 1;
-        // we assume that a prover never returns 'ERROR'
-        assert(res != ERROR);
+      PropertyInterfacecex prop_cex(pono_options.cex_reader_, std::string("RTL"), true, fts);
+      prop = prop_cex.cex_parse_to_pono_property();
+      std::cout << prop->to_raw_string() << std::endl;
+      vector<UnorderedTermMap> cex;
+      res = check_prop_inv(pono_options, prop, fts, s, cex, step);
+      step = step + 1;
+      // we assume that a prover never returns 'ERROR'
+      assert(res != ERROR);
 
-        // print btor output
-        if (res == FALSE) {
-          cout << "sat" << endl;
-          cout << "b" << pono_options.prop_idx_ << endl;
-          assert(pono_options.witness_ || !cex.size());
-          if (cex.size()) {
-            print_witness_btor(btor_enc, cex, fts);
-            if (!pono_options.vcd_name_.empty()) {
-              VCDWitnessPrinter vcdprinter(fts, cex);
-              vcdprinter.dump_trace_to_file(pono_options.vcd_name_);
-            }
+      // print btor output
+      if (res == FALSE) {
+        cout << "sat" << endl;
+        cout << "b" << pono_options.prop_idx_ << endl;
+        assert(pono_options.witness_ || !cex.size());
+        if (cex.size()) {
+          print_witness_btor(btor_enc, cex, fts);
+          if (!pono_options.vcd_name_.empty()) {
+            VCDWitnessPrinter vcdprinter(fts, cex);
+            vcdprinter.dump_trace_to_file(pono_options.vcd_name_);
           }
+        }
 
-        } else if (res == TRUE) {
-          cout << "unsat" << endl;
-          cout << "b" << pono_options.prop_idx_ << endl;
-        } else {
-          assert(res == pono::UNKNOWN);
-          cout << "unknown" << endl;
-          cout << "b" << pono_options.prop_idx_ << endl;
-      }
-      }
+      } else if (res == TRUE) {
+        cout << "unsat" << endl;
+        cout << "b" << pono_options.prop_idx_ << endl;
+      } else {
+        assert(res == pono::UNKNOWN);
+        cout << "unknown" << endl;
+        cout << "b" << pono_options.prop_idx_ << endl;
     }
+   
+    
     }
     else{
     if (pono_options.cex_reader_.empty()){

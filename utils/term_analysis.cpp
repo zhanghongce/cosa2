@@ -204,7 +204,16 @@ smt::Term name_changed(const smt::Term & input, const smt::UnorderedTermSet & va
   for(const auto & var: varset) {
     assert(var->is_symbol());
     auto sort = var->get_sort();
-    const std::string new_name = "RTL." + var->to_string();
+    auto var_middle =  var->to_string();
+    auto pos = var_middle.find("|");
+    if (pos!=std::string::npos){
+      var_middle = var_middle.erase(pos,1);
+    }
+    auto pos1 = var_middle.find("|");
+    if (pos1!=std::string::npos){
+      var_middle = var_middle.erase(pos1,1);
+    }
+    const std::string new_name = "RTL." + var_middle;
     auto new_var = slv->make_symbol(new_name, sort);
     substitute_map.emplace(var, new_var);
   }
