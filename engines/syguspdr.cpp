@@ -602,7 +602,7 @@ bool SygusPdr::propose_new_terms(
 syntax_analysis::PerCexInfo & SygusPdr::setup_cex_info (syntax_analysis::IC3FormulaModel * post_model) {
   assert(post_model);
   auto cex_term_map_pos = cex_term_map_.find(post_model);
-  if (cex_term_map_pos == cex_term_map_.end()) {
+  if (cex_term_map_pos == cex_term_map_.end()) { // set up per cex candidates
     bool nouse;
     std::tie(cex_term_map_pos ,  nouse) =
       cex_term_map_.emplace(post_model, 

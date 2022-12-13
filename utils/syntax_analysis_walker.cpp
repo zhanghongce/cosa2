@@ -448,7 +448,7 @@ void SliceExtractor::PostChild(const smt::Term & ast) {
 // ---------------------------------------------- //
 
 
-
+// for all variable v in the cex model, create terms like v[0], v[1], ... in term candidates in varset_info
 unsigned TermLearner::vars_extract_bit_level(IC3FormulaModel * post,  /*OUTPUT*/  PerVarsetInfo & varset_info) {
   smt::UnorderedTermSet vars;
   post->get_varset(vars);
@@ -544,16 +544,16 @@ static smt::Op get_op(const smt::Term & ast) {
 
 #undef ARG1
 #undef ARG2
-#define ARG1            \
-      auto ptr = t->begin();    \
+#define ARG1(t)            \
+      auto ptr = (t)->begin();    \
       auto a1  = *(ptr++);      \
-      assert (ptr == t->end());
+      assert (ptr == (t)->end())
 
-#define ARG2            \
-      auto ptr = t->begin();    \
+#define ARG2(t)            \
+      auto ptr = (t)->begin();    \
       auto a1  = *(ptr++);      \
       auto a2  = *(ptr++);      \
-      assert (ptr == t->end());
+      assert (ptr == (t)->end())
 
 unsigned TermLearner::concat_to_extract(/*INOUT*/  PerVarsetInfo & varset_info) {
   unsigned nterm = 0; 
@@ -569,7 +569,7 @@ unsigned TermLearner::concat_to_extract(/*INOUT*/  PerVarsetInfo & varset_info) 
           (get_op(t).prim_op == smt::PrimOp::Concat)
           ) {
         
-          ARG2
+          ARG2(t);
           unsigned sep = a2->get_sort()->get_width();
           unsigned msb = a1->get_sort()->get_width() + sep;
           // assert(sep>=1);
