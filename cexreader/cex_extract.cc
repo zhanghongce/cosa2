@@ -167,7 +167,7 @@ void CexExtractor::parse_from(const std::string& vcd_file_name,
       }
       // auto pos_wrap_l =check_name.rfind('RTL.');
       // pos_wrap_l = pos_wrap_l + 1;
-      auto pos_wrap_r =check_name.rfind('DOT');
+      auto pos_wrap_r =check_name.rfind("DOT");
       // pos_wrap_r = pos_wrap_r;
       check_name.erase(check_name.begin(),check_name.begin()+pos_wrap_r+3);
 
