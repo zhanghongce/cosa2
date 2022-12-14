@@ -140,11 +140,14 @@ protected:
 class ParentExtract : public Walker {
 public:
   // ----------- TYPE --------------- //
+  // a sub-term may be used in multiple places, therefore it can have more than 1 parent!
   typedef std::unordered_map<smt::Term, smt::UnorderedTermSet> parent_map_t;
 
   ParentExtract() {} // do nothing
   void ClearCache() { parent_.clear(); }
-  const parent_map_t & GetParentRelation() {return parent_;}
+  const parent_map_t & GetParentRelation() const {return parent_;}
+
+  // register new parent is used when you construct new terms
   bool RegisterNewParentRelation(const smt::Term &child, const smt::Term &parent) {
     auto ret = parent_[child].insert(parent);
     return ret.second;
@@ -234,6 +237,7 @@ public:
     const smt::Term & trans,
     /*OUTPUT*/  PerVarsetInfo & varset_info );
 
+  // for all variable v in the cex model, create terms like v[0], v[1], ... in term candidates in varset_info
   unsigned vars_extract_bit_level(IC3FormulaModel * post,  /*OUTPUT*/  PerVarsetInfo & varset_info) ;
   
 protected:

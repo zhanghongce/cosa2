@@ -151,7 +151,7 @@ const PerVarsetInfo & VarTermManager::GetAllTermsForVarsInModel(
   if (term_mode == SyGuSTermMode::FROM_DESIGN_LEARN_EXT)
     return SetupTermsForVarModelNormal(m, var_string, s, 
       term_extract_depth, initial_term_width, initial_term_inc, accumulated_term_bound);
-  if (term_mode == SyGuSTermMode::VAR_C_EXT)
+  if (term_mode == SyGuSTermMode::VAR_C_EXT) // variable constant and v[0], v[1], ....
     return SetupTermsForVarModeExt(m, var_string, s);
   if (term_mode == SyGuSTermMode::SPLIT_FROM_DESIGN)
     return SetupTermsForVarModeSplit(m, var_string, s);
