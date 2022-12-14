@@ -55,13 +55,17 @@ unsigned SygusPdr::GetScore(const Term & t) {
 // keep these states in the model
 void SygusPdr::build_ts_related_info() {
   // the input vars and the prime to next function
-  const auto & all_state_vars = ts_.statevars();
+  const auto & all_state_vars = ts_.statevars();//The input and state in the btor
   for (const auto & sv : all_state_vars) {
-    const auto & s_updates = ts_.state_updates();
+    const auto & s_updates = ts_.state_updates();////The state in the btor
+    // for(const auto &s:  s_updates){
+    //   std::cout<< s.first->to_string() << std::endl;
+    // }
     if (!IN(sv, s_updates))
       no_next_vars_.insert(sv);
     else
-      nxt_state_updates_.emplace(ts_.next(sv), s_updates.at(sv));
+      nxt_state_updates_.emplace(ts_.next(sv), s_updates.at(sv)); // ts_.next(sv): registers[0] ->  registers[0].next. Why we need to use ts_.statevars()? 
+                                                                  // We cam use ts_.state_updates() directly.
   }
 }
 
@@ -169,7 +173,9 @@ void SygusPdr::initialize()
 
   build_ts_related_info();
   
-
+  for( const auto nxt:nxt_state_updates_){
+    std::cout<<nxt.first->to_string()<<std::endl;
+  }
  // has_assumption -- on the original one
   has_assumptions = false;
   assert(!nxt_state_updates_.empty());
@@ -190,8 +196,8 @@ void SygusPdr::initialize()
   // initialize the caches  
   // extract the operators
   op_extract_ = std::make_unique<syntax_analysis::OpExtractor>();
-  op_extract_->WalkBFS(ts_.init());
-  op_extract_->WalkBFS(ts_.trans());
+  op_extract_->WalkBFS(ts_.init()); //Btor in init
+  op_extract_->WalkBFS(ts_.trans()); //State transition
   op_extract_->GetSyntaxConstruct().RemoveConcat();
   op_extract_->GetSyntaxConstruct().RemoveExtract();
   op_extract_->GetSyntaxConstruct().AndOrConvert();

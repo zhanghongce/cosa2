@@ -205,15 +205,30 @@ smt::Term name_changed(const smt::Term & input, const smt::UnorderedTermSet & va
     assert(var->is_symbol());
     auto sort = var->get_sort();
     auto var_middle =  var->to_string();
-    auto pos = var_middle.find("|");
-    if (pos!=std::string::npos){
-      var_middle = var_middle.erase(pos,1);
-    }
     auto pos1 = var_middle.find("|");
     if (pos1!=std::string::npos){
       var_middle = var_middle.erase(pos1,1);
     }
-    const std::string new_name = "RTL." + var_middle;
+    auto pos2 = var_middle.find("|");
+    if (pos2!=std::string::npos){
+      var_middle = var_middle.erase(pos2,1);
+    }
+    auto pos_reg = var_middle.find("register");
+    auto ps_left_paren = var_middle.find("[");
+    if (ps_left_paren!=std::string::npos){
+      var_middle = var_middle.replace(ps_left_paren,1,"_");
+    }
+    auto ps_right_paren = var_middle.find("]");
+    if (ps_right_paren!=std::string::npos){
+      var_middle = var_middle.replace(ps_right_paren,1,"_");
+    }
+    std::string new_name;
+    if (pos_reg!=std::string::npos){
+      new_name = "RTL.RTL__DOT__" + var_middle;
+    }
+    else{
+      new_name = "RTL." + var_middle;
+    }
     auto new_var = slv->make_symbol(new_name, sort);
     substitute_map.emplace(var, new_var);
   }
@@ -311,16 +326,26 @@ void name_changed(const Term & term, Term & new_Term, smt::SmtSolver &solver)
   cout<<new_Term<<endl;
 }
 
-void smt_lib2_front(const UnorderedTermSet out,std::string & sort_list){
-      UnorderedTermSortMap symbols_mapping;
+void smt_lib2_front(const UnorderedTermSet &out,std::string & sort_list){
+      std::unordered_map<smt::Term,smt::Sort> symbols_mapping;
       for (const auto &var: out){
           std::cout<<var<<std::endl;
           auto var_sort = var->get_sort();
           symbols_mapping.insert(pair<Term,Sort> (var,var_sort));
       }
+      const auto length = symbols_mapping.size();
+      int count = 0; 
       for (const auto &symbols: symbols_mapping){
+        if (count != length -1)
+        {
         sort_list = sort_list + "(" + "|" + symbols.first->to_string() + "|" + " " + symbols.second->to_string() + ")" +" ";
         cout<<sort_list<<endl;
+        count = count + 1;
+        }
+        else{
+          sort_list = sort_list + "(" + "|" + symbols.first->to_string() + "|" + " " + symbols.second->to_string() + ")";
+          cout<<sort_list<<endl;
+        }
       }
 }
 void get_predicates(const SmtSolver & solver,

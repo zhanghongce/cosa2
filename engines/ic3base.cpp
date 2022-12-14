@@ -418,7 +418,7 @@ ProverResult IC3Base::step_01()
     logger.log(1, "Checking if initial states satisfy property");
 
     push_solver_context();
-    solver_->assert_formula(init_label_);
+    solver_->assert_formula(init_label_);///Initial label is strange, "BTOR1_@frame_0"
     solver_->assert_formula(bad_);
     Result r = check_sat();
     if (r.is_sat()) {
@@ -439,7 +439,7 @@ ProverResult IC3Base::step_01()
 
   push_solver_context();
   solver_->assert_formula(init_label_);
-  solver_->assert_formula(trans_label_);
+  solver_->assert_formula(trans_label_);///Trans label is strange, "BTOR1_@frame_0"
   solver_->assert_formula(ts_.next(bad_));
   Result r = check_sat();
   if (r.is_sat()) {
@@ -572,7 +572,7 @@ bool IC3Base::block_all()
 {
   assert(!solver_context_);
   ProofGoalQueue proof_goals;
-  IC3Formula goal;
+  IC3Formula goal; //goal is empty. Why?
   while (reaches_bad(goal)) {
     assert(goal.term);            // expecting non-null
     assert(proof_goals.empty());  // bad should be the first goal each iteration

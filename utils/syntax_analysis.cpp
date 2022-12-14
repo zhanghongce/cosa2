@@ -102,7 +102,7 @@ const PerVarsetInfo & VarTermManager::SetupTermsForVarModelNormal(
   TermExtractor extractor(varset, collect_constant, 
     term_extract_depth, 
     pos->second.terms_buffer,
-    pos->second.all_terms);
+    pos->second.all_terms);///Extract the term, and put into the table
 
   for (auto && t : terms_to_check_)
     extractor.WalkBFS(t);
@@ -143,7 +143,8 @@ const PerVarsetInfo & VarTermManager::GetAllTermsForVarsInModel(
   unsigned initial_term_inc, unsigned accumulated_term_bound) {
 
   std::string var_string = m->vars_to_canonical_string();
-  auto pos = terms_cache_.find(var_string);
+  auto pos = terms_cache_.find(var_string);//terms_cache_ from a set of variable to the table( the map between width and variable) 
+  //This map need to be kept so that there is no error, we need to generate the candidate according to the map.
   if ( pos != terms_cache_.end() )  {
     return pos->second;
   }
