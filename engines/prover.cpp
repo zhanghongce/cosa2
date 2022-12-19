@@ -204,6 +204,10 @@ bool Prover::compute_witness()
       map[v] = r;
     }
 
+    // early stop
+    if (options_.witness_first_state_only_)
+      return true;
+
     for (const auto &v : ts_.inputvars()) {
       const Term &vi = unroller_.at_time(v, i);
       const Term &r = solver_->get_value(vi);
