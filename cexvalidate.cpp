@@ -31,6 +31,7 @@
 #include "frontends/smv_encoder.h"
 #include "frontends/vmt_encoder.h"
 #include "frontends/property_if.h"
+#include "frontends/cex_info_json.h"
 #include "modifiers/control_signals.h"
 #include "modifiers/mod_ts_prop.h"
 #include "modifiers/prop_monitor.h"
@@ -186,6 +187,131 @@ ProverResult check_prop(PonoOptions pono_options,
   return r;
 }
 
+bool check_for_inductiveness(const Term & prop, const TransitionSystem & ts) {
+  Term init = ts.init();
+  Term trans = ts.trans();
+  const auto & s = ts.solver();
+  s->push();
+    s->assert_formula(init);
+    s->assert_formula(s->make_term(Not, prop));
+    auto r = s->check_sat();
+  s->pop();
+  if (r.is_sat())
+    return false;
+  
+  s->push();
+    s->assert_formula(prop);
+    s->assert_formula(trans);
+    s->assert_formula(s->make_term(Not, ts.next(prop)));
+    r = s->check_sat();
+  s->pop();
+  if (r.is_sat())
+    return false;
+
+  return true;
+}
+
+/*
+
+    auto pos1 = vars.find(var_name);
+
+    auto pos2 = ts_.named_terms().find(var_name);
+    assert(pos2 != ts_.named_terms().end());
+    auto var = pos2->second;
+    auto pos3 = terms.find(var);
+
+    std::string varname_from_smt2 = var->to_raw_string();
+    if(varname_from_smt2.length() > 2 && varname_from_smt2.front() == '|' 
+      && varname_from_smt2.back() == '|' )
+      varname_from_smt2 = varname_from_smt2.substr(1, varname_from_smt2.length() -2 );
+    auto pos4 = vars.find(varname_from_smt2);
+
+    bool in_vars  = pos1 != vars.end() || pos4 != vars.end();
+    bool in_terms = pos3 != terms.end();
+    if (must_in && !in_vars && !in_terms)
+      continue;
+    if (!must_in && (in_vars || in_terms))
+      continue;
+*/
+
+class Filter {
+public:
+  virtual bool operator()(const std::string & n) const = 0;
+  virtual std::string to_string() const = 0;
+  virtual ~Filter() {}
+};
+
+class MaxWidthFilter : public Filter {
+protected:
+  unsigned width_;
+  const TransitionSystem & ts_;
+public:
+  MaxWidthFilter(unsigned w, const TransitionSystem & ts) : width_(w), ts_(ts) { }
+  bool operator()(const std::string & n) const override {
+    auto pos = ts_.named_terms().find(n);
+    assert(pos != ts_.named_terms().end());
+    auto var = pos->second;
+    if ( var->get_sort()->get_sort_kind() != SortKind::BV )
+      return true;
+    if (var->get_sort()->get_width() <= width_ )
+      return true;
+    return false;
+  }
+  std::string to_string() const override {
+    return "[W<" + std::to_string(width_) +"]";
+  }
+};
+
+class NameFilter : public Filter{
+protected:
+  unordered_set<string> varset;
+  const TransitionSystem & ts_;
+  bool must_in_;
+public:
+  NameFilter(const vector<string> & v, const TransitionSystem & ts, bool must_in) : ts_(ts), must_in_(must_in)
+     { varset.insert(v.begin(), v.end()); }
+  bool operator()(const std::string & n) const {
+    auto pos1 = varset.find(n);
+    auto pos2 = ts_.named_terms().find(n);
+    assert(pos2 != ts_.named_terms().end());
+    auto var = pos2->second;
+
+    std::string varname_from_smt2 = var->to_raw_string();
+    if(varname_from_smt2.length() > 2 && varname_from_smt2.front() == '|' 
+      && varname_from_smt2.back() == '|' )
+      varname_from_smt2 = varname_from_smt2.substr(1, varname_from_smt2.length() -2 );
+    auto pos3 = varset.find(varname_from_smt2);
+
+    bool in_vars  = pos1 != varset.end() || pos3 != varset.end();
+    if(must_in_ && !in_vars)
+      return false;
+    if (!must_in_ && in_vars)
+      return false;
+    return true;
+  }
+  std::string to_string() const override {
+    if(must_in_)
+      return "[Keep " + std::to_string(varset.size()) +" V]";
+    return "[rm " + std::to_string(varset.size()) +"V]";
+  }
+};
+
+struct FilterConcat : public Filter{
+  list<shared_ptr<Filter>> filters;
+  bool operator()(const std::string & n) const override {
+    for (const auto & f : filters) {
+      if (!(*f)(n))
+        return false;
+    }
+    return true;
+  }
+  std::string to_string() const override {
+    std::string ret;
+    for (const auto & f : filters) 
+      ret += f->to_string();
+    return ret;
+  }
+};
 
 int main(int argc, char ** argv)
 {
@@ -193,10 +319,9 @@ int main(int argc, char ** argv)
 
   PonoOptions pono_options;
   ProverResult res = pono_options.parse_and_set_options(argc, argv);
-  if (pono_options.vcd_name_.empty())
-    pono_options.vcd_name_ = "cex.vcd";
-  // in this case, we are only interested in the first state
-  pono_options.witness_ = pono_options.witness_first_state_only_ = true;
+  pono_options.engine_ = IC3_BITS;
+  pono_options.show_invar_ = true;
+  pono_options.check_invar_ = false;
 
   if (res == ERROR) return res;
   // expected result returned by option parsing and setting is
@@ -253,26 +378,68 @@ int main(int argc, char ** argv)
   FunctionalTransitionSystem fts(s);
   BTOR2Encoder btor_enc(pono_options.filename_, fts);
   Term prop;
+  CexInfoForEnvInvSyn cexinfo("invsyn-config.json");
+  logger.log(0, "Datapath reg: {} , aux var removal: {}", cexinfo.datapath_elements_.size(), cexinfo.auxvar_removal_.size());
+  
   // HERE we load the assumptions from environment invariant synthesis
   if(!pono_options.property_file_.empty()) {
     PropertyInterface prop_if (pono_options.property_file_,fts);
     prop_if.AddAssumptionsToTS();
-    prop = prop_if.AddAssertions(prop);
-  } else {
-    if(btor_enc.propvec().size() != 1)
-      throw PonoException("Expecting only one `bad` in btor2 input");
-    prop = btor_enc.propvec().at(0);
+    logger.log(0, "TODO: currently will not add assertions in separate property file.");
+    // prop = prop_if.AddAssertions(prop);
+  } 
+  if(btor_enc.propvec().size() != 0)
+    logger.log(0, "Ignoring existing property in BTOR2.");
+
+  QedCexParser cexreader(
+    cexinfo.cex_path_, 
+    cexinfo.module_name_filter_,
+    cexinfo.module_name_removal_,
+    fts);
+  
+  FilterConcat filter;
+  unsigned max_width = 32;
+  filter.filters.push_back(std::make_shared<NameFilter>(cexinfo.auxvar_removal_, fts, false));
+  filter.filters.push_back(std::make_shared<NameFilter>(cexinfo.datapath_elements_, fts, false));
+  filter.filters.push_back(std::make_shared<MaxWidthFilter>(max_width, fts));
+  prop = cexreader.cex2property(filter);
+  bool inductiveness;
+  while( (inductiveness = check_for_inductiveness(prop, fts)) == true && max_width > 1 ) {
+    max_width /= 2;
+    filter.filters.push_back(std::make_shared<MaxWidthFilter>(max_width, fts));
+    prop = cexreader.cex2property(filter);
+    cout << "Reducing w: " << max_width << " F:" << filter.to_string() << endl;
   }
 
+  if (inductiveness) {
+    std::vector<std::string> varset;
+    cexreader.get_remaining_var(filter, varset);
+    std::sort(varset.begin(), varset.end());
+    do {
+      auto newsize = varset.size() / 2;
+      varset.resize(newsize);
+      filter.filters.push_back(std::make_shared<NameFilter>(varset, fts, true));
+      cout << "Reducing F:" << filter.to_string() << endl;
+      prop = cexreader.cex2property(filter);
+    }while( (inductiveness = check_for_inductiveness(prop, fts)) == true && varset.size() > 1 );
+  }
+
+  cout << "PROPERTY:" << prop->to_string() << endl;
+
   vector<UnorderedTermMap> cex;
-  res = check_prop(pono_options, prop, fts, s, cex);
-  // we assume that a prover never returns 'ERROR'
-  assert(res != ERROR);
+  while (  (res = check_prop(pono_options, prop, fts, s, cex)) == FALSE && !filter.filters.empty()) {
+    filter.filters.pop_back();
+    prop = cexreader.cex2property(filter);
+    cex.clear();
+    cout << "Reachable, after removing filter " << filter.to_string() << endl;
+  }
+
+  assert ( filter.filters.empty() || res != FALSE);
+  assert ( res != ERROR);
 
   // print btor output
   if (res == FALSE) {
-    cout << "sat" << endl;
-    cout << "b" << pono_options.prop_idx_ << endl;
+    cout << "reachable" << endl;
     assert(pono_options.witness_ || !cex.size());
     if (cex.size()) {
       // if we expect only the first state
@@ -288,12 +455,10 @@ int main(int argc, char ** argv)
     }
 
   } else if (res == TRUE) {
-    cout << "unsat" << endl;
-    cout << "b" << pono_options.prop_idx_ << endl;
+    cout << "unreachable" << endl;
   } else {
     assert(res == pono::UNKNOWN);
     cout << "unknown" << endl;
-    cout << "b" << pono_options.prop_idx_ << endl;
   }
 
   if (pono_options.print_wall_time_) {

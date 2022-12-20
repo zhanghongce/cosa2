@@ -66,6 +66,20 @@ public:
 
 }; // class CexExtractor
 
+
+/// \brief Extract Value from VCD, but also gives you more flexibilities
+class SelectiveExtractor : public CexExtractor {
+public:
+  SelectiveExtractor() = delete; // do not allow implicit construction
+  SelectiveExtractor(const std::string & name_removal) : 
+    name_removal_(name_removal) {}
+protected:
+  std::string name_removal_;
+  void virtual parse_from(const std::string& vcd_file_name,
+                          const std::string& scope, is_reg_t is_reg,
+                          bool reg_only) override;
+}; // class SelectiveExtractor
+
 }; // namespace ilang
 
 #endif // ILANG_VTARGET_OUT_CEX_EXTRACT_H__

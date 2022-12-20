@@ -57,6 +57,8 @@ void PropertyInterface::AddAssumptionsToTS() {
     ts_.add_constraint(t);
 }
 
+// --------------------------------------------------------------------------
+
 PropertyInterfacecex::PropertyInterfacecex(const std::string& vcd_file_name,
                            const std::string& scope,
                            bool reg_only, TransitionSystem & ts):
@@ -87,6 +89,58 @@ smt::Term PropertyInterfacecex::cex_parse_to_pono_property()
     else
       prop = ts_.make_term(And, prop, eq);
   }
+  return ts_.make_term(Not, prop);
+}
+
+
+// --------------------------------------------------------------------------
+
+QedCexParser::QedCexParser(const std::string& vcd_file_name,
+                           const std::string& filter,
+                            const std::string& name_removal,
+                           TransitionSystem & ts):
+SelectiveExtractor(name_removal), // do not parse automatically
+ts_(ts), is_reg([this](const std::string & check_name) -> bool{ 
+  auto pos = ts_.named_terms().find(check_name);
+  if(pos == ts_.named_terms().end())
+    return false;
+  return ts_.is_curr_var(pos->second);
+ } )
+  {
+    parse_from(vcd_file_name, filter, is_reg, true);
+  }
+
+void QedCexParser::get_remaining_var(filter_t filter,std::vector<std::string> & out) const {
+  for (const auto & var_val_pair : GetCex() ) {
+    const auto & var_name = var_val_pair.first;
+    if(!filter(var_name))
+      continue;
+    out.push_back(var_name);
+  }
+}
+
+smt::Term QedCexParser::cex2property(
+  filter_t filter) const
+{
+  // NOT (var1 == val1 && var2 == val2 && ...)
+  smt::Term prop;
+  for (const auto & var_val_pair : GetCex() ) {
+    const auto & var_name = var_val_pair.first;
+    if(!filter(var_name))
+      continue;
+    auto pos = ts_.named_terms().find(var_name);
+    assert(pos != ts_.named_terms().end());
+    auto var = pos->second;
+
+    auto sort = var->get_sort();
+    auto val = ts_.make_term(var_val_pair.second, sort, 2);
+    auto eq = ts_.make_term(Equal, var, val);
+    if (prop == nullptr)
+      prop = eq;
+    else
+      prop = ts_.make_term(And, prop, eq);
+  }
+  assert(prop != nullptr);
   return ts_.make_term(Not, prop);
 }
 

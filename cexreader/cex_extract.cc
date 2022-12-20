@@ -198,6 +198,7 @@ void CexExtractor::parse_from(const std::string& vcd_file_name,
   }
 } // parse_from
 
+
 CexExtractor::CexExtractor(const std::string& vcd_file_name,
                            const std::string& scope, is_reg_t is_reg,
                            bool reg_only) {
@@ -283,5 +284,93 @@ void CexExtractor::DropStates(const std::vector<std::string>& vnames) {
     }
   }
 }
+
+//--------------------------------------------------------------------------
+
+
+void SelectiveExtractor::parse_from(const std::string& vcd_file_name,
+                              const std::string& scope, is_reg_t is_reg,
+                              bool reg_only) {
+
+  cex.clear();
+
+  VCDFileParser parser;
+  VCDFile* trace = parser.parse_file(vcd_file_name);
+
+  if (!trace) {
+    throw PonoException("Error while reading waveform from: ");
+    std::cout<< vcd_file_name;
+    return;
+  }
+
+  VCDScope* top = trace->get_scope("$root");
+  assert(top);
+  // ILA_NOT_NULL(top);
+
+  VCDTime start_time = 0;
+
+  std::vector<VCDSignal*>* sigs = trace->get_signals();
+
+  for (VCDSignal* sig : *sigs) {
+
+    // ensure it is only register
+    if (sig->type != VCDVarType::VCD_VAR_REG)
+      continue;
+
+    // check scope
+    // if (! in_scope(sig->scope, scope))
+    //  continue;
+
+    auto scopes = collect_scope(sig->scope);
+
+    // check scope -- only the top level
+    if (!(syntax_analysis::StrStartsWith(scopes, "$root." + scope) ||
+          syntax_analysis::StrStartsWith(scopes, scope)))
+      continue;
+
+    auto vlg_name = syntax_analysis::ReplaceAll(scopes + sig->reference, "$root.", "");
+    if ( vlg_name.find(name_removal_) == 0 ) {
+      vlg_name = vlg_name.substr(name_removal_.length());
+    }
+
+    std::string check_name = vlg_name;
+    {
+      auto pos = check_name.rfind('[');
+      if (pos != std::string::npos) {
+        auto rpos = check_name.find(']',pos);//If we cannot find, the find function will return the std::string::npos
+        // ILA_ERROR_IF(rpos == std::string::npos) 
+        //   << "Cex variable name:" << check_name << " has unmatched [] pair";
+        if (rpos == std::string::npos)
+          throw PonoException("has unmatched [] pair");
+        auto colon_pos = check_name.find(':', pos);
+        if (colon_pos != std::string::npos && colon_pos < rpos)
+          check_name = check_name.substr(0, pos); 
+      }
+    }
+
+    bool is_this_var_reg = is_reg(check_name);
+
+    if (reg_only && !is_this_var_reg)
+      continue;
+
+    auto vlg_val_ptr = trace->get_signal_value_at(sig->hash, start_time);
+
+    if (vlg_val_ptr == nullptr) {
+      throw PonoException(" gets Xs. Ignored.");
+      continue;
+    }
+
+    std::string val = val2SMTstr(*vlg_val_ptr);
+
+    cex.insert(std::make_pair(check_name, val));
+    cex_is_reg.insert(std::make_pair(check_name, is_this_var_reg));
+
+  } // for sig
+
+  if (cex.empty())
+  {
+    throw PonoException("No counterexample is extracted!");
+  }
+} // parse_from
 
 }; // namespace ilang

@@ -111,7 +111,7 @@ bool Prover::witness(std::vector<UnorderedTermMap> & out)
   // Some backends don't support full witnesses
   // it will still populate state variables, but will return false instead of
   // true
-  for (auto wit_map : witness_) {
+  for (const auto & wit_map : witness_) {
     out.push_back(UnorderedTermMap());
     UnorderedTermMap & map = out.back();
 
