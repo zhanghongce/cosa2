@@ -339,7 +339,8 @@ int main(int argc, char ** argv)
 
   PonoOptions pono_options;
   ProverResult res = pono_options.parse_and_set_options(argc, argv);
-  pono_options.engine_ = IC3_BITS;
+  pono_options.engine_ = SYGUS_PDR;
+  pono_options.verbosity_ = 1;
   pono_options.show_invar_ = true;
   pono_options.check_invar_ = false;
 
@@ -441,7 +442,7 @@ int main(int argc, char ** argv)
       filter.filters.push_back(std::make_shared<NameFilter>(varset, fts, true));
       cout << "Reducing F:" << filter.to_string() << endl;
       prop = cexreader.cex2property(filter);
-    }while( /*(inductiveness = check_for_inductiveness(prop, fts)) == true &&*/ varset.size() > 1 );
+    }while( (inductiveness = check_for_inductiveness(prop, fts)) == true && varset.size() > 1 );
   }
 
   cout << "PROPERTY:" << prop->to_string() << endl;
