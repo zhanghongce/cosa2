@@ -52,21 +52,31 @@ using namespace smt;
 using namespace std;
 
 ProverResult check_prop(PonoOptions pono_options,
-                        Term & prop,
-                        TransitionSystem & ts,
-                        const SmtSolver & s,
-                        std::vector<UnorderedTermMap> & cex)
+                        const Term & prop_old,
+                        const TransitionSystem & original_ts,
+                        const SmtSolver & solver_old,
+                        std::vector<UnorderedTermMap> & cex,
+                        SolverEnum se,
+                        Engine e)
 {
+  // create a solver for this
+  auto new_solver = create_solver_for(se, e, false,false);
+  TermTranslator to_new_solver(new_solver);
+  TermTranslator to_old_solver(solver_old);
+  FunctionalTransitionSystem new_fts(original_ts,to_new_solver);
+  std::vector<UnorderedTermMap> local_cex;
+  Term prop = to_new_solver.transfer_term(prop_old);
+
   // get property name before it is rewritten
-  const string prop_name = ts.get_name(prop);
+  const string prop_name = new_fts.get_name(prop);
   logger.log(1, "Solving property: {}", prop_name);
-  logger.log(3, "INIT:\n{}", ts.init());
-  logger.log(3, "TRANS:\n{}", ts.trans());
+  logger.log(3, "INIT:\n{}", new_fts.init());
+  logger.log(3, "TRANS:\n{}", new_fts.trans());
 
   // modify the transition system and property based on options
   if (!pono_options.clock_name_.empty()) {
-    Term clock_symbol = ts.lookup(pono_options.clock_name_);
-    toggle_clock(ts, clock_symbol);
+    Term clock_symbol = new_fts.lookup(pono_options.clock_name_);
+    toggle_clock(new_fts, clock_symbol);
   }
   if (!pono_options.reset_name_.empty()) {
     std::string reset_name = pono_options.reset_name_;
@@ -75,15 +85,15 @@ ProverResult check_prop(PonoOptions pono_options,
       reset_name = reset_name.substr(1, reset_name.length() - 1);
       negative_reset = true;
     }
-    Term reset_symbol = ts.lookup(reset_name);
+    Term reset_symbol = new_fts.lookup(reset_name);
     if (negative_reset) {
       SortKind sk = reset_symbol->get_sort()->get_sort_kind();
-      reset_symbol = (sk == BV) ? s->make_term(BVNot, reset_symbol)
-                                : s->make_term(Not, reset_symbol);
+      reset_symbol = (sk == BV) ? new_solver->make_term(BVNot, reset_symbol)
+                                : new_solver->make_term(Not, reset_symbol);
     }
-    Term reset_done = add_reset_seq(ts, reset_symbol, pono_options.reset_bnd_);
+    Term reset_done = add_reset_seq(new_fts, reset_symbol, pono_options.reset_bnd_);
     // guard the property with reset_done
-    prop = ts.solver()->make_term(Implies, reset_done, prop);
+    prop = new_fts.solver()->make_term(Implies, reset_done, prop);
   }
 
 
@@ -91,33 +101,33 @@ ProverResult check_prop(PonoOptions pono_options,
     /* Compute the set of state/input variables related to the
        bad-state property. Based on that information, rebuild the
        transition relation of the transition system. */
-    StaticConeOfInfluence coi(ts, { prop }, pono_options.verbosity_);
+    StaticConeOfInfluence coi(new_fts, { prop }, pono_options.verbosity_);
   }
 
   if (pono_options.pseudo_init_prop_) {
-    ts = pseudo_init_and_prop(ts, prop);
+    new_fts = pseudo_init_and_prop(new_fts, prop);
   }
 
   if (pono_options.promote_inputvars_) {
-    ts = promote_inputvars(ts);
-    assert(!ts.inputvars().size());
+    new_fts = promote_inputvars(new_fts);
+    assert(!new_fts.inputvars().size());
   }
 
-  if (!ts.only_curr(prop)) {
+  if (!new_fts.only_curr(prop)) {
     logger.log(1,
                "Got next state or input variables in property. "
                "Generating a monitor state.");
-    prop = add_prop_monitor(ts, prop);
+    prop = add_prop_monitor(new_fts, prop);
   }
 
   if (pono_options.assume_prop_) {
     // NOTE: crucial that pseudo_init_prop and add_prop_monitor passes are
     // before this pass. Can't assume the non-delayed prop and also
     // delay it
-    prop_in_trans(ts, prop);
+    prop_in_trans(new_fts, prop);
   }
 
-  Property p(s, prop, prop_name);
+  Property p(new_solver, prop, prop_name);
 
   // end modification of the transition system and property
 
@@ -125,13 +135,13 @@ ProverResult check_prop(PonoOptions pono_options,
 
   std::shared_ptr<Prover> prover;
   if (pono_options.cegp_abs_vals_) {
-    prover = make_cegar_values_prover(eng, p, ts, s, pono_options);
+    prover = make_cegar_values_prover(eng, p, new_fts, new_solver, pono_options);
   } else if (pono_options.ceg_bv_arith_) {
-    prover = make_cegar_bv_arith_prover(eng, p, ts, s, pono_options);
+    prover = make_cegar_bv_arith_prover(eng, p, new_fts, new_solver, pono_options);
   } else if (pono_options.ceg_prophecy_arrays_) {
-    prover = make_ceg_proph_prover(eng, p, ts, s, pono_options);
+    prover = make_ceg_proph_prover(eng, p, new_fts, new_solver, pono_options);
   } else {
-    prover = make_prover(eng, p, ts, s, pono_options);
+    prover = make_prover(eng, p, new_fts, new_solver, pono_options);
   }
   assert(prover);
 
@@ -151,7 +161,7 @@ ProverResult check_prop(PonoOptions pono_options,
   }
 
   if (r == FALSE && pono_options.witness_) {
-    bool success = prover->witness(cex);
+    bool success = prover->witness(local_cex);
     if (!success) {
       logger.log(
           0,
@@ -176,7 +186,7 @@ ProverResult check_prop(PonoOptions pono_options,
   }
 
   if (r == TRUE && pono_options.check_invar_ && invar) {
-    bool invar_passes = check_invar(ts, p.prop(), invar);
+    bool invar_passes = check_invar(new_fts, p.prop(), invar);
     std::cout << "Invariant Check " << (invar_passes ? "PASSED" : "FAILED")
               << std::endl;
     if (!invar_passes) {
@@ -184,6 +194,16 @@ ProverResult check_prop(PonoOptions pono_options,
       throw PonoException("Invariant Check FAILED");
     }
   }
+
+  // now translate cex back to original 
+  for (const auto & frame: local_cex) {
+    cex.push_back(UnorderedTermMap());
+    for(const auto & var_val : frame) {
+      cex.back().emplace(to_old_solver.transfer_term(var_val.first, false), 
+                         to_old_solver.transfer_term(var_val.second, false));
+    }
+  }
+
   return r;
 }
 
@@ -421,17 +441,20 @@ int main(int argc, char ** argv)
       filter.filters.push_back(std::make_shared<NameFilter>(varset, fts, true));
       cout << "Reducing F:" << filter.to_string() << endl;
       prop = cexreader.cex2property(filter);
-    }while( (inductiveness = check_for_inductiveness(prop, fts)) == true && varset.size() > 1 );
+    }while( /*(inductiveness = check_for_inductiveness(prop, fts)) == true &&*/ varset.size() > 1 );
   }
 
   cout << "PROPERTY:" << prop->to_string() << endl;
 
   vector<UnorderedTermMap> cex;
-  while (  (res = check_prop(pono_options, prop, fts, s, cex)) == FALSE && !filter.filters.empty()) {
+  while (  (res = check_prop(pono_options, prop, fts, s, cex, 
+      pono_options.smt_solver_, pono_options.engine_)) == FALSE && !filter.filters.empty()) {
     filter.filters.pop_back();
+    cout << "Reachable, removing filter, after: " << filter.to_string() << endl;
     prop = cexreader.cex2property(filter);
     cex.clear();
-    cout << "Reachable, after removing filter " << filter.to_string() << endl;
+    cout << "Now work on PROPERTY:" << prop->to_string() << endl;
+    // TODO: s->reset();
   }
 
   assert ( filter.filters.empty() || res != FALSE);
