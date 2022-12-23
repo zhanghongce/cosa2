@@ -62,6 +62,7 @@ PropertyInterfacecex::PropertyInterfacecex(const std::string& vcd_file_name,
                            bool reg_only, TransitionSystem & ts):
 ts_(ts), is_reg([this](const std::string & check_name) -> bool{ 
   auto pos = ts_.named_terms().find(check_name);
+  // std::cout<< check_name<<std::endl;
   if(pos == ts_.named_terms().end())
     return false;
   return ts_.is_curr_var(pos->second);
@@ -87,6 +88,7 @@ smt::Term PropertyInterfacecex::cex_parse_to_pono_property()
     else
       prop = ts_.make_term(And, prop, eq);
   }
+  std::cout<<prop->to_string()<<std::endl;
   return ts_.make_term(Not, prop);
 }
 

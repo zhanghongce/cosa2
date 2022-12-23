@@ -66,7 +66,7 @@ void get_leaves(const smt::Term & term, smt::UnorderedTermSet & leaves);
 
 smt::Term name_changed(const smt::Term & input, const smt::UnorderedTermSet & varset, const smt::SmtSolver & slv);
 void name_changed(const smt::Term & term, smt::Term & new_Term, smt::SmtSolver & solver);
-void smt_lib2_front(const smt::UnorderedTermSet out, std::string & sort_list);
+void smt_lib2_front(const smt::UnorderedTermSet &out, std::string & sort_list);
 
 void get_predicates(const smt::SmtSolver & solver,
                     const smt::Term & term,
