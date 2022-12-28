@@ -91,6 +91,7 @@ class PonoOptions
         prop_idx_(default_prop_idx_),
         bound_(default_bound_),
         verbosity_(default_verbosity_),
+        witness_first_state_only_(default_witness_first_state_only_),
         witness_(default_witness_),
         reset_bnd_(default_reset_bnd_),
         random_seed_(default_random_seed),
@@ -182,6 +183,7 @@ class PonoOptions
   unsigned int verbosity_;
   unsigned int random_seed_;
   bool witness_;
+  bool witness_first_state_only_;
   std::string vcd_name_;
   std::string reset_name_;
   size_t reset_bnd_;
@@ -301,6 +303,7 @@ private:
   static const unsigned int default_bound_ = 10;
   static const unsigned int default_verbosity_ = 0;
   static const unsigned int default_random_seed = 0;
+  static const bool default_witness_first_state_only_ = false;
   static const bool default_witness_ = false;
   static const bool default_static_coi_ = false;
   static const bool default_show_invar_ = false;

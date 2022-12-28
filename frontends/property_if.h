@@ -51,7 +51,7 @@ class PropertyInterface : public smt::SmtLibReader
 
 };
 
-class PropertyInterfacecex : public pono::CexExtractor 
+class PropertyInterfacecex : public CexExtractor 
 {
   public:
   ////Build the Constructor//////
@@ -60,6 +60,25 @@ class PropertyInterfacecex : public pono::CexExtractor
                            bool reg_only, TransitionSystem & ts);
     smt::Term cex_parse_to_pono_property();
 
+  protected:
+    TransitionSystem & ts_;
+
+    is_reg_t is_reg;
+};
+
+
+class QedCexParser : public SelectiveExtractor 
+{
+  public:
+    typedef std::function<bool(const std::string &n)> filter_t;
+  ////Build the Constructor//////
+    QedCexParser(const std::string& vcd_file_name,
+                 const std::string& filter,
+                 const std::string& name_removal,
+                 TransitionSystem & ts);
+    smt::Term cex2property(filter_t filter) const;
+
+    void get_remaining_var(filter_t filter, std::vector<std::string> & out) const;
   protected:
     TransitionSystem & ts_;
 
