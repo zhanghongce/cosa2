@@ -93,7 +93,9 @@ enum optionIndex
   KIND_BOUND_STEP,
   CEX_READER,
   SYGUS_INITIAL_TERM_WIDTH,
-  FIND_ENV_INV
+  FIND_ENV_INV,
+  NUM_OF_ITR,
+  SMTLIB_PATH
 
 };
 
@@ -617,9 +619,25 @@ const option::Descriptor usage[] = {
     "",
     "find-environment-invariant",
     Arg::None,
-    "  --find-environment-invariant \tFinding the inductive invariant"
+    "  --find-environment-invariant \tFinding the enironment invariant"
 
     },
+    { NUM_OF_ITR,
+    0,
+    "",
+    "num-of-itr",
+    Arg::Numeric,
+    "  --num-of-itr \tWhen finding the environment invariant, we need to know how many times we iterate"
+    },
+  { SMTLIB_PATH,
+    0,
+    "",
+    "smtlib-path",
+    Arg::NonEmpty,
+    "  --smtlib-path, \tDirectionary to collect the inductive invariant"
+    "interp, mbic3, ic3bits, ic3ia, msat-ic3ia, ic3sa, sygus-pdr]." 
+    },
+    
   { 0, 0, 0, 0, 0, 0 }
 };
 /*********************************** end Option Handling setup
@@ -813,8 +831,8 @@ ProverResult PonoOptions::parse_and_set_options(int argc,
         case CEX_READER: cex_reader_ = opt.arg; break;
         case SYGUS_INITIAL_TERM_WIDTH: sygus_initial_term_width_ = atoi(opt.arg); break;
         case FIND_ENV_INV: find_environment_invariant_ =  true; break;
-
-        
+        case NUM_OF_ITR: step_ = atoi(opt.arg); break;
+        case SMTLIB_PATH: smt_path_ = opt.arg; break;
         case UNKNOWN_OPTION:
         
           // not possible because Arg::Unknown returns ARG_ILLEGAL

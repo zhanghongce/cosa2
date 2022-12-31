@@ -108,7 +108,7 @@ const PerVarsetInfo & VarTermManager::SetupTermsForVarModelNormal(
     extractor.WalkBFS(t);
   
   if (collect_constant)
-    insert_from_constmap(extractor.GetConstants());
+    insert_from_constmap(extractor.GetConstants());////How can we initialize the constant
   // if collect constants
 
   auto & term_cache_item = pos->second;
@@ -414,7 +414,7 @@ unsigned VarTermManager::insert_from_termsmap_w_width(
   return nterm_walked;
 } // insert_from_termsmap_w_width
 
-void VarTermManager::insert_from_constmap(const PerVarsetInfo::width_term_map_t & w_c_map) {
+void VarTermManager::insert_from_constmap(const PerVarsetInfo::width_term_map_t & w_c_map) {////Where to initialize w_c_map? 
   for (const auto & width_constvec_pair : w_c_map) {
     for (const auto & c : width_constvec_pair.second)  {
       auto cnstr_str = c->to_string();

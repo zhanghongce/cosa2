@@ -173,9 +173,9 @@ void SygusPdr::initialize()
 
   build_ts_related_info();
   
-  for( const auto nxt:nxt_state_updates_){
-    std::cout<<nxt.first->to_string()<<std::endl;
-  }
+  // for( const auto nxt:nxt_state_updates_){
+  //   std::cout<<nxt.first->to_string()<<std::endl;
+  // }
  // has_assumption -- on the original one
   has_assumptions = false;
   assert(!nxt_state_updates_.empty());
@@ -361,7 +361,7 @@ IC3Formula SygusPdr::inductive_generalization(
     T = ts_.trans();
     F_T_not_cex = make_and( {Fprev, T} ); // , not_cex
     base = 
-      solver_->make_term(Or,
+      solver_->make_term(Or,// This formula achieve the formula 10 in the paper
         F_T_not_cex,
         Init_prime);
 

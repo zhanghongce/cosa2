@@ -339,12 +339,12 @@ void smt_lib2_front(const UnorderedTermSet &out,std::string & sort_list){
         if (count != length -1)
         {
         sort_list = sort_list + "("  + symbols.first->to_string()  + " " + symbols.second->to_string() + ")" +" ";
-        cout<<sort_list<<endl;
+        // cout<<sort_list<<endl;
         count = count + 1;
         }
         else{
           sort_list = sort_list + "(" + symbols.first->to_string() + " " + symbols.second->to_string() + ")";
-          cout<<sort_list<<endl;
+          // cout<<sort_list<<endl;
         }
       }
 }

@@ -90,7 +90,7 @@ smt::Term PropertyInterfacecex::cex_parse_to_pono_property()
     else
       prop = ts_.make_term(And, prop, eq);
   }
-  std::cout<<prop->to_string()<<std::endl;
+  // std::cout<<prop->to_string()<<std::endl;
   return ts_.make_term(Not, prop);
 }
 
