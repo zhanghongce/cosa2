@@ -18,9 +18,9 @@ if __name__ == '__main__':
           '--engine','sygus-pdr',
           '--ILA_path','/data/zhiyuany/ILA-Tools/test/unit-data/vpipe/verify_two/ADD/',
           '--path_design','/data/zhiyuany/ILA-Tools/test/unit-data/vpipe/output/design.btor',
-          '--inv_path','inductive_invariant',
-          '--continue_from',
-          '--continue-file','inv.smt2'
+          '--inv_path','inductive_invariant'
+          # '--continue_from',
+          # '--continue-file','inv.smt2'
           ])
      cosa_path = os.getcwd()
      path_cex  = opts.path_cex
@@ -55,7 +55,7 @@ if __name__ == '__main__':
                     # inv_file_pre = os.path.join(inv_path,'inv' + str(count-1) +'.smt2')
                     os.chdir(opts.ILA_path)
                     path = os.getcwd()
-                    subprocess.run(["bash","run.sh","{:s}" .format(path_cex), "{:s}" .format(inv_file)],capture_output=True)
+                    subprocess.run(["bash","run.sh","{:s}" .format(path_cex), "{:s}" .format(inv_file)])
                     if os.path.exists(path_cex) == False:
                          print("The enviroment invariant is found")
                          break

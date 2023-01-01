@@ -93,7 +93,7 @@ SygusPdr::SygusPdr(const Property & p, const TransitionSystem & ts,
     has_assumptions(true) // most conservative way
 {
   // solver_->set_opt("incremental","true");
-  solver_->set_opt("produce-unsat-assumptions", "true");
+  // solver_->set_opt("produce-unsat-assumptions", "true");
   // we need to have the reset-assertion capability 
   if(solver_->get_solver_enum() == SolverEnum::BTOR)
     solver_->set_opt("base-context-1", "true");

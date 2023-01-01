@@ -154,6 +154,30 @@ struct FilterConcat : public Filter{
   }
 };
 
+bool check_for_inductiveness(const Term & prop, const TransitionSystem & ts) {
+  Term init = ts.init();
+  Term trans = ts.trans();
+  const auto & s = ts.solver();
+  s->push();
+    s->assert_formula(init);
+    s->assert_formula(s->make_term(Not, prop));
+    auto r = s->check_sat();
+  s->pop();
+  if (r.is_sat())
+    return false;
+  
+  s->push();
+    s->assert_formula(prop);
+    s->assert_formula(trans);
+    s->assert_formula(s->make_term(Not, ts.next(prop)));
+    r = s->check_sat();
+  s->pop();
+  if (r.is_sat())
+    return false;
+
+  return true;
+}
+
 ProverResult check_prop_inv(PonoOptions pono_options,
                         Term & prop,
                         TransitionSystem & ts,
@@ -433,16 +457,36 @@ int main(int argc, char ** argv)
       FunctionalTransitionSystem fts(s);
       BTOR2Encoder btor_enc(pono_options.filename_, fts);
     Term prop;
+    Term prop_filter;
     if (pono_options.find_environment_invariant_){
       assert(!pono_options.cex_reader_.empty());
       int step = pono_options.step_;
+      FilterConcat filter;
+      filter.filters.push_back(std::make_shared<MaxWidthFilter>(pono_options.sygus_initial_term_width_,fts));
       PropertyInterfacecex prop_cex(pono_options.cex_reader_, std::string("RTL"), true, fts);
-      prop = prop_cex.cex_parse_to_pono_property();
-      std::cout << prop->to_raw_string() << std::endl;
-      vector<UnorderedTermMap> cex;
-      res = check_prop_inv(pono_options, prop, fts, s, cex, step);
-      
-      // step = step + 1;
+      prop_filter = prop_cex.cex_parse_to_pono_property(filter);
+    bool inductiveness;
+    int max_width = pono_options.sygus_initial_term_width_ ;
+    vector<UnorderedTermMap> cex;
+    prop = prop_cex.cex_parse_to_pono_property();
+    if( (inductiveness = check_for_inductiveness(prop_filter, fts)) == false) {
+    // max_width /= 2;
+    // filter.filters.push_back(std::make_shared<MaxWidthFilter>(max_width, fts));
+    
+    std::cout << prop->to_raw_string() << std::endl;
+   
+    res = check_prop_inv(pono_options, prop_filter, fts, s, cex, step);
+    // cout << "Reducing w: " << max_width << " F:" << filter.to_string() << endl;
+  }
+  else{
+      std::cout << prop_filter->to_raw_string() << std::endl;
+
+      res = check_prop_inv(pono_options, prop_filter, fts, s, cex, step);
+      if (res ==FALSE){
+        res = check_prop_inv(pono_options, prop, fts, s, cex, step);
+      }
+
+      }     
       // we assume that a prover never returns 'ERROR'
       assert(res != ERROR);
       // ofstream res_collect;
@@ -487,52 +531,7 @@ int main(int argc, char ** argv)
         cout << "b" << pono_options.prop_idx_ << endl;
 
     }
-    // s->reset();
-    // s->reset_assertions();
-    // while (res == TRUE){
-    //   fs::current_path("/data/zhiyuany/ILA-Tools/test/unit-data/vpipe/verify_two/ADD/");
-    //   system("bash run.sh");
-    //   fs::current_path("/data/zhiyuany/cosa2");
-      
-    //   SmtSolver s = create_solver_for(pono_options.smt_solver_,
-    //                                 pono_options.engine_,
-    //                                 false,
-    //                                 pono_options.ceg_prophecy_arrays_);      
-    //   // s->set_opt("incremental","true");
-    //   FunctionalTransitionSystem fts(s);
-    //   BTOR2Encoder btor_enc(pono_options.filename_, fts);
-    //   PropertyInterfacecex prop_cex(pono_options.cex_reader_, std::string("RTL"), true, fts);
-      
-    //   prop = prop_cex.cex_parse_to_pono_property();
-    //   std::cout << prop->to_raw_string() << std::endl;
-    //   vector<UnorderedTermMap> cex;
-    //   res = check_prop_inv(pono_options, prop, fts, s, cex, step);
-      
-    //   step = step + 1;
-    //   assert(res != ERROR);
-    //   // print btor output
-    //   if (res == FALSE) {
-    //     cout << "sat" << endl;
-    //     cout << "b" << pono_options.prop_idx_ << endl;
-    //     assert(pono_options.witness_ || !cex.size());
-    //     if (cex.size()) {
-    //       print_witness_btor(btor_enc, cex, fts);
-    //       if (!pono_options.vcd_name_.empty()) {
-    //         VCDWitnessPrinter vcdprinter(fts, cex);
-    //         vcdprinter.dump_trace_to_file(pono_options.vcd_name_);
-    //       }
-    //     }
 
-    //   } else if (res == TRUE) {
-    //     cout << "unsat" << endl;
-    //     cout << "b" << pono_options.prop_idx_ << endl;
-    //   } else {
-    //     assert(res == pono::UNKNOWN);
-    //     cout << "unknown" << endl;
-    //     cout << "b" << pono_options.prop_idx_ << endl;
-    // }
-    // s.reset();
-    // }
     
     }
     else{
@@ -558,7 +557,8 @@ int main(int argc, char ** argv)
       //////TODO: Add the transformation of the vcd at here!!!!//////////
       if(!pono_options.cex_reader_.empty()){
         PropertyInterfacecex prop_cex(pono_options.cex_reader_, std::string("RTL"), true, fts);
-        prop = prop_cex.cex_parse_to_pono_property();
+        FilterConcat filter;
+        prop = prop_cex.cex_parse_to_pono_property(filter);
         std::cout << prop->to_raw_string() << std::endl;
 
           
