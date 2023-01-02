@@ -534,12 +534,22 @@ int main(int argc, char ** argv)
       res = check_prop(pono_options, prop, fts, s, cex);
       // we assume that a prover never returns 'ERROR'
       assert(res != ERROR);
-
+      
+      std::string filename = "/data/zhiyuany/cosa2/result_1.txt";
       // print btor output
       if (res == FALSE) {
         cout << "sat" << endl;
         cout << "b" << pono_options.prop_idx_ << endl;
         assert(pono_options.witness_ || !cex.size());
+        if (FILE* file = fopen(filename.c_str(), "r")){        
+          ofstream res_collect;
+          res_collect.open(filename, ios::app);
+          res_collect<<"step: "<<  pono_options.step_ << "sat" <<endl;
+        }
+        else{
+          ofstream res_collect(filename.c_str());
+          res_collect<<"step: "<<  pono_options.step_ << "sat" <<endl;
+        }
         if (cex.size()) {
           print_witness_btor(btor_enc, cex, fts);
           if (!pono_options.vcd_name_.empty()) {
@@ -551,6 +561,15 @@ int main(int argc, char ** argv)
       } else if (res == TRUE) {
         cout << "unsat" << endl;
         cout << "b" << pono_options.prop_idx_ << endl;
+        if (FILE* file = fopen(filename.c_str(), "r")){        
+          ofstream res_collect;
+          res_collect.open(filename, ios::app);
+          res_collect<<"step: "<<  pono_options.step_ << "unsat" <<endl;
+        }
+        else{
+          ofstream res_collect(filename.c_str());
+          res_collect<<"step: "<<  pono_options.step_ << "unsat" <<endl;
+        }
       } else {
         assert(res == pono::UNKNOWN);
         cout << "unknown" << endl;
@@ -584,7 +603,7 @@ int main(int argc, char ** argv)
       res = check_prop(pono_options, prop, rts, s, cex);
       // we assume that a prover never returns 'ERROR'
       assert(res != ERROR);
-
+      std::string filename = "/data/zhiyuany/cosa2/result_1.txt";
       logger.log(
           0, "Property {} is {}", pono_options.prop_idx_, to_string(res));
 
@@ -598,12 +617,30 @@ int main(int argc, char ** argv)
           }
         }
         assert(pono_options.witness_ || pono_options.vcd_name_.empty());
+        if (FILE* file = fopen(filename.c_str(), "r")){        
+          ofstream res_collect;
+          res_collect.open(filename, ios::app);
+          res_collect<<"step: "<<  pono_options.step_ << "sat" <<endl;
+        }
+        else{
+          ofstream res_collect(filename.c_str());
+          res_collect<<"step: "<<  pono_options.step_ << "sat" <<endl;
+        }
         if (!pono_options.vcd_name_.empty()) {
           VCDWitnessPrinter vcdprinter(rts, cex);
           vcdprinter.dump_trace_to_file(pono_options.vcd_name_);
         }
       } else if (res == TRUE) {
         cout << "unsat" << endl;
+        if (FILE* file = fopen(filename.c_str(), "r")){        
+          ofstream res_collect;
+          res_collect.open(filename, ios::app);
+          res_collect<<"step: "<<  pono_options.step_ << "unsat" <<endl;
+        }
+        else{
+          ofstream res_collect(filename.c_str());
+          res_collect<<"step: "<<  pono_options.step_ << "unsat" <<endl;
+        }
       } else {
         assert(res == pono::UNKNOWN);
         cout << "unknown" << endl;

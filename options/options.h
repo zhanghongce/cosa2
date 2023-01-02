@@ -151,7 +151,8 @@ class PonoOptions
         kind_no_ind_check_property_(default_kind_no_ind_check_property_),
         kind_one_time_base_check_(default_kind_one_time_base_check_),
         kind_bound_step_(default_kind_bound_step_),
-        find_environment_invariant_(default_find_environment_invariant_)
+        find_environment_invariant_(default_find_environment_invariant_),
+        step_(default_step_)
   {
   }
 
@@ -230,6 +231,8 @@ class PonoOptions
   SyGuSTermMode sygus_term_mode_; ///< SyGuS term production mode
   unsigned sygus_term_extract_depth_; ///< SyGuS Term extraction depth for existing terms
   unsigned sygus_initial_term_width_; ///< SyGuS Control and data width seperator
+  unsigned step_; ///< The step of the while loop in Python
+  std::string smt_path_;
   unsigned sygus_initial_term_inc_; ///< SyGuS Control and data width seperator increment bound
   unsigned sygus_accumulated_term_bound_; ///< SyGuS Term accumulation bound count
   unsigned sygus_use_operator_abstraction_; ///< SyGuS abstract and avoid use some operators
@@ -366,6 +369,7 @@ private:
   //true if we want to find environment invariant
   static const bool default_find_environment_invariant_ = false;
   static const unsigned default_kind_bound_step_ = 1;
+  static const unsigned default_step_ = 0;
 };
 
 // Useful functions for printing etc...

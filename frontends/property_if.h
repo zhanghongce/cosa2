@@ -55,11 +55,12 @@ class PropertyInterfacecex : public CexExtractor
 {
   public:
   ////Build the Constructor//////
+  typedef std::function<bool(const std::string &n)> filter_t;
     PropertyInterfacecex(const std::string& vcd_file_name,
                            const std::string& scope,
                            bool reg_only, TransitionSystem & ts);
+    smt::Term cex_parse_to_pono_property(filter_t filter);
     smt::Term cex_parse_to_pono_property();
-
   protected:
     TransitionSystem & ts_;
 

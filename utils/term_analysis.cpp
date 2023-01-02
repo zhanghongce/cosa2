@@ -213,22 +213,22 @@ smt::Term name_changed(const smt::Term & input, const smt::UnorderedTermSet & va
     if (pos2!=std::string::npos){
       var_middle = var_middle.erase(pos2,1);
     }
-    auto pos_reg = var_middle.find("register");
-    auto ps_left_paren = var_middle.find("[");
-    if (ps_left_paren!=std::string::npos){
-      var_middle = var_middle.replace(ps_left_paren,1,"_");
-    }
-    auto ps_right_paren = var_middle.find("]");
-    if (ps_right_paren!=std::string::npos){
-      var_middle = var_middle.replace(ps_right_paren,1,"_");
-    }
+    // auto pos_reg = var_middle.find("register");
+    // auto ps_left_paren = var_middle.find("[");
+    // if (ps_left_paren!=std::string::npos){
+    //   var_middle = var_middle.replace(ps_left_paren,1,"_");
+    // }
+    // auto ps_right_paren = var_middle.find("]");
+    // if (ps_right_paren!=std::string::npos){
+    //   var_middle = var_middle.replace(ps_right_paren,1,"_");
+    // }
     std::string new_name;
-    if (pos_reg!=std::string::npos){
-      new_name = "RTL.RTL__DOT__" + var_middle;
-    }
-    else{
-      new_name = "RTL." + var_middle;
-    }
+    // if (pos_reg!=std::string::npos){
+    //   new_name = "RTL.RTL__DOT__" + var_middle;
+    // }
+    // else{
+    new_name = "RTL." + var_middle;
+    // }
     auto new_var = slv->make_symbol(new_name, sort);
     substitute_map.emplace(var, new_var);
   }
@@ -338,13 +338,13 @@ void smt_lib2_front(const UnorderedTermSet &out,std::string & sort_list){
       for (const auto &symbols: symbols_mapping){
         if (count != length -1)
         {
-        sort_list = sort_list + "(" + "|" + symbols.first->to_string() + "|" + " " + symbols.second->to_string() + ")" +" ";
-        cout<<sort_list<<endl;
+        sort_list = sort_list + "("  + symbols.first->to_string()  + " " + symbols.second->to_string() + ")" +" ";
+        // cout<<sort_list<<endl;
         count = count + 1;
         }
         else{
-          sort_list = sort_list + "(" + "|" + symbols.first->to_string() + "|" + " " + symbols.second->to_string() + ")";
-          cout<<sort_list<<endl;
+          sort_list = sort_list + "(" + symbols.first->to_string() + " " + symbols.second->to_string() + ")";
+          // cout<<sort_list<<endl;
         }
       }
 }

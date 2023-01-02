@@ -64,6 +64,7 @@ PropertyInterfacecex::PropertyInterfacecex(const std::string& vcd_file_name,
                            bool reg_only, TransitionSystem & ts):
 ts_(ts), is_reg([this](const std::string & check_name) -> bool{ 
   auto pos = ts_.named_terms().find(check_name);
+  // std::cout<< check_name<<std::endl;
   if(pos == ts_.named_terms().end())
     return false;
   return ts_.is_curr_var(pos->second);
@@ -72,6 +73,29 @@ ts_(ts), is_reg([this](const std::string & check_name) -> bool{
     parse_from(vcd_file_name, scope, is_reg, reg_only);
   }
   
+smt::Term PropertyInterfacecex::cex_parse_to_pono_property(filter_t filter)
+{
+  // NOT (var1 == val1 && var2 == val2 && ...)
+  smt::Term prop;
+  for (const auto & var_val_pair : GetCex() ) {
+    const auto & var_name = var_val_pair.first;
+    if (!filter(var_name)){
+      continue;
+    }
+    auto pos = ts_.named_terms().find(var_name);
+    assert(pos != ts_.named_terms().end());
+    auto var = pos->second;
+    auto sort = var->get_sort();
+    auto val = ts_.make_term(var_val_pair.second, sort, 2);
+    auto eq = ts_.make_term(Equal, var, val);
+    if (prop == nullptr)
+      prop = eq;
+    else
+      prop = ts_.make_term(And, prop, eq);
+  }
+  // std::cout<<prop->to_string()<<std::endl;
+  return ts_.make_term(Not, prop);
+}
 smt::Term PropertyInterfacecex::cex_parse_to_pono_property()
 {
   // NOT (var1 == val1 && var2 == val2 && ...)
@@ -89,6 +113,7 @@ smt::Term PropertyInterfacecex::cex_parse_to_pono_property()
     else
       prop = ts_.make_term(And, prop, eq);
   }
+  // std::cout<<prop->to_string()<<std::endl;
   return ts_.make_term(Not, prop);
 }
 
