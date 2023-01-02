@@ -25,6 +25,8 @@
 using namespace smt;
 using namespace std;
 
+// #define _IC3_DEBUG_ 1
+
 namespace pono {
 
 // helper functions
@@ -408,6 +410,12 @@ ProverResult IC3Base::step(int i)
 
   ++reached_k_;
 
+#ifdef _IC3_DEBUG_
+  for (unsigned i = 0; i<frames_.size(); ++i)
+    cout << frames_.at(i).size() << " ";
+  cout << endl;
+#endif
+
   return ProverResult::UNKNOWN;
 }
 
@@ -574,6 +582,12 @@ bool IC3Base::block_all()
   ProofGoalQueue proof_goals;
   IC3Formula goal; //goal is empty. Why?
   while (reaches_bad(goal)) {
+
+#ifdef _IC3_DEBUG_
+    cout << ".";
+    cout.flush();
+#endif
+
     assert(goal.term);            // expecting non-null
     assert(proof_goals.empty());  // bad should be the first goal each iteration
     proof_goals.new_proof_goal(goal, frontier_idx(), nullptr);
