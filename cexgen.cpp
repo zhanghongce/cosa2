@@ -253,16 +253,17 @@ int main(int argc, char ** argv)
   FunctionalTransitionSystem fts(s);
   BTOR2Encoder btor_enc(pono_options.filename_, fts);
   Term prop;
+  // HERE we extra the property
+  if(btor_enc.propvec().size() != 1)
+    throw PonoException("Expecting only one `bad` in btor2 input");
+  prop = btor_enc.propvec().at(0);
+  
   // HERE we load the assumptions from environment invariant synthesis
   if(!pono_options.property_file_.empty()) {
     PropertyInterface prop_if (pono_options.property_file_,fts);
     prop_if.AddAssumptionsToTS();
     prop = prop_if.AddAssertions(prop);
-  } else {
-    if(btor_enc.propvec().size() != 1)
-      throw PonoException("Expecting only one `bad` in btor2 input");
-    prop = btor_enc.propvec().at(0);
-  }
+  } 
 
   vector<UnorderedTermMap> cex;
   res = check_prop(pono_options, prop, fts, s, cex);

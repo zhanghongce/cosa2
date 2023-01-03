@@ -51,13 +51,34 @@ using namespace pono;
 using namespace smt;
 using namespace std;
 
+void write_inv_to_file(const smt::Term & invar, ostream & outf, unsigned step, const std::string & varname_prefix) {
+    auto cvc5solver = smt::Cvc5SolverFactory::create(false);
+    auto transferer = smt::TermTranslator(cvc5solver);
+    auto invar_in_cvc5 = transferer.transfer_term(invar);
+
+    smt::UnorderedTermSet varset;
+   
+    varset = get_free_symbols(invar_in_cvc5);
+    auto invar_varname_rewritten = varname_prefix.empty() ?
+      invar_in_cvc5 : name_changed(invar_in_cvc5, varset, cvc5solver, varname_prefix);
+    auto varset_new = get_free_symbols(invar_varname_rewritten);
+
+    std::string sort_list;
+    smt_lib2_front(varset_new, sort_list);
+
+    std::string step_char = to_string(step);
+    outf<<"(define-fun assumption." << step_char << " ("<<sort_list<<") Bool "<<invar_varname_rewritten->to_string()<<")"<<endl;
+}
+
 ProverResult check_prop(PonoOptions pono_options,
                         const Term & prop_old,
                         const TransitionSystem & original_ts,
                         const SmtSolver & solver_old,
                         std::vector<UnorderedTermMap> & cex,
                         SolverEnum se,
-                        Engine e)
+                        Engine e,
+                        unsigned step,
+                        const std::string & varname_prefix)
 {
   // create a solver for this
   auto new_solver = create_solver_for(se, e, false,false);
@@ -171,12 +192,17 @@ ProverResult check_prop(PonoOptions pono_options,
 
   Term invar;
   if (r == TRUE && (pono_options.show_invar_ || pono_options.check_invar_)) {
+
+    std::ofstream outf("envinv.smt2", std::ofstream::out | std::ofstream::app);
     try {
       invar = prover->invar();
+
+      write_inv_to_file(invar, outf, step, varname_prefix);
     }
     catch (PonoException & e) {
       std::cout << "Engine " << pono_options.engine_
                 << " does not support getting the invariant." << std::endl;
+      outf << "(noinvar)" << endl;      
     }
   }
     
@@ -231,28 +257,7 @@ bool check_for_inductiveness(const Term & prop, const TransitionSystem & ts) {
   return true;
 }
 
-/*
 
-    auto pos1 = vars.find(var_name);
-
-    auto pos2 = ts_.named_terms().find(var_name);
-    assert(pos2 != ts_.named_terms().end());
-    auto var = pos2->second;
-    auto pos3 = terms.find(var);
-
-    std::string varname_from_smt2 = var->to_raw_string();
-    if(varname_from_smt2.length() > 2 && varname_from_smt2.front() == '|' 
-      && varname_from_smt2.back() == '|' )
-      varname_from_smt2 = varname_from_smt2.substr(1, varname_from_smt2.length() -2 );
-    auto pos4 = vars.find(varname_from_smt2);
-
-    bool in_vars  = pos1 != vars.end() || pos4 != vars.end();
-    bool in_terms = pos3 != terms.end();
-    if (must_in && !in_vars && !in_terms)
-      continue;
-    if (!must_in && (in_vars || in_terms))
-      continue;
-*/
 
 class Filter {
 public:
@@ -339,7 +344,7 @@ int main(int argc, char ** argv)
 
   PonoOptions pono_options;
   ProverResult res = pono_options.parse_and_set_options(argc, argv);
-  pono_options.engine_ = SYGUS_PDR;
+  pono_options.engine_ = IC3_BITS;
   pono_options.verbosity_ = 1;
   pono_options.show_invar_ = true;
   pono_options.check_invar_ = false;
@@ -449,7 +454,8 @@ int main(int argc, char ** argv)
 
   vector<UnorderedTermMap> cex;
   while (  (res = check_prop(pono_options, prop, fts, s, cex, 
-      pono_options.smt_solver_, pono_options.engine_)) == FALSE && !filter.filters.empty()) {
+      pono_options.smt_solver_, pono_options.engine_, pono_options.step_, cexinfo.module_name_removal_)) == FALSE 
+   && !filter.filters.empty()) {
     filter.filters.pop_back();
     cout << "Reachable, removing filter, after: " << filter.to_string() << endl;
     prop = cexreader.cex2property(filter);
@@ -461,9 +467,11 @@ int main(int argc, char ** argv)
   assert ( filter.filters.empty() || res != FALSE);
   assert ( res != ERROR);
 
+  std::ofstream resultf("result.txt");
   // print btor output
   if (res == FALSE) {
     cout << "reachable" << endl;
+    resultf << "reachable" << endl;
     assert(pono_options.witness_ || !cex.size());
     if (cex.size()) {
       // if we expect only the first state
@@ -480,16 +488,11 @@ int main(int argc, char ** argv)
 
   } else if (res == TRUE) {
     cout << "unreachable" << endl;
+    resultf << "unreachable" << endl;
   } else {
     assert(res == pono::UNKNOWN);
     cout << "unknown" << endl;
-  }
-
-  if (pono_options.print_wall_time_) {
-    auto end_time_stamp = timestamp();
-    auto elapsed_time = timestamp_diff(begin_time_stamp, end_time_stamp);
-    std:cout << "Pono wall clock time (s): " <<
-      time_duration_to_sec_string(elapsed_time) << std::endl;
+    resultf << "unknown" << endl;
   }
 
   return res;
