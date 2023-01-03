@@ -189,7 +189,6 @@ ProverResult check_prop(PonoOptions pono_options,
 
 int main(int argc, char ** argv)
 {
-  auto begin_time_stamp = timestamp();
 
   PonoOptions pono_options;
   ProverResult res = pono_options.parse_and_set_options(argc, argv);
@@ -270,9 +269,11 @@ int main(int argc, char ** argv)
   // we assume that a prover never returns 'ERROR'
   assert(res != ERROR);
 
+  std::ofstream fout("check.result");
   // print btor output
   if (res == FALSE) {
     cout << "sat" << endl;
+    fout << "sat" << endl;
     cout << "b" << pono_options.prop_idx_ << endl;
     assert(pono_options.witness_ || !cex.size());
     if (cex.size()) {
@@ -290,18 +291,13 @@ int main(int argc, char ** argv)
 
   } else if (res == TRUE) {
     cout << "unsat" << endl;
+    fout << "unsat" << endl;
     cout << "b" << pono_options.prop_idx_ << endl;
   } else {
     assert(res == pono::UNKNOWN);
     cout << "unknown" << endl;
+    fout << "unknown" << endl;
     cout << "b" << pono_options.prop_idx_ << endl;
-  }
-
-  if (pono_options.print_wall_time_) {
-    auto end_time_stamp = timestamp();
-    auto elapsed_time = timestamp_diff(begin_time_stamp, end_time_stamp);
-    std:cout << "Pono wall clock time (s): " <<
-      time_duration_to_sec_string(elapsed_time) << std::endl;
   }
 
   return res;

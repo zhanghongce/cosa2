@@ -340,7 +340,6 @@ struct FilterConcat : public Filter{
 
 int main(int argc, char ** argv)
 {
-  auto begin_time_stamp = timestamp();
 
   PonoOptions pono_options;
   ProverResult res = pono_options.parse_and_set_options(argc, argv);
