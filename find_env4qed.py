@@ -11,9 +11,17 @@ def try_rm(name):
         os.remove(name)
     except:
         pass
+        
+def log2fs(s):
+    t = datetime.datetime.now()
+    print(t,'--->',s)
+    with open('cegar.log', 'a') as fout:
+        fout.write(t)    
+        fout.write(' ---> ')
+        fout.write(s)    
+        fout.write('\n')
 
 def run_cegar(n_iteration, qedbtor, dutbtor):
-    
     # create envinv.smt2 when necessary
     if not os.path.exists("envinv.smt2"):
         with open("envinv.smt2",'w') as fout:
@@ -23,12 +31,12 @@ def run_cegar(n_iteration, qedbtor, dutbtor):
     while not errFlag:
         try_rm("check.result")
         try_rm("cex.vcd")
-        print (datetime.datetime.now(), '--> running QED iter #', n_iteration)
+        log2fs ('running QED iter #' + str( n_iteration) )
         subprocess.run(["./cexgen","--property-file", "envinv.smt2",qedbtor])
         try:
             result = open('check.result')
         except:
-            print ('cexgen failed.')
+            log2fs ('cexgen failed.')
             errFlag = True
             break
         qed_res = result.readline()
@@ -36,14 +44,14 @@ def run_cegar(n_iteration, qedbtor, dutbtor):
         del result
         
         if 'unsat' in qed_res:
-            print ('no more cex. CEGAR termindates.')
+            log2fs ('no more cex. CEGAR termindates.')
             break
         if not 'sat' in qed_res:
-            print ('cexgen produced unexpected result:', qed_res)
+            log2fs ('cexgen produced unexpected result:' + qed_res)
             errFlag = True
             break
         if not os.path.exists("cex.vcd"):
-            print ('cexgen didn\'t produce waveform.')
+            log2fs ('cexgen didn\'t produce waveform.')
             errFlag = True
             break
         del qed_res
@@ -51,13 +59,13 @@ def run_cegar(n_iteration, qedbtor, dutbtor):
         # now the second part
         try_rm("check.result")
         oldsize = os.path.getsize('envinv.smt2')
-        print (datetime.datetime.now(), '--> running cex validation iter #', n_iteration)        
+        log2fs('running cex validation iter #'+str(n_iteration))   
         subprocess.run(["./cexvalidate","--num-of-itr", str(n_iteration), dutbtor])
         
         try:
             result = open('result.txt')
         except:
-            print ('cexvalidate failed.')
+            log2fs ('cexvalidate failed.')
             errFlag = True
             break
         syn_res = result.readline()
@@ -65,16 +73,16 @@ def run_cegar(n_iteration, qedbtor, dutbtor):
         del result
         
         if 'unreachable' not in syn_res:
-            print ('cexvalidate produced unexpected result:', syn_res)
+            log2fs ('cexvalidate produced unexpected result:' + syn_res)
             errFlag = True
             break
             
         newsize = os.path.getsize('envinv.smt2')
         if not (newsize > oldsize):
-            print ('envinv size is strange!', oldsize,'--->',newsize)
+            log2fs ('envinv size is strange! ' + str(oldsize) + ' ---> ' + str(newsize))
             errFlag = True
             break
-        print(datetime.datetime.now(), '--> finish iter #',n_iteration) 
+        log2fs('finish iter #'+str(n_iteration) )
         n_iteration += 1
                    
 
