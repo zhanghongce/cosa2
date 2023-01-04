@@ -199,133 +199,24 @@ void get_leaves(const Term & term, UnorderedTermSet & leaves)
 }
 
 
-smt::Term name_changed(const smt::Term & input, const smt::UnorderedTermSet & varset, const SmtSolver & slv) {
+smt::Term name_changed(const smt::Term & input, const smt::UnorderedTermSet & varset,
+    const SmtSolver & slv, const std::string & prefix) {
   smt::UnorderedTermMap substitute_map;
   for(const auto & var: varset) {
     assert(var->is_symbol());
     auto sort = var->get_sort();
     auto var_middle =  var->to_string();
-    auto pos1 = var_middle.find("|");
-    if (pos1!=std::string::npos){
-      var_middle = var_middle.erase(pos1,1);
-    }
-    auto pos2 = var_middle.find("|");
-    if (pos2!=std::string::npos){
-      var_middle = var_middle.erase(pos2,1);
-    }
-    // auto pos_reg = var_middle.find("register");
-    // auto ps_left_paren = var_middle.find("[");
-    // if (ps_left_paren!=std::string::npos){
-    //   var_middle = var_middle.replace(ps_left_paren,1,"_");
-    // }
-    // auto ps_right_paren = var_middle.find("]");
-    // if (ps_right_paren!=std::string::npos){
-    //   var_middle = var_middle.replace(ps_right_paren,1,"_");
-    // }
-    std::string new_name;
-    std::string new_name_origin;
-    // if (pos_reg!=std::string::npos){
-    //   new_name = "RTL.RTL__DOT__" + var_middle;
-    // }
-    // else{
-    new_name = "RTL." + var_middle;
-    // } 
+    if (var_middle.length() > 2 && var_middle.front() == var_middle.back() &&
+        var_middle.front() == '|') // remove extra | pair
+      var_middle = var_middle.substr(1,var_middle.length()-2);
+
+    std::string new_name = prefix + var_middle;
     auto new_var = slv->make_symbol(new_name, sort);
     substitute_map.emplace(var, new_var);
   }
   return slv->substitute(input, substitute_map);
 }
 
-
-void name_changed(const Term & term, Term & new_Term, smt::SmtSolver &solver)
-{
-  TermVec to_visit({ term });
-  // SortKind sort;
-  Term t;
-  Term val;
-  Term eq;
-  Term term_wrapper;
-  Term var_record;
-  int count_var=0;
-  int count_val=0;
-  int not_count = 0;
-  std::string var_wrapper;
-  int var_width;
-  int val_width;
-  while (!to_visit.empty()) {
-    t = to_visit.back();
-    to_visit.pop_back();
-
-    for (const auto & tt : t) {
-      to_visit.push_back(tt);
-    }
-
-    if (t->get_op() == BVNot){
-      not_count = 1;
-    }
-    if (t->get_op().is_null()) {
-      assert(t->is_symbol() || t->is_value());
-      auto sort = t->get_sort()->get_sort_kind();
-      auto bit_width = t->get_sort()->get_width();
-
-      if (t->is_symbol()){
-        var_wrapper = "RTL." + t->to_string();
-// auto sort = t->get_sort()->get_sort_kind();
-        auto sort_new = solver->make_sort(sort,bit_width);
-        term_wrapper = solver->make_symbol(var_wrapper,sort_new);
-        if (bit_width == 1){
-          var_record = term_wrapper;
-        }  
-        count_var = count_var + 1;
-        var_width = bit_width;
-      }
-      else if (t->is_value()){
-        auto sort_new = solver->make_sort(sort,bit_width);
-        auto val_string = t->to_string(); 
-        val_string = val_string.substr(2, val_string.size()-1);
-        val = solver->make_term(val_string,sort_new,2);
-        count_val = count_val + 1;
-        val_width = bit_width;
-      }
-      
-      if ((count_val == 1 )&&(count_var == 1)&&(var_width == val_width)){
-                eq = solver->make_term(Equal, term_wrapper, val );
-                if(new_Term == nullptr)
-                {
-                new_Term = eq;
-                }
-                else{
-                  new_Term = solver->make_term(BVAnd, new_Term,eq);
-                }
-                count_val = 0;
-                count_var = 0;
-                not_count = 0;
-      }
-      /// The val may occur two times, which means that originally, they are 1 bit vector./////
-      else{
-                if((var_width != 1)) continue; 
-                if (not_count ==1){
-                  not_count = 0;
-                  eq = solver->make_term(BVNot, var_record);
-                }
-                else{
-                  eq = var_record;
-                }
-                if(new_Term == nullptr)
-                {
-                  new_Term = eq;
-                }
-                else{
-                  new_Term = solver->make_term(BVAnd, new_Term,eq);
-                }
-                count_var = count_var -1;
-                assert(count_var = 1);
-      }
-    }
-  }
-  new_Term = solver -> make_term(BVNot, new_Term);
-  cout<<new_Term<<endl;
-}
 
 void smt_lib2_front(const UnorderedTermSet &out,std::string & sort_list){
       std::unordered_map<smt::Term,smt::Sort> symbols_mapping;

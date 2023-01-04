@@ -64,8 +64,12 @@ void get_leaves(const smt::Term & term, smt::UnorderedTermSet & leaves);
  * UF
  */
 
-smt::Term name_changed(const smt::Term & input, const smt::UnorderedTermSet & varset, const smt::SmtSolver & slv);
-void name_changed(const smt::Term & term, smt::Term & new_Term, smt::SmtSolver & solver);
+// make a name change (add prefix) to all variables in the given `input`,
+// will not extract the vars itself
+// will use the variables provided in varset
+smt::Term name_changed(const smt::Term & input, const smt::UnorderedTermSet & varset, 
+    const smt::SmtSolver & slv, const std::string & prefix);
+
 void smt_lib2_front(const smt::UnorderedTermSet &out, std::string & sort_list);
 
 void get_predicates(const smt::SmtSolver & solver,

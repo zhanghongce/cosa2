@@ -336,7 +336,7 @@ ProverResult check_prop_inv(PonoOptions pono_options,
    
 
       varset = get_free_symbols(invar_in_cvc5);
-      auto invar_varname_rewritten = name_changed(invar_in_cvc5, varset, cvc5solver);
+      auto invar_varname_rewritten = name_changed(invar_in_cvc5, varset, cvc5solver, "RTL.");
       auto varset_new = get_free_symbols(invar_varname_rewritten);
       std::string sort_list,sort_list_origin;
       smt_lib2_front(varset_new, sort_list);
