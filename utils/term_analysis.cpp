@@ -223,12 +223,13 @@ smt::Term name_changed(const smt::Term & input, const smt::UnorderedTermSet & va
     //   var_middle = var_middle.replace(ps_right_paren,1,"_");
     // }
     std::string new_name;
+    std::string new_name_origin;
     // if (pos_reg!=std::string::npos){
     //   new_name = "RTL.RTL__DOT__" + var_middle;
     // }
     // else{
     new_name = "RTL." + var_middle;
-    // }
+    // } 
     auto new_var = slv->make_symbol(new_name, sort);
     substitute_map.emplace(var, new_var);
   }
@@ -329,7 +330,7 @@ void name_changed(const Term & term, Term & new_Term, smt::SmtSolver &solver)
 void smt_lib2_front(const UnorderedTermSet &out,std::string & sort_list){
       std::unordered_map<smt::Term,smt::Sort> symbols_mapping;
       for (const auto &var: out){
-          std::cout<<var<<std::endl;
+          // std::cout<<var<<std::endl;
           auto var_sort = var->get_sort();
           symbols_mapping.insert(pair<Term,Sort> (var,var_sort));
       }

@@ -29,14 +29,14 @@ namespace pono {
 class PropertyInterface : public smt::SmtLibReader
 {
  public:
+  PropertyInterface(std::string filename, TransitionSystem & ts, int step);
   PropertyInterface(std::string filename, TransitionSystem & ts);
-
   typedef SmtLibReader super;
 
   smt::Term AddAssertions(const smt::Term &in) const;
 
   void AddAssumptionsToTS();
-
+  smt::Term assumption;
  protected:
   // overloaded function, used when arg list of function is parsed
   // NOTE: | |  pipe quotes are removed.
@@ -45,7 +45,7 @@ class PropertyInterface : public smt::SmtLibReader
   std::string filename_;
 
   TransitionSystem & ts_;
-
+  int step_;
   smt::TermVec assertions_;
   smt::TermVec assumptions_;
 
@@ -56,10 +56,13 @@ class PropertyInterfacecex : public CexExtractor
   public:
   ////Build the Constructor//////
   typedef std::function<bool(const std::string &n)> filter_t;
+  typedef std::function<bool(const smt::Term &n)> filter_r;
     PropertyInterfacecex(const std::string& vcd_file_name,
                            const std::string& scope,
                            bool reg_only, TransitionSystem & ts);
     smt::Term cex_parse_to_pono_property(filter_t filter);
+    smt::Term cex_parse_to_pono_property(filter_r filter_re);
+    smt::Term cex_parse_to_pono_property(filter_t filter,filter_r filter_re);
     smt::Term cex_parse_to_pono_property();
   protected:
     TransitionSystem & ts_;

@@ -21,7 +21,6 @@ using namespace smt;
 using namespace std;
 
 namespace pono {
-
 PropertyInterface::PropertyInterface(std::string filename, TransitionSystem & ts)
     : super(ts.get_solver()), filename_(filename), ts_(ts)
 {
@@ -34,6 +33,26 @@ PropertyInterface::PropertyInterface(std::string filename, TransitionSystem & ts
         assertions_.push_back(n_prop.second);
       if(n_prop.first.find("assumption.") == 0)
         assumptions_.push_back(n_prop.second);
+       
+  }
+}
+
+PropertyInterface::PropertyInterface(std::string filename, TransitionSystem & ts, int step)
+    : super(ts.get_solver()), filename_(filename), ts_(ts), step_(step)
+{
+  set_logic_all();
+  int res = parse(filename_);
+  assert(!res);  // 0 means success
+
+  for(const auto & n_prop : defs_){
+      if(n_prop.first.find("assertion.") == 0)
+        assertions_.push_back(n_prop.second);
+      if(n_prop.first.find("assumption.") == 0)
+        assumptions_.push_back(n_prop.second);
+        auto position = n_prop.first.find(to_string(step_-1));
+        if (position!=std::string::npos){
+          assumption = n_prop.second;
+        }
   }
 }
 
@@ -72,7 +91,60 @@ ts_(ts), is_reg([this](const std::string & check_name) -> bool{
   {
     parse_from(vcd_file_name, scope, is_reg, reg_only);
   }
-  
+
+
+smt::Term PropertyInterfacecex::cex_parse_to_pono_property(filter_t filter,filter_r filter_re){
+  smt::Term prop;
+  for (const auto & var_val_pair : GetCex() ) {
+    const auto & var_name = var_val_pair.first;
+    if (!filter(var_name)){
+      continue;
+    }
+    auto pos = ts_.named_terms().find(var_name);
+    assert(pos != ts_.named_terms().end());
+    auto var = pos->second;
+    auto sort = var->get_sort();
+    auto val = ts_.make_term(var_val_pair.second, sort, 2);
+    auto eq = ts_.make_term(Equal, var, val);
+    if (!filter_re(eq)){
+      continue;
+      }
+    if (prop == nullptr)
+      prop = eq;
+    else
+      prop = ts_.make_term(And, prop, eq);
+  }
+  if (prop==nullptr)
+    {
+      return cex_parse_to_pono_property(filter);
+    }
+  return ts_.make_term(Not, prop);
+
+}
+
+
+smt::Term PropertyInterfacecex::cex_parse_to_pono_property(filter_r filter_re){
+  smt::Term prop;
+  for (const auto & var_val_pair : GetCex() ) {
+    const auto & var_name = var_val_pair.first;
+    auto pos = ts_.named_terms().find(var_name);
+    assert(pos != ts_.named_terms().end());
+    auto var = pos->second;
+    auto sort = var->get_sort();
+    auto val = ts_.make_term(var_val_pair.second, sort, 2);
+    auto eq = ts_.make_term(Equal, var, val);
+    if (!filter_re(eq)){
+      continue;
+      }
+    if (prop == nullptr)
+      prop = eq;
+    else
+      prop = ts_.make_term(And, prop, eq);
+  }
+  return ts_.make_term(Not, prop);
+
+}
+
 smt::Term PropertyInterfacecex::cex_parse_to_pono_property(filter_t filter)
 {
   // NOT (var1 == val1 && var2 == val2 && ...)
