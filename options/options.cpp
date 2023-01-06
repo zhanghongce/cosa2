@@ -635,7 +635,6 @@ const option::Descriptor usage[] = {
     "smtlib-path",
     Arg::NonEmpty,
     "  --smtlib-path, \tDirectionary to collect the inductive invariant"
-    "interp, mbic3, ic3bits, ic3ia, msat-ic3ia, ic3sa, sygus-pdr]." 
     },
     
   { 0, 0, 0, 0, 0, 0 }

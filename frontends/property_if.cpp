@@ -49,10 +49,16 @@ PropertyInterface::PropertyInterface(std::string filename, TransitionSystem & ts
         assertions_.push_back(n_prop.second);
       if(n_prop.first.find("assumption.") == 0)
         assumptions_.push_back(n_prop.second);
-        auto position = n_prop.first.find(to_string(step_-1));
-        if (position!=std::string::npos){
-          assumption = n_prop.second;
-        }
+        // for(int i=1;i<=num_consider_;i++){
+        //   if(con_assumption.size()==num_consider_)
+        //     break;
+          auto position = n_prop.first.find(to_string(step_-1));
+          if (position!=std::string::npos){
+            // con_assumption.push_back(n_prop.second);
+            assumption = n_prop.second;
+            // break;
+          }
+        // }
   }
 }
 

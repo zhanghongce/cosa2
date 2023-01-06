@@ -36,6 +36,7 @@ class PropertyInterface : public smt::SmtLibReader
   smt::Term AddAssertions(const smt::Term &in) const;
 
   void AddAssumptionsToTS();
+  smt::TermVec con_assumption;
   smt::Term assumption;
  protected:
   // overloaded function, used when arg list of function is parsed
@@ -46,6 +47,7 @@ class PropertyInterface : public smt::SmtLibReader
 
   TransitionSystem & ts_;
   int step_;
+  int num_consider_;
   smt::TermVec assertions_;
   smt::TermVec assumptions_;
 
