@@ -22,6 +22,8 @@
 #include "utils/logger.h"
 #include "utils/term_analysis.h"
 
+#include <algorithm>
+
 using namespace smt;
 using namespace std;
 
@@ -41,6 +43,25 @@ static bool term_hash_lt(const smt::Term & t0, const smt::Term & t1)
 {
   return (t0->hash() < t1->hash());
 }
+
+/** Less than comparison of the width of two extract terms
+ *  for use in sorting
+ *  @param t0 the first term
+ *  @param t1 the second term
+ *  @return true iff t0's hash is less than t1's hash
+ */
+static bool term_width_gt(const smt::Term & t0, const smt::Term & t1)
+{
+  unsigned w0 = 0, w1 = 0;
+  for(auto pos = t0->begin(); pos != t0->end(); ++pos)
+    w0 += (*pos)->get_sort()->get_width();
+  
+  for(auto pos = t1->begin(); pos != t1->end(); ++pos)
+    w1 += (*pos)->get_sort()->get_width();
+  
+  return w0>w1;
+}
+
 
 /** Syntactic subsumption check for clauses: ? a subsumes b ?
  *  @param IC3Formula a
@@ -274,10 +295,14 @@ IC3Formula IC3Base::inductive_generalization(size_t i, const IC3Formula & c)
   UnorderedTermSet necessary;  // populated with children we
                                // can't drop
 
-  IC3Formula gen = c;
+  IC3Formula gen = c;  
+  // HZ: let's sort gen.children based on the width of the variable
+  std::sort(gen.children.begin(), gen.children.end(), term_width_gt);
+
   IC3Formula out;
   Term dropped;
-  size_t j = 0;
+  size_t j = 0;  
+
   while (j < gen.children.size() && gen.children.size() > 1) {
     // TODO use random_seed_ if set for shuffling
     //      order of drop attempts
