@@ -63,7 +63,7 @@ if __name__ == '__main__':
                     # print("The step is {:d}" .format(count))
                     subprocess.run(["./build/pono-env","-e","{:s}" .format(engine),"--cex-reader","{:s}" .format(path_cex),
                     "--num-of-itr","{:s}" .format(str(count)),"--sygus-initial-term-width","{:s}" .format(str(init_term_width)),
-                    "--find-environment-invariant","--show-invar","--check-invar","--promote-inputvars","--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(path_design)])
+                    "--find-environment-invariant","--show-invar","--promote-inputvars","--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(path_design)])
                     count = count +1
                     count_file = len(open(inv_file,'r').readlines())
                     if count !=count_file:
@@ -86,7 +86,7 @@ if __name__ == '__main__':
                     # print("The step is {:d}" .format(count))           
                     subprocess.run(["./build/pono-env","-e","{:s}" .format(engine),"--cex-reader","{:s}" .format(path_cex),
                     "--num-of-itr","{:s}" .format(str(count)),"--sygus-initial-term-width","{:s}" .format(str(init_term_width)),
-                    "--find-environment-invariant","--show-invar","--check-invar","--promote-inputvars","--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(path_design)])
+                    "--find-environment-invariant","--show-invar","--promote-inputvars","--add_assumption_in_origin_file","--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(path_design)])
                     count_file = len(open(inv_file,'r').readlines())
                     count = count+1     
                     if count !=count_file:
@@ -117,7 +117,7 @@ if __name__ == '__main__':
                logger.info("The step is {:d}" .format(count))
                subprocess.run(["./build/pono-env","-e","{:s}" .format(engine),"--cex-reader","{:s}" .format(path_cex),
                "--num-of-itr","{:s}" .format(str(count)),"--sygus-initial-term-width","{:s}" .format(str(init_term_width)),
-               "--find-environment-invariant","--show-invar","--check-invar","--promote-inputvars","--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(path_design)])
+               "--find-environment-invariant","--show-invar","--check-invar","--promote-inputvars","--add_assumption_in_origin_file","--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(path_design)])
                count_file = len(open(inv_file,'r').readlines())
                count = count+1 
                if count_file !=count:

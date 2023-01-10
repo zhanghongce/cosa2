@@ -95,7 +95,8 @@ enum optionIndex
   SYGUS_INITIAL_TERM_WIDTH,
   FIND_ENV_INV,
   NUM_OF_ITR,
-  SMTLIB_PATH
+  SMTLIB_PATH,
+  ADD_ASSUMP_IN_ORIGIN
 
 };
 
@@ -636,6 +637,13 @@ const option::Descriptor usage[] = {
     Arg::NonEmpty,
     "  --smtlib-path, \tDirectionary to collect the inductive invariant"
     },
+  { ADD_ASSUMP_IN_ORIGIN,
+    0,
+    "",
+    "add_assumption_in_origin_file",
+    Arg::None,
+    "  --add_assumption_in_origin_file, \tWe add assumption into the original design, to speed up the process"
+    },
     
   { 0, 0, 0, 0, 0, 0 }
 };
@@ -832,6 +840,7 @@ ProverResult PonoOptions::parse_and_set_options(int argc,
         case FIND_ENV_INV: find_environment_invariant_ =  true; break;
         case NUM_OF_ITR: step_ = atoi(opt.arg); break;
         case SMTLIB_PATH: smt_path_ = opt.arg; break;
+        case ADD_ASSUMP_IN_ORIGIN: add_assuption_in_origin_ = true; break;
         case UNKNOWN_OPTION:
         
           // not possible because Arg::Unknown returns ARG_ILLEGAL

@@ -54,10 +54,12 @@ static bool term_width_gt(const smt::Term & t0, const smt::Term & t1)
 {
   unsigned w0 = 0, w1 = 0;
   for(auto pos = t0->begin(); pos != t0->end(); ++pos)
-    w0 += (*pos)->get_sort()->get_width();
+    if ((*pos)->get_sort()->to_string()!="Bool")
+      w0 += (*pos)->get_sort()->get_width();
   
   for(auto pos = t1->begin(); pos != t1->end(); ++pos)
-    w1 += (*pos)->get_sort()->get_width();
+    if ((*pos)->get_sort()->to_string()!="Bool")  
+      w1 += (*pos)->get_sort()->get_width();
   
   return w0>w1;
 }
@@ -187,6 +189,7 @@ ProverResult IC3Base::check_until(int k)
   int i = reached_k_ + 1;
   assert(reached_k_ + 1 >= 0);
   while (i <= k) {
+    std::cout<<"The current step in the PDR is: "<< i <<std::endl;
     res = step(i);
 
     if (res == ProverResult::FALSE) {

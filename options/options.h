@@ -152,7 +152,8 @@ class PonoOptions
         kind_one_time_base_check_(default_kind_one_time_base_check_),
         kind_bound_step_(default_kind_bound_step_),
         find_environment_invariant_(default_find_environment_invariant_),
-        step_(default_step_)
+        step_(default_step_),
+        add_assuption_in_origin_(default_add_assuption_in_origin_)
   {
   }
 
@@ -242,6 +243,7 @@ class PonoOptions
   // print wall clock time spent in entire execution
   bool print_wall_time_;
   bool find_environment_invariant_;
+  bool add_assuption_in_origin_;
   // BMC interval options (these options are modifiers of the 'BMC' engine;
   //   they do not apply to engine 'BMC-SP')
   // Default bmc_bound_start_ == 0, which starts search for cex at
@@ -368,6 +370,7 @@ private:
   static const bool default_kind_one_time_base_check_ = false;
   //true if we want to find environment invariant
   static const bool default_find_environment_invariant_ = false;
+  static const bool default_add_assuption_in_origin_ =false;
   static const unsigned default_kind_bound_step_ = 1;
   static const unsigned default_step_ = 0;
 };
