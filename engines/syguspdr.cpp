@@ -214,15 +214,15 @@ void SygusPdr::initialize()
     sygus_term_manager_.RegisterTermsToWalk(ts_.init());
     parent_of_terms_.WalkBFS(ts_.init());
 
-    for (const auto & c_next_init : ts_.constraints()) {
-      if (!c_next_init.second)
-        continue;
-      assert(ts_.no_next(c_next_init.first));
-      //if (ts_.no_next(c_next_init.first)) {
-      sygus_term_manager_.RegisterTermsToWalk(c_next_init.first);
-      parent_of_terms_.WalkBFS(c_next_init.first);
-      //  }
-    }
+    // for (const auto & c_next_init : ts_.constraints()) {
+    //   if (!c_next_init.second)
+    //     continue;
+    //   assert(ts_.no_next(c_next_init.first));
+    //   //if (ts_.no_next(c_next_init.first)) {
+    //   sygus_term_manager_.RegisterTermsToWalk(c_next_init.first);
+    //   parent_of_terms_.WalkBFS(c_next_init.first);
+    //   //  }
+    // }
 
     // sygus_term_manager_.RegisterTermsToWalk(property_.prop());
     // parent_of_terms_.WalkBFS(property_.prop());

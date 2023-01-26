@@ -300,7 +300,7 @@ IC3Formula IC3Base::inductive_generalization(size_t i, const IC3Formula & c)
 
   IC3Formula gen = c;  
   // HZ: let's sort gen.children based on the width of the variable
-  std::sort(gen.children.begin(), gen.children.end(), term_width_gt);
+  // std::sort(gen.children.begin(), gen.children.end(), term_width_gt);
 
   IC3Formula out;
   Term dropped;

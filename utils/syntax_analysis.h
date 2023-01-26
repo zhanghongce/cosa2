@@ -64,7 +64,7 @@ protected:
 
   unsigned insert_from_termsmap_w_width(
     const std::map<unsigned, smt::TermVec> & terms /*IN*/, PerVarsetInfo & term_cache_item /*OUT*/ , 
-    unsigned width_bound_low /*IN*/, unsigned width_bound_high /*IN*/) ;
+    unsigned width_bound_low /*IN*/, unsigned width_bound_high /*IN*/,bool check_symbol) ;
 
   void insert_vars_and_extracts(PerVarsetInfo & term_cache_item /*OUT*/,
     const smt::UnorderedTermSet & varset, smt::SmtSolver & solver_  );

@@ -17,6 +17,8 @@
 
 #include "frontends/property_if.h"
 #include "cexreader/cex_extract.h"
+#include <numeric>
+#include <cmath>
 using namespace smt;
 using namespace std;
 
@@ -98,7 +100,24 @@ ts_(ts), is_reg([this](const std::string & check_name) -> bool{
     parse_from(vcd_file_name, scope, is_reg, reg_only);
   }
 
+int PropertyInterfacecex::get_reg_width(){
+    for (const auto & var_val_pair : GetCex() ) {
+    const auto & var_name = var_val_pair.first;
+    auto pos = ts_.named_terms().find(var_name);
+    assert(pos != ts_.named_terms().end());
+    auto var = pos->second;
+    auto sort = var->get_sort();
+    get_width.push_back(sort->get_width());
+    auto val = ts_.make_term(var_val_pair.second, sort, 2);
+    auto eq = ts_.make_term(Equal, var, val);
+  }
+  // std::cout<<prop->to_string()<<std::endl;
+  double sumValue = accumulate(begin(get_width), end(get_width), 0.0); 
+  int meanvalue = round(sumValue/get_width.size());
+  return meanvalue;
+  
 
+}
 smt::Term PropertyInterfacecex::cex_parse_to_pono_property(filter_t filter,filter_r filter_re){
   smt::Term prop;
   for (const auto & var_val_pair : GetCex() ) {

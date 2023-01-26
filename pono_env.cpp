@@ -47,6 +47,7 @@
 #include "utils/term_analysis.h"
 #include <fstream>
 #include <filesystem>
+#include <queue>
 
 using namespace pono;
 using namespace smt;
@@ -240,43 +241,43 @@ bool check_for_inductiveness(const Term & prop, const TransitionSystem & ts) {
 }
 
 
-// Term get_term_with_dual_fil(FilterConcat filter, int num_consider, PropertyInterfacecex prop_cex, TransitionSystem &fts, int step, std::string filename_origin){
-//     std::cout<<"The current reduction property cannot be used."<<std::endl;
-//     RepeatFilter filter_re(filename_origin,fts,step,num_consider);
-//     Term prop_filter;
-//     prop_filter = prop_cex.cex_parse_to_pono_property(filter,filter_re);
-//     std::cout <<"The new reduction property for the width filter and repeat filter is : "<< prop_filter->to_raw_string() << std::endl;
-//     return prop_filter;
+Term get_term_with_dual_fil(FilterConcat filter, int num_consider, PropertyInterfacecex prop_cex, TransitionSystem &fts, int step, std::string filename_origin){
+    std::cout<<"The current reduction property cannot be used."<<std::endl;
+    RepeatFilter filter_re(filename_origin,fts,step);
+    Term prop_filter;
+    prop_filter = prop_cex.cex_parse_to_pono_property(filter,filter_re);
+    std::cout <<"The new reduction property for the width filter and repeat filter is : "<< prop_filter->to_raw_string() << std::endl;
+    return prop_filter;
 
-// }
-
-
-// Term get_term_with_width_fil(FilterConcat filter, PropertyInterfacecex prop_cex){
-//       std::cout<<"The current reduction property cannot be used."<<std::endl;
-//       Term prop_filter_single;
-//       prop_filter_single = prop_cex.cex_parse_to_pono_property(filter);
-//       std::cout <<"The new reduction property for the width filter is : "<< prop_filter_single->to_raw_string() << std::endl;
-//       return prop_filter_single;
-// }
+}
 
 
+Term get_term_with_width_fil(FilterConcat filter, PropertyInterfacecex prop_cex){
+      std::cout<<"The current reduction property cannot be used."<<std::endl;
+      Term prop_filter_single;
+      prop_filter_single = prop_cex.cex_parse_to_pono_property(filter);
+      std::cout <<"The new reduction property for the width filter is : "<< prop_filter_single->to_raw_string() << std::endl;
+      return prop_filter_single;
+}
 
-// Term get_term_with_repeat_fil(int num_consider, PropertyInterfacecex prop_cex, TransitionSystem &fts, int step, std::string filename_origin){
-//         std::cout<<"The current reduction property cannot be used."<<std::endl;
-//         RepeatFilter filter_re(filename_origin,fts,step,num_consider);
-//         Term prop_filter_single_re;
-//         prop_filter_single_re = prop_cex.cex_parse_to_pono_property(filter_re);
-//         std::cout <<"The new reduction property for the repeat filter is : "<< prop_filter_single_re->to_raw_string() << std::endl;
-//         return prop_filter_single_re;
-// }
 
-// Term get_term_without_fil( PropertyInterfacecex prop_cex){
-//       std::cout <<"We cannot get any reduction."<<std::endl;
-//       Term prop;
-//       prop = prop_cex.cex_parse_to_pono_property();
-//       std::cout << "The final property is:"<<prop->to_raw_string() << std::endl;
-//       return prop;
-// }
+
+Term get_term_with_repeat_fil(int num_consider, PropertyInterfacecex prop_cex, TransitionSystem &fts, int step, std::string filename_origin){
+        std::cout<<"The current reduction property cannot be used."<<std::endl;
+        RepeatFilter filter_re(filename_origin,fts,step);
+        Term prop_filter_single_re;
+        prop_filter_single_re = prop_cex.cex_parse_to_pono_property(filter_re);
+        std::cout <<"The new reduction property for the repeat filter is : "<< prop_filter_single_re->to_raw_string() << std::endl;
+        return prop_filter_single_re;
+}
+
+Term get_term_without_fil( PropertyInterfacecex prop_cex){
+      std::cout <<"We cannot get any reduction."<<std::endl;
+      Term prop;
+      prop = prop_cex.cex_parse_to_pono_property();
+      std::cout << "The final property is:"<<prop->to_raw_string() << std::endl;
+      return prop;
+}
 ProverResult check_prop_inv(PonoOptions pono_options,
                         Term & prop,
                         TransitionSystem & ts,
@@ -487,6 +488,12 @@ ProverResult check_prop(PonoOptions pono_options,
   TermTranslator to_old_solver(solver_old);
   FunctionalTransitionSystem new_fts(original_ts,to_new_solver);
   std::vector<UnorderedTermMap> local_cex;
+  std::string filename_origin = pono_options.smt_path_ + "/" + "inv_origin.smt2";
+  if ((pono_options.add_assuption_in_origin_ == true)&&(step>0))
+      {       
+        PropertyInterface add_to_frame(filename_origin, new_fts);
+        add_to_frame.AddAssumptionsToTS();
+      }
   Term prop = to_new_solver.transfer_term(prop_old);
 
   // get property name before it is rewritten
@@ -582,32 +589,67 @@ ProverResult check_prop(PonoOptions pono_options,
     r = prover->check_until(pono_options.bound_);
   }
 
-  if (r == FALSE && pono_options.witness_) {
-    bool success = prover->witness(local_cex);
-    if (!success) {
-      logger.log(
-          0,
-          "Only got a partial witness from engine. Not suitable for printing.");
-    }
-  }
+  // if (r == FALSE && pono_options.witness_) {
+  //   bool success = prover->witness(local_cex);
+  //   if (!success) {
+  //     logger.log(
+  //         0,
+  //         "Only got a partial witness from engine. Not suitable for printing.");
+  //   }
+  // }
 
   Term invar;
   if (r == TRUE && (pono_options.show_invar_ || pono_options.check_invar_)) {
-    std::string folderPath = pono_options.smt_path_;
-    std::string origin_smt = folderPath + "/inv_origin.smt2"; 
-    std::string filename = folderPath + "/" + "inv.smt2"; 
-    std::ofstream outf(filename, std::ofstream::out | std::ofstream::app);
-    std::ofstream outf_origin(origin_smt, std::ofstream::out | std::ofstream::app);
     try {
       invar = prover->invar();
 
-      write_inv_to_file(invar, outf,outf_origin, step, "RTL.");
+      // write_inv_to_file(invar, outf,outf_origin, step, "RTL.");
     }
     catch (PonoException & e) {
       std::cout << "Engine " << pono_options.engine_
                 << " does not support getting the invariant." << std::endl;
-      outf << "(noinvar)" << endl;      
+      // outf << "(noinvar)" << endl;      
     }
+
+    std::string folderPath = pono_options.smt_path_;
+    std::string filename = folderPath + "/" + "inv.smt2"; 
+    auto cvc5solver = smt::Cvc5SolverFactory::create(false);
+    auto transferer = smt::TermTranslator(cvc5solver);
+    auto invar_in_cvc5 = transferer.transfer_term(invar);
+    // auto invar_in_cvc5_origin = transferer.transfer_term(invar);
+    smt::UnorderedTermSet varset;
+   
+
+      varset = get_free_symbols(invar_in_cvc5);
+      auto invar_varname_rewritten = name_changed(invar_in_cvc5, varset, cvc5solver, "RTL.");
+      auto varset_new = get_free_symbols(invar_varname_rewritten);
+      std::string sort_list,sort_list_origin;
+      smt_lib2_front(varset_new, sort_list);
+      smt_lib2_front(varset, sort_list_origin);
+      // std::string folderPath = pono_options.smt_path_;
+      std::string origin_smt = folderPath + "/inv_origin.smt2"; 
+    // std::ofstream outf(filename, std::ofstream::out | std::ofstream::app);
+    // std::ofstream outf_origin(origin_smt, std::ofstream::out | std::ofstream::app);
+    if(step == 0){
+      std::string step_char = to_string(step);
+      std::string filename = folderPath + "/" + "inv.smt2"; 
+      ofstream res1(origin_smt.c_str());        
+      ofstream res(filename.c_str());
+      res<<"("<<"define-fun"<<" "<<"assumption." << step_char << " "<<"("<<sort_list<<")"<<" "<<"Bool"<<" "<<invar_varname_rewritten->to_string()<<")"<<endl;
+      res1<<"("<<"define-fun"<<" "<<"assumption." << step_char << " "<<"("<<sort_list_origin<<")"<<" "<<"Bool"<<" "<<invar_in_cvc5->to_string()<<")"<<endl;
+    }
+    else{
+      std::string step_char = to_string(step);
+      ofstream res;
+      ofstream res1;
+      std::string filename = folderPath + "/" + "inv"  +".smt2";
+      res.open(filename, ios::app);
+      res1.open(origin_smt, ios::app);
+      res<<"("<<"define-fun"<<" "<<"assumption." << step_char << " "<<"("<<sort_list<<")"<<" "<<"Bool"<<" "<<invar_varname_rewritten->to_string()<<")"<<endl;
+      res1<<"("<<"define-fun"<<" "<<"assumption." << step_char << " "<<"("<<sort_list_origin<<")"<<" "<<"Bool"<<" "<<invar_in_cvc5->to_string()<<")"<<endl;
+        }
+
+
   }
     
 
@@ -799,7 +841,86 @@ ProverResult check_prop(PonoOptions pono_options,
 // }
   
 
+ProverResult get_prop_inv(PonoOptions pono_options, 
+                  TransitionSystem fts, 
+                  int step, 
+                  SmtSolver s,
+                  vector<UnorderedTermMap> &cex)
+{
+      ProverResult res;
+      PropertyInterfacecex prop_cex(pono_options.cex_reader_, std::string("RTL"), true, fts);
+      pono_options.sygus_initial_term_width_= prop_cex.get_reg_width();
+      FilterConcat filter;
+      Term prop_filter;
+      std::queue<pair<Term,std::string>> prop_queue;
+      std::string filename_origin = pono_options.smt_path_ + "/" + "inv_origin.smt2";
+      filter.filters.push_back(std::make_shared<MaxWidthFilter>(pono_options.sygus_initial_term_width_,fts));
+      bool inductiveness;
+      if ((pono_options.add_assuption_in_origin_ == true)&&(step>0))
+      {       
+        PropertyInterface add_to_frame(filename_origin, fts);
+        add_to_frame.AddAssumptionsToTS();
+      }      
+      bool repeat_first = true;
+      if(step>0){
+          RepeatFilter filter_re(filename_origin,fts,step);
+          if(repeat_first){
+            prop_filter = prop_cex.cex_parse_to_pono_property(filter,filter_re);
+            if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true))
+              prop_queue.push(make_pair(prop_filter,"dual filter"));
+            prop_filter = prop_cex.cex_parse_to_pono_property(filter_re);
+            if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true))
+              prop_queue.push(make_pair(prop_filter,"repeat filter"));
+            prop_filter = prop_cex.cex_parse_to_pono_property(filter);
+            if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true))
+              prop_queue.push(make_pair(prop_filter,"width filter"));
+            prop_filter = prop_cex.cex_parse_to_pono_property();
+            prop_queue.push(make_pair(prop_filter,"without filter"));
+          }
+          else{
+            prop_filter = prop_cex.cex_parse_to_pono_property(filter,filter_re);
+            if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true))
+              prop_queue.push(make_pair(prop_filter,"dual filter"));
+            prop_filter = prop_cex.cex_parse_to_pono_property(filter);
+            if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true))
+              prop_queue.push(make_pair(prop_filter,"width filter"));
+            prop_filter = prop_cex.cex_parse_to_pono_property(filter_re);
+            if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true))
+              prop_queue.push(make_pair(prop_filter,"repeat filter"));
+            prop_filter = prop_cex.cex_parse_to_pono_property();
+            prop_queue.push(make_pair(prop_filter,"without filter"));
+          }
 
+        }
+        else{
+          prop_filter = prop_cex.cex_parse_to_pono_property(filter);
+          if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true))
+            prop_queue.push(make_pair(prop_filter,"width filter"));
+          prop_filter = prop_cex.cex_parse_to_pono_property();
+          prop_queue.push(make_pair(prop_filter,"without filter"));
+        }
+      // std::cout <<"The initial reduction property for the filter is: "<< prop_filter->to_raw_string() << std::endl;
+      Term prop;
+      std::string fil_name;
+      prop = prop_queue.front().first;
+      fil_name = prop_queue.front().second;
+      prop_queue.pop();
+      std::cout <<"The initial reduction property for the filter is: "<< prop->to_raw_string() <<std::endl;
+      std::cout << "The filter we use is: "<< fil_name <<std::endl; 
+      while ((res = check_prop(pono_options, prop, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step))==FALSE)
+      {
+        if(prop_queue.empty()==true){
+          return res;
+        }
+        prop = prop_queue.front().first;
+        fil_name = prop_queue.front().second;
+        prop_queue.pop();
+        std::cout << "The original filter cannot be used." <<std::endl;
+        std::cout <<"The new reduction property for the filter is: "<< prop->to_raw_string() <<std::endl;
+        std::cout << "The filter we use is: "<< fil_name <<std::endl;
+      }
+      return res;
+}
 
 
 
@@ -890,271 +1011,278 @@ int main(int argc, char ** argv)
     if (pono_options.find_environment_invariant_){
       assert(!pono_options.cex_reader_.empty());
       int step = pono_options.step_;
-      FilterConcat filter;
-      filter.filters.push_back(std::make_shared<MaxWidthFilter>(pono_options.sygus_initial_term_width_,fts));
-      std::string filename_origin = "/data/zhiyuany/cosa2/inductive_invariant/inv_origin.smt2";
+      // FilterConcat filter;
+      // PropertyInterfacecex prop_cex(pono_options.cex_reader_, std::string("RTL"), true, fts);
+      // pono_options.sygus_initial_term_width_= prop_cex.get_reg_width();
+      // filter.filters.push_back(std::make_shared<MaxWidthFilter>(pono_options.sygus_initial_term_width_,fts));
+      // std::string filename_origin = pono_options.smt_path_ + "/" + "inv_origin.smt2";
       // int num_consider = 1;
       std::cout <<"Now the step is: "<<to_string(step)<<std::endl;
-      PropertyInterfacecex prop_cex(pono_options.cex_reader_, std::string("RTL"), true, fts);
-      if ((pono_options.add_assuption_in_origin_ == true)&&(step>0))
-      {       
-        PropertyInterface add_to_frame(filename_origin, fts);
-        add_to_frame.AddAssumptionsToTS();
-      }
-      if(step>0){
-          RepeatFilter filter_re(filename_origin,fts,step);
-          prop_filter = prop_cex.cex_parse_to_pono_property(filter,filter_re);
-        }
-        else{
-          prop_filter = prop_cex.cex_parse_to_pono_property(filter);
-        }
-      bool inductiveness;
-      // int step = pono_options.step_;
-      vector<UnorderedTermMap> cex;
-    std::cout <<"The initial property is : "<< prop_filter->to_raw_string() << std::endl;
-    if( ((inductiveness = check_for_inductiveness(prop_filter, fts)) == false)&&(step>0)) {
-      RepeatFilter filter_re(filename_origin,fts,step);
-      std::cout<<"The reduction property cannot be used"<<std::endl;
-      Term prop_filter_single;
-      prop_filter_single = prop_cex.cex_parse_to_pono_property(filter);
-      std::cout <<"The new reduction property for the width filter is : "<< prop_filter_single->to_raw_string() << std::endl;
-      if((prop_filter_single == prop_filter)||((inductiveness = check_for_inductiveness(prop_filter_single, fts)) == false)){
-        std::cout<<"The reduction property cannot be used"<<std::endl;
-        Term prop_filter_single_re;
-        prop_filter_single_re = prop_cex.cex_parse_to_pono_property(filter_re);
-        std::cout <<"The new reduction property for the repeat filter is : "<< prop_filter_single_re->to_raw_string() << std::endl;
-        if (((inductiveness = check_for_inductiveness(prop_filter_single_re, fts)) == false)){
-          std::cout <<"We cannot get any reduction."<<std::endl;
-          Term prop;
-          prop = prop_cex.cex_parse_to_pono_property();
-          std::cout << "The final property is:"<<prop->to_raw_string() << std::endl;
-          // res = check_prop(pono_options, prop, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
-          res = check_prop_inv(pono_options, prop, fts, s, cex, step);
-        }
-        else{
-          // res = check_prop(pono_options, prop_filter_single_re, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
-            res = check_prop_inv(pono_options, prop_filter_single_re, fts, s, cex, step);
-            if(res ==FALSE){
-            s.reset();
-            SmtSolver s = create_solver_for(pono_options.smt_solver_,
-                                          pono_options.engine_,
-                                          true,
-                                          pono_options.ceg_prophecy_arrays_);
-            FunctionalTransitionSystem fts(s);
-            BTOR2Encoder btor_enc(pono_options.filename_, fts);
-            PropertyInterfacecex prop_cex(pono_options.cex_reader_, std::string("RTL"), true, fts);   
-            if ((pono_options.add_assuption_in_origin_ == true)&&(step>0))
-            {       
-              PropertyInterface add_to_frame(filename_origin, fts);
-              add_to_frame.AddAssumptionsToTS();
-            }
-            cex.clear();         
-            std::cout <<"We cannot get any reduction."<<std::endl;
-            Term prop;
-            prop = prop_cex.cex_parse_to_pono_property();
-            std::cout << "The final property is:"<<prop->to_raw_string() << std::endl;
-            // res = check_prop(pono_options, prop, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
-            res = check_prop_inv(pono_options, prop, fts, s, cex, step);
+  //     if ((pono_options.add_assuption_in_origin_ == true)&&(step>0))
+  //     {       
+  //       PropertyInterface add_to_frame(filename_origin, fts);
+  //       add_to_frame.AddAssumptionsToTS();
+  //     }
+  //     if(step>0){
+  //         RepeatFilter filter_re(filename_origin,fts,step);
+  //         prop_filter = prop_cex.cex_parse_to_pono_property(filter,filter_re);
+  //       }
+  //       else{
+  //         prop_filter = prop_cex.cex_parse_to_pono_property(filter);
+  //       }
+  //   bool inductiveness;
+  //     // int step = pono_options.step_;
+    vector<UnorderedTermMap> cex;
+  //   std::cout <<"The initial property is : "<< prop_filter->to_raw_string() << std::endl;
+  //   if( ((inductiveness = check_for_inductiveness(prop_filter, fts)) == false)&&(step>0)) {
+  //     RepeatFilter filter_re(filename_origin,fts,step);
+  //     std::cout<<"The reduction property cannot be used"<<std::endl;
+  //     Term prop_filter_single;
+  //     prop_filter_single = prop_cex.cex_parse_to_pono_property(filter);
+  //     std::cout <<"The new reduction property for the width filter is : "<< prop_filter_single->to_raw_string() << std::endl;
+  //     if((prop_filter_single == prop_filter)||((inductiveness = check_for_inductiveness(prop_filter_single, fts)) == false)){
+  //       std::cout<<"The reduction property cannot be used"<<std::endl;
+  //       Term prop_filter_single_re;
+  //       prop_filter_single_re = prop_cex.cex_parse_to_pono_property(filter_re);
+  //       std::cout <<"The new reduction property for the repeat filter is : "<< prop_filter_single_re->to_raw_string() << std::endl;
+  //       if (((inductiveness = check_for_inductiveness(prop_filter_single_re, fts)) == false)){
+  //         std::cout <<"We cannot get any reduction."<<std::endl;
+  //         Term prop;
+  //         prop = prop_cex.cex_parse_to_pono_property();
+  //         std::cout << "The final property is:"<<prop->to_raw_string() << std::endl;
+  //         // res = check_prop(pono_options, prop, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
+  //         res = check_prop_inv(pono_options, prop, fts, s, cex, step);
+  //       }
+  //       else{
+  //           // res = check_prop(pono_options, prop_filter_single_re, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
+  //           res = check_prop_inv(pono_options, prop_filter_single_re, fts, s, cex, step);
+  //           if(res ==FALSE){
+  //           s.reset();
+  //           SmtSolver s = create_solver_for(pono_options.smt_solver_,
+  //                                         pono_options.engine_,
+  //                                         true,
+  //                                         pono_options.ceg_prophecy_arrays_);
+  //           FunctionalTransitionSystem fts(s);
+  //           BTOR2Encoder btor_enc(pono_options.filename_, fts);
+  //           PropertyInterfacecex prop_cex(pono_options.cex_reader_, std::string("RTL"), true, fts);   
+  //           if ((pono_options.add_assuption_in_origin_ == true)&&(step>0))
+  //           {       
+  //             PropertyInterface add_to_frame(filename_origin, fts);
+  //             add_to_frame.AddAssumptionsToTS();
+  //           }
+  //           cex.clear();         
+  //           std::cout <<"We cannot get any reduction."<<std::endl;
+  //           Term prop;
+  //           prop = prop_cex.cex_parse_to_pono_property();
+  //           std::cout << "The final property is:"<<prop->to_raw_string() << std::endl;
+  //           // res = check_prop(pono_options, prop, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
+  //           res = check_prop_inv(pono_options, prop, fts, s, cex, step);
 
-          }
-        }
-      }
-      else{
-        // res = check_prop(pono_options, prop_filter_single, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
-        res = check_prop_inv(pono_options, prop_filter_single, fts, s, cex, step);
-        if (res ==FALSE){
-          std::cout<<"The reduction property cannot be used"<<std::endl;
-          s.reset();
-          SmtSolver s = create_solver_for(pono_options.smt_solver_,
-                                        pono_options.engine_,
-                                        true,
-                                        pono_options.ceg_prophecy_arrays_);
-          FunctionalTransitionSystem fts(s);
-          BTOR2Encoder btor_enc(pono_options.filename_, fts);
-          PropertyInterfacecex prop_cex(pono_options.cex_reader_, std::string("RTL"), true, fts);
-          if ((pono_options.add_assuption_in_origin_ == true)&&(step>0))
-            {       
-              PropertyInterface add_to_frame(filename_origin, fts);
-              add_to_frame.AddAssumptionsToTS();
-            }
-          Term prop_filter_single_re;
-          cex.clear();
-          prop_filter_single_re = prop_cex.cex_parse_to_pono_property(filter_re);
-          std::cout <<"The new reduction property for the repeat filter is : "<< prop_filter_single_re->to_raw_string() << std::endl;
-          if (((inductiveness = check_for_inductiveness(prop_filter_single_re, fts)) == false)){
-            std::cout <<"We cannot get any reduction."<<std::endl;
-            Term prop;
-            std::cout << "The final property is:"<<prop->to_raw_string() << std::endl;
-            res = check_prop_inv(pono_options, prop, fts, s, cex,step);
-            // res = check_prop(pono_options, prop, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
-          }
-          else{
-            res = check_prop_inv(pono_options, prop_filter_single_re, fts, s, cex, step);
-            // res = check_prop(pono_options, prop_filter_single_re, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
-            if(res ==FALSE){
-              std::cout <<"We cannot get any reduction."<<std::endl;
-              s.reset();
-              SmtSolver s = create_solver_for(pono_options.smt_solver_,
-                                            pono_options.engine_,
-                                            true,
-                                            pono_options.ceg_prophecy_arrays_);
-              FunctionalTransitionSystem fts(s);
-              BTOR2Encoder btor_enc(pono_options.filename_, fts);
-              PropertyInterfacecex prop_cex(pono_options.cex_reader_, std::string("RTL"), true, fts);
-              if ((pono_options.add_assuption_in_origin_ == true)&&(step>0))
-              {       
-                PropertyInterface add_to_frame(filename_origin, fts);
-                add_to_frame.AddAssumptionsToTS();
-              }
-              Term prop;
-              cex.clear();
-              prop = prop_cex.cex_parse_to_pono_property();
-              std::cout << "The final property is:"<<prop->to_raw_string() << std::endl;
-              res = check_prop_inv(pono_options, prop, fts, s, cex, step);
-              // res = check_prop(pono_options, prop_filter_single_re, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
-          }
-        }
-      }
-      }    
-    }
+  //         }
+  //       }
+  //     }
+  //     else{
+  //       // res = check_prop(pono_options, prop_filter_single, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
+  //       res = check_prop_inv(pono_options, prop_filter_single, fts, s, cex, step);
+  //       if (res ==FALSE){
+  //         std::cout<<"The reduction property cannot be used"<<std::endl;
+  //         s.reset();
+  //         SmtSolver s = create_solver_for(pono_options.smt_solver_,
+  //                                       pono_options.engine_,
+  //                                       true,
+  //                                       pono_options.ceg_prophecy_arrays_);
+  //         FunctionalTransitionSystem fts(s);
+  //         BTOR2Encoder btor_enc(pono_options.filename_, fts);
+  //         PropertyInterfacecex prop_cex(pono_options.cex_reader_, std::string("RTL"), true, fts);
+  //         if ((pono_options.add_assuption_in_origin_ == true)&&(step>0))
+  //           {       
+  //             PropertyInterface add_to_frame(filename_origin, fts);
+  //             add_to_frame.AddAssumptionsToTS();
+  //           }
+  //         Term prop_filter_single_re;
+  //         cex.clear();
+  //         prop_filter_single_re = prop_cex.cex_parse_to_pono_property(filter_re);
+  //         std::cout <<"The new reduction property for the repeat filter is : "<< prop_filter_single_re->to_raw_string() << std::endl;
+  //         if (((inductiveness = check_for_inductiveness(prop_filter_single_re, fts)) == false)){
+  //           std::cout <<"We cannot get any reduction."<<std::endl;
+  //           Term prop;
+  //           std::cout << "The final property is:"<<prop->to_raw_string() << std::endl;
+  //           res = check_prop_inv(pono_options, prop, fts, s, cex,step);
+  //           // res = check_prop(pono_options, prop, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
+  //         }
+  //         else{
+  //           res = check_prop_inv(pono_options, prop_filter_single_re, fts, s, cex, step);
+  //           // res = check_prop(pono_options, prop_filter_single_re, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
+  //           if(res ==FALSE){
+  //             std::cout <<"We cannot get any reduction."<<std::endl;
+  //             s.reset();
+  //             SmtSolver s = create_solver_for(pono_options.smt_solver_,
+  //                                           pono_options.engine_,
+  //                                           true,
+  //                                           pono_options.ceg_prophecy_arrays_);
+  //             FunctionalTransitionSystem fts(s);
+  //             BTOR2Encoder btor_enc(pono_options.filename_, fts);
+  //             PropertyInterfacecex prop_cex(pono_options.cex_reader_, std::string("RTL"), true, fts);
+  //             if ((pono_options.add_assuption_in_origin_ == true)&&(step>0))
+  //             {       
+  //               PropertyInterface add_to_frame(filename_origin, fts);
+  //               add_to_frame.AddAssumptionsToTS();
+  //             }
+  //             Term prop;
+  //             cex.clear();
+  //             prop = prop_cex.cex_parse_to_pono_property();
+  //             std::cout << "The final property is:"<<prop->to_raw_string() << std::endl;
+  //             res = check_prop_inv(pono_options, prop, fts, s, cex, step);
+  //             // res = check_prop(pono_options, prop, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
+  //         }
+  //       }
+  //     }
+  //     }    
+  //   }
   
-  else{
-      // std::cout << prop_filter->to_raw_string() << std::endl;
-      res = check_prop_inv(pono_options, prop_filter, fts, s, cex, step);
-      // res = check_prop(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
-      if (res ==FALSE){
-        s.reset();
-        SmtSolver s = create_solver_for(pono_options.smt_solver_,
-                                      pono_options.engine_,
-                                      true,
-                                      pono_options.ceg_prophecy_arrays_);
-        FunctionalTransitionSystem fts(s);
-        BTOR2Encoder btor_enc(pono_options.filename_, fts);
-        PropertyInterfacecex prop_cex(pono_options.cex_reader_, std::string("RTL"), true, fts);
-        if ((pono_options.add_assuption_in_origin_ == true)&&(step>0))
-        {       
-          PropertyInterface add_to_frame(filename_origin, fts);
-          add_to_frame.AddAssumptionsToTS();
-        }
-        cex.clear();
-        if(step==0){
-            std::cout <<"We cannot get any reduction."<<std::endl;
-            Term prop;
-            prop = prop_cex.cex_parse_to_pono_property();
-            std::cout << "The final property is:"<<prop->to_raw_string() << std::endl;
-            res = check_prop_inv(pono_options, prop, fts, s, cex, step);
-            // res = check_prop(pono_options, prop, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
+  // else{
+  //     // std::cout << prop_filter->to_raw_string() << std::endl;
+  //     res = check_prop_inv(pono_options, prop_filter, fts, s, cex, step);
+  //     // res = check_prop(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
+  //     if (res ==FALSE){
+  //       s.reset();
+  //       SmtSolver s = create_solver_for(pono_options.smt_solver_,
+  //                                     pono_options.engine_,
+  //                                     true,
+  //                                     pono_options.ceg_prophecy_arrays_);
+  //       FunctionalTransitionSystem fts(s);
+  //       BTOR2Encoder btor_enc(pono_options.filename_, fts);
+  //       PropertyInterfacecex prop_cex(pono_options.cex_reader_, std::string("RTL"), true, fts);
+  //       if ((pono_options.add_assuption_in_origin_ == true)&&(step>0))
+  //       {       
+  //         PropertyInterface add_to_frame(filename_origin, fts);
+  //         add_to_frame.AddAssumptionsToTS();
+  //       }
+  //       cex.clear();
+  //       if(step==0){
+  //           std::cout <<"We cannot get any reduction."<<std::endl;
+  //           Term prop;
+  //           prop = prop_cex.cex_parse_to_pono_property();
+  //           std::cout << "The final property is:"<<prop->to_raw_string() << std::endl;
+  //           res = check_prop_inv(pono_options, prop, fts, s, cex, step);
+  //           // res = check_prop(pono_options, prop, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
             
-        }
-        else{
-          RepeatFilter filter_re(filename_origin,fts,step);
-          Term prop_filter_single;
-          std::cout<<"The reduction property cannot be used"<<std::endl;
-          prop_filter_single = prop_cex.cex_parse_to_pono_property(filter);
-          std::cout <<"The new reduction property for the width filter is : "<< prop_filter_single->to_raw_string() << std::endl;
-          if((prop_filter_single == prop_filter)||((inductiveness = check_for_inductiveness(prop_filter_single, fts)) == false)){
-            std::cout<<"The reduction property cannot be used"<<std::endl;
-            Term prop_filter_single_re;
-            prop_filter_single_re = prop_cex.cex_parse_to_pono_property(filter_re);
-            std::cout <<"The new reduction property for the repeat filter is : "<< prop_filter_single_re->to_raw_string() << std::endl;
-            if (((inductiveness = check_for_inductiveness(prop_filter_single_re, fts)) == false)){
-              std::cout <<"We cannot get any reduction."<<std::endl;
-              Term prop;
-              std::cout << "The final property is:"<<prop->to_raw_string() << std::endl;
-              res = check_prop_inv(pono_options, prop, fts, s, cex,step);
-              // res = check_prop(pono_options, prop, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
-            }
-            else{
-              res = check_prop_inv(pono_options, prop_filter_single_re, fts, s, cex,step);
-              // res = check_prop(pono_options, prop_filter_single_re, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
-              if(res ==FALSE){
-                std::cout <<"We cannot get any reduction."<<std::endl;
-                s.reset();
-                SmtSolver s = create_solver_for(pono_options.smt_solver_,
-                                              pono_options.engine_,
-                                              true,
-                                              pono_options.ceg_prophecy_arrays_);
-                FunctionalTransitionSystem fts(s);
-                BTOR2Encoder btor_enc(pono_options.filename_, fts);
-                PropertyInterfacecex prop_cex(pono_options.cex_reader_, std::string("RTL"), true, fts);
-                if ((pono_options.add_assuption_in_origin_ == true)&&(step>0))
-                {       
-                  PropertyInterface add_to_frame(filename_origin, fts);
-                  add_to_frame.AddAssumptionsToTS();
-                }
-                Term prop;
-                cex.clear();
-                prop = prop_cex.cex_parse_to_pono_property();
-                std::cout << "The final property is:"<<prop->to_raw_string() << std::endl;
-                res = check_prop_inv(pono_options, prop, fts, s, cex,step);
-                // res = check_prop(pono_options, prop, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
-            }
-          }
-          }
-          else{
+  //       }
+  //       else{
+  //         RepeatFilter filter_re(filename_origin,fts,step);
+  //         Term prop_filter_single;
+  //         std::cout<<"The reduction property cannot be used"<<std::endl;
+  //         prop_filter_single = prop_cex.cex_parse_to_pono_property(filter);
+  //         std::cout <<"The new reduction property for the width filter is : "<< prop_filter_single->to_raw_string() << std::endl;
+  //         if((prop_filter_single == prop_filter)||((inductiveness = check_for_inductiveness(prop_filter_single, fts)) == false)){
+  //           std::cout<<"The reduction property cannot be used"<<std::endl;
+  //           Term prop_filter_single_re;
+  //           prop_filter_single_re = prop_cex.cex_parse_to_pono_property(filter_re);
+  //           std::cout <<"The new reduction property for the repeat filter is : "<< prop_filter_single_re->to_raw_string() << std::endl;
+  //           if (((inductiveness = check_for_inductiveness(prop_filter_single_re, fts)) == false)){
+  //             std::cout <<"We cannot get any reduction."<<std::endl;
+  //             Term prop;
+  //             std::cout << "The final property is:"<<prop->to_raw_string() << std::endl;
+  //             res = check_prop_inv(pono_options, prop, fts, s, cex,step);
+  //             // res = check_prop(pono_options, prop, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
+  //           }
+  //           else{
+  //             res = check_prop_inv(pono_options, prop_filter_single_re, fts, s, cex,step);
+  //             // res = check_prop(pono_options, prop_filter_single_re, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
+  //             if(res ==FALSE){
+  //               std::cout <<"We cannot get any reduction."<<std::endl;
+  //               s.reset();
+  //               SmtSolver s = create_solver_for(pono_options.smt_solver_,
+  //                                             pono_options.engine_,
+  //                                             true,
+  //                                             pono_options.ceg_prophecy_arrays_);
+  //               FunctionalTransitionSystem fts(s);
+  //               BTOR2Encoder btor_enc(pono_options.filename_, fts);
+  //               PropertyInterfacecex prop_cex(pono_options.cex_reader_, std::string("RTL"), true, fts);
+  //               if ((pono_options.add_assuption_in_origin_ == true)&&(step>0))
+  //               {       
+  //                 PropertyInterface add_to_frame(filename_origin, fts);
+  //                 add_to_frame.AddAssumptionsToTS();
+  //               }
+  //               Term prop;
+  //               cex.clear();
+  //               prop = prop_cex.cex_parse_to_pono_property();
+  //               std::cout << "The final property is:"<<prop->to_raw_string() << std::endl;
+  //               res = check_prop_inv(pono_options, prop, fts, s, cex,step);
+  //               // res = check_prop(pono_options, prop, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
+  //             }
+  //          }
+  //         }
+  //         else{
      
-            res = check_prop_inv(pono_options, prop_filter_single, fts, s, cex,step);
-            // res = check_prop(pono_options, prop_filter_single, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
+  //           res = check_prop_inv(pono_options, prop_filter_single, fts, s, cex,step);
+  //           // res = check_prop(pono_options, prop_filter_single, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
 
 
-            if (res ==FALSE){
-              s.reset();
-              SmtSolver s = create_solver_for(pono_options.smt_solver_,
-                                            pono_options.engine_,
-                                            true,
-                                            pono_options.ceg_prophecy_arrays_);
-              FunctionalTransitionSystem fts(s);
-              BTOR2Encoder btor_enc(pono_options.filename_, fts);
-              PropertyInterfacecex prop_cex(pono_options.cex_reader_, std::string("RTL"), true, fts);       
-              if ((pono_options.add_assuption_in_origin_ == true)&&(step>0))
-              {       
-                PropertyInterface add_to_frame(filename_origin, fts);
-                add_to_frame.AddAssumptionsToTS();
-              }
-              std::cout<<"The reduction property cannot be used"<<std::endl;
-              Term prop_filter_single_re;
-              cex.clear();
-              prop_filter_single_re = prop_cex.cex_parse_to_pono_property(filter_re);
-              std::cout <<"The new reduction property for the repeat filter is : "<< prop_filter_single_re->to_raw_string() << std::endl;
-              if (((inductiveness = check_for_inductiveness(prop_filter_single_re, fts)) == false)){
-                std::cout <<"We cannot get any reduction."<<std::endl;
-                Term prop;
-                std::cout << "The final property is:"<<prop->to_raw_string() << std::endl;
-                res = check_prop_inv(pono_options, prop, fts, s, cex,step);
-                // res = check_prop(pono_options, prop, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
-              }
-              else{
-                res = check_prop_inv(pono_options, prop_filter_single_re, fts, s, cex, step);
-                // res = check_prop(pono_options, prop_filter_single, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
-                if(res ==FALSE){
-                  s.reset();
-                  SmtSolver s = create_solver_for(pono_options.smt_solver_,
-                                                pono_options.engine_,
-                                                true,
-                                                pono_options.ceg_prophecy_arrays_);
-                  FunctionalTransitionSystem fts(s);
-                  BTOR2Encoder btor_enc(pono_options.filename_, fts);
-                  PropertyInterfacecex prop_cex(pono_options.cex_reader_, std::string("RTL"), true, fts);      
-                  if ((pono_options.add_assuption_in_origin_ == true)&&(step>0))
-                  {       
-                    PropertyInterface add_to_frame(filename_origin, fts);
-                    add_to_frame.AddAssumptionsToTS();
-                  }
-                  cex.clear(); 
-                  std::cout <<"We cannot get any reduction."<<std::endl;
-                  Term prop;
-                  prop = prop_cex.cex_parse_to_pono_property();
-                  std::cout << "The final property is:"<<prop->to_raw_string() << std::endl;
-                  res = check_prop_inv(pono_options, prop, fts, s, cex,step);
-                  // res = check_prop(pono_options, prop, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
+  //           if (res ==FALSE){
+  //             s.reset();
+  //             SmtSolver s = create_solver_for(pono_options.smt_solver_,
+  //                                           pono_options.engine_,
+  //                                           true,
+  //                                           pono_options.ceg_prophecy_arrays_);
+  //             FunctionalTransitionSystem fts(s);
+  //             BTOR2Encoder btor_enc(pono_options.filename_, fts);
+  //             PropertyInterfacecex prop_cex(pono_options.cex_reader_, std::string("RTL"), true, fts);       
+  //             if ((pono_options.add_assuption_in_origin_ == true)&&(step>0))
+  //             {       
+  //               PropertyInterface add_to_frame(filename_origin, fts);
+  //               add_to_frame.AddAssumptionsToTS();
+  //             }
+  //             std::cout<<"The reduction property cannot be used"<<std::endl;
+  //             Term prop_filter_single_re;
+  //             cex.clear();
+  //             prop_filter_single_re = prop_cex.cex_parse_to_pono_property(filter_re);
+  //             std::cout <<"The new reduction property for the repeat filter is : "<< prop_filter_single_re->to_raw_string() << std::endl;
+  //             if (((inductiveness = check_for_inductiveness(prop_filter_single_re, fts)) == false)){
+  //               std::cout <<"We cannot get any reduction."<<std::endl;
+  //               Term prop;
+  //               std::cout << "The final property is:"<<prop->to_raw_string() << std::endl;
+  //               res = check_prop_inv(pono_options, prop, fts, s, cex,step);
+  //               // res = check_prop(pono_options, prop, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
+  //             }
+  //             else{
+  //               res = check_prop_inv(pono_options, prop_filter_single_re, fts, s, cex, step);
+  //               // res = check_prop(pono_options, prop_filter_single_re, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
+  //               if(res ==FALSE){
+  //                 s.reset();
+  //                 SmtSolver s = create_solver_for(pono_options.smt_solver_,
+  //                                               pono_options.engine_,
+  //                                               true,
+  //                                               pono_options.ceg_prophecy_arrays_);
+  //                 FunctionalTransitionSystem fts(s);
+  //                 BTOR2Encoder btor_enc(pono_options.filename_, fts);
+  //                 PropertyInterfacecex prop_cex(pono_options.cex_reader_, std::string("RTL"), true, fts);      
+  //                 if ((pono_options.add_assuption_in_origin_ == true)&&(step>0))
+  //                 {       
+  //                   PropertyInterface add_to_frame(filename_origin, fts);
+  //                   add_to_frame.AddAssumptionsToTS();
+  //                 }
+  //                 cex.clear(); 
+  //                 std::cout <<"We cannot get any reduction."<<std::endl;
+  //                 Term prop;
+  //                 prop = prop_cex.cex_parse_to_pono_property();
+  //                 std::cout << "The final property is:"<<prop->to_raw_string() << std::endl;
+  //                 res = check_prop_inv(pono_options, prop, fts, s, cex,step);
+  //                 // res = check_prop(pono_options, prop, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step);
 
-                }
-              }
-            }
-          }
-        }  
-      }
-      }   
+  //               }
+  //             }
+  //           }
+  //         }
+  //       }  
+  //     }
+  //     }   
+      
+      res = get_prop_inv(pono_options, 
+                  fts, 
+                  step, 
+                  s,
+                  cex);
       // we assume that a prover never returns 'ERROR'
       assert(res != ERROR);
       // ofstream res_collect;
