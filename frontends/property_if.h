@@ -36,6 +36,7 @@ class PropertyInterface : public smt::SmtLibReader
   smt::Term AddAssertions(const smt::Term &in) const;
 
   void AddAssumptionsToTS();
+  smt::TermVec con_assumption;
   smt::Term assumption;
  protected:
   // overloaded function, used when arg list of function is parsed
@@ -46,6 +47,7 @@ class PropertyInterface : public smt::SmtLibReader
 
   TransitionSystem & ts_;
   int step_;
+  int num_consider_;
   smt::TermVec assertions_;
   smt::TermVec assumptions_;
 
@@ -55,6 +57,7 @@ class PropertyInterfacecex : public CexExtractor
 {
   public:
   ////Build the Constructor//////
+  std::vector<int> get_width;
   typedef std::function<bool(const std::string &n)> filter_t;
   typedef std::function<bool(const smt::Term &n)> filter_r;
     PropertyInterfacecex(const std::string& vcd_file_name,
@@ -64,6 +67,7 @@ class PropertyInterfacecex : public CexExtractor
     smt::Term cex_parse_to_pono_property(filter_r filter_re);
     smt::Term cex_parse_to_pono_property(filter_t filter,filter_r filter_re);
     smt::Term cex_parse_to_pono_property();
+    int get_reg_width();
   protected:
     TransitionSystem & ts_;
 

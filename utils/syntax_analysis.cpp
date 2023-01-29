@@ -17,7 +17,7 @@
 #include "utils/syntax_analysis.h"
 #include "utils/syntax_analysis_walker.h"
 #include "utils/container_shortcut.h"
-
+#include "utils/term_analysis.h"
 #include <cassert>
 
 namespace pono {
@@ -50,7 +50,7 @@ unsigned VarTermManager::GetMoreTerms(IC3FormulaModel * pre, IC3FormulaModel * p
       // increase to WALL
       {
         unsigned nterm_walked = insert_from_termsmap_w_width(
-          varset_info.terms_buffer /*IN*/, varset_info /*OUT*/, varset_info.state.partial_width_done, (unsigned)(-1) );
+          varset_info.terms_buffer /*IN*/, varset_info /*OUT*/, varset_info.state.partial_width_done, (unsigned)(-1),false);
         varset_info.state.stage = PerVarsetInfo::state_t::WALL;
         if (nterm_walked != 0)
           return nterm_walked;
@@ -121,7 +121,7 @@ const PerVarsetInfo & VarTermManager::SetupTermsForVarModelNormal(
   unsigned width_start = 0;
   unsigned width_end = initial_term_width;
   do{
-    nterm_walked += insert_from_termsmap_w_width(terms /*IN*/, term_cache_item /*OUT*/, width_start, width_end );
+    nterm_walked += insert_from_termsmap_w_width(terms /*IN*/, term_cache_item /*OUT*/, width_start, width_end,true);
     width_start += initial_term_inc;
     width_end += initial_term_inc;
   } while(nterm_walked <= accumulated_term_bound);
@@ -392,23 +392,53 @@ void VarTermManager::const_to_per_varset(PerVarsetInfo & term_cache_item /*OUT*/
 
 unsigned VarTermManager::insert_from_termsmap_w_width(
   const std::map<unsigned, smt::TermVec> & terms /*IN*/, PerVarsetInfo & term_cache_item /*OUT*/ , 
-  unsigned width_bound_low /*IN*/, unsigned width_bound_high /*IN*/) 
+  unsigned width_bound_low /*IN*/, unsigned width_bound_high /*IN*/, bool check_symbol) 
 {
   unsigned nterm_walked = 0;
   for (auto && w_t_pair : terms) {
-    auto width = w_t_pair.first;
-    if (! (width >= width_bound_low && width < width_bound_high))
-      continue;
-
     const auto & tvec = w_t_pair.second;
-    for(auto && t : tvec) {
-      auto tstr = t->to_string();
-      auto ins_res = term_cache_item.terms_strings.insert(tstr);
-      if (ins_res.second) { // if indeed inserted
-        term_cache_item.terms[width].terms.push_back(t);
-        ++ nterm_walked;
-      }     
+    auto width = w_t_pair.first;
+    if (check_symbol){
+      int width_symbol;
+      for(auto && t : tvec){
+        auto symbol_set = get_free_symbols(t);
+        std::vector<int> width_vec;
+        for(auto symbol_name: symbol_set){
+          assert((symbol_name->get_sort()->to_string())!="BOOL");          
+          if (symbol_set.size()==1){
+            width_symbol = symbol_name-> get_sort()->get_width();
+            // continue;
+          }
+          else{
+            width_vec.push_back(symbol_name-> get_sort()->get_width());
+            width_symbol = *max_element(width_vec.begin(), width_vec.end());
+          }
+        }
+        if (! (width_symbol >= width_bound_low && width_symbol < width_bound_high))
+            continue; 
+        auto tstr = t->to_string();
+        auto ins_res = term_cache_item.terms_strings.insert(tstr);
+        if (ins_res.second) { // if indeed inserted
+          term_cache_item.terms[width].terms.push_back(t);
+          ++ nterm_walked;
+        }
+    }
+    }
+    else{
+      
+      if (! (width >= width_bound_low && width < width_bound_high))
+        continue;
+      
+      
+      for(auto && t : tvec) {
+        auto tstr = t->to_string();
+        auto ins_res = term_cache_item.terms_strings.insert(tstr);
+        if (ins_res.second) { // if indeed inserted
+          term_cache_item.terms[width].terms.push_back(t);
+          ++ nterm_walked;
+        }     
     } // end for each term
+    }
   } // end for terms
   const_to_per_varset(term_cache_item, width_bound_low, width_bound_high, nterm_walked);
   return nterm_walked;
