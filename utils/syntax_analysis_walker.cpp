@@ -53,9 +53,7 @@ void Walker::WalkBFS(const smt::Term & ast) {
       term_stack.pop_back();
       continue;
     }
-    // for (const auto & term:term_stack){
-    //     std::cout<< term.first-> to_string()<<term.second<<std::endl;
-    // }
+
     if (cur.second) { // this is after its children
       PostChild(astnode);
       term_stack.pop_back();

@@ -92,8 +92,8 @@ SygusPdr::SygusPdr(const Property & p, const TransitionSystem & ts,
     partial_model_getter(solver_),
     has_assumptions(true) // most conservative way
 {
-  // solver_->set_opt("incremental","true");
-  // solver_->set_opt("produce-unsat-assumptions", "true");
+  solver_->set_opt("produce-unsat-assumptions", "true");
+
   // we need to have the reset-assertion capability 
   if(solver_->get_solver_enum() == SolverEnum::BTOR)
     solver_->set_opt("base-context-1", "true");
@@ -173,9 +173,6 @@ void SygusPdr::initialize()
 
   build_ts_related_info();
   
-  // for( const auto nxt:nxt_state_updates_){
-  //   std::cout<<nxt.first->to_string()<<std::endl;
-  // }
  // has_assumption -- on the original one
   has_assumptions = false;
   assert(!nxt_state_updates_.empty());
@@ -361,7 +358,7 @@ IC3Formula SygusPdr::inductive_generalization(
     T = ts_.trans();
     F_T_not_cex = make_and( {Fprev, T} ); // , not_cex
     base = 
-      solver_->make_term(Or,// This formula achieve the formula 10 in the paper
+      solver_->make_term(Or,
         F_T_not_cex,
         Init_prime);
 
@@ -472,14 +469,14 @@ IC3Formula SygusPdr::select_predicates_btor(const Term & base, const TermVec & p
 
   push_solver_context();
     disable_all_labels();
-    syntax_analysis::reduce_unsat_core_to_fixedpoint(base, unsatcore, solver_);//Score of unsatcore;
+    syntax_analysis::reduce_unsat_core_to_fixedpoint(base, unsatcore, solver_);
   pop_solver_context();
 
   D(3,"[IterativeReduction] End core size {}", unsatcore.size());
   
   std::vector<std::pair<unsigned, Term>> score_vec;
   for (const auto & t : unsatcore) {
-    auto score = GetScore(t);//Score of unsatcore;
+    auto score = GetScore(t);
     score_vec.push_back(std::make_pair(score, t));
   }
   std::sort(score_vec.begin(),score_vec.end());
@@ -493,7 +490,7 @@ IC3Formula SygusPdr::select_predicates_btor(const Term & base, const TermVec & p
   }
   push_solver_context();
     disable_all_labels();
-    syntax_analysis::reduce_unsat_core_linear(base, sorted_unsatcore, solver_);////Continue to erduce the unsatcore according to the score
+    syntax_analysis::reduce_unsat_core_linear(base, sorted_unsatcore, solver_);
   pop_solver_context();
 
   #ifdef DEBUG
