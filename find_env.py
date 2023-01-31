@@ -9,13 +9,20 @@ def try_rm(name):
     except:
         pass
 
+def try_open(inv_file):
+     try:
+          count_file = len(open(inv_file,'r').readlines())
+     except:
+          count_file = 0
+     return count_file
+
 if __name__ == '__main__':
      parser = argparse.ArgumentParser()
      parser.add_argument('--path_cex', type=str,default='cex.vcd')
      parser.add_argument('--engine', type=str,default='sygus-pdr')
      # parser.add_argument('--ILA_path', type=str,default='/data/zhiyuany/ILA-Tools/test/unit-data/vpipe/verify_two/ADD/')
-     parser.add_argument('--path_design', type=str,default='/data/zhiyuany/ILA-Tools/test/unit-data/vpipe/output/design.btor')
-     parser.add_argument('--ILA_model', type=str,default='/data/zhiyuany/ILA-Tools/test/unit-data/vpipe/verify_two/ADD/problem.btor2')
+     parser.add_argument('--path_design', type=str,default='/data/zhiyuany/EnvSynSamples/ILAng/AES/envinvsyn/design.btor')
+     parser.add_argument('--ILA_model', type=str,default='/data/zhiyuany/EnvSynSamples/ILAng/AES/verification/LOAD/problem.btor2')
      parser.add_argument('--inv_path', type=str,default='inductive_invariant')
      parser.add_argument('--init-term-width', type=int, default=4, metavar='N',
                     help='Initial terms width')
@@ -51,9 +58,11 @@ if __name__ == '__main__':
      if opts.continue_from == False:
           while(count == count_file):
                inv_file = os.path.join(inv_path,'inv' +'.smt2')
+               inv_origin = os.path.join(inv_path,'inv_origin.smt2')
                if count ==0:
-                    # os.chdir(opts.ILA_path)
                     try_rm(path_cex)
+                    try_rm(inv_file)
+                    try_rm(inv_origin)
                     subprocess.run(["./build/pono","--vcd", "{:s}" .format(path_cex),"-e","{:s}" .format("ind"), "{:s}" .format(opts.ILA_model)])
                     if os.path.exists(path_cex) == False:
                          # print("The enviroment invariant is found")
@@ -61,11 +70,12 @@ if __name__ == '__main__':
                          break
                     logger.info("The step is {:d}" .format(count))
                     # print("The step is {:d}" .format(count))
-                    subprocess.run(["./build/pono-env","-e","{:s}" .format(engine),"--cex-reader","{:s}" .format(path_cex),
+                    subprocess.run(["./build/pono-env","--engine","{:s}" .format(engine),"--bound","{:s}" .format("10"),"--cex-reader","{:s}" .format(path_cex),
                     "--num-of-itr","{:s}" .format(str(count)),"--sygus-initial-term-width","{:s}" .format(str(init_term_width)),
                     "--find-environment-invariant","--show-invar","--promote-inputvars","--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(path_design)])
                     count = count +1
-                    count_file = len(open(inv_file,'r').readlines())
+                    count_file = try_open(inv_file)
+                    # count_file = len(open(inv_file,'r').readlines())
                     if count !=count_file:
                          # print("The enviroment invariant can not be found, the design is unsafe")
                          logger.info("The enviroment invariant can not be found, the design is unsafe")
@@ -77,20 +87,17 @@ if __name__ == '__main__':
                     try_rm(path_cex)
                     subprocess.run(["./build/pono","--vcd" , "{:s}" .format(path_cex),"-e","{:s}" .format("ind"), "--property-file", "{:s}" .format(inv_file),"{:s}" .format(opts.ILA_model)])
                     if os.path.exists(path_cex) == False:
-                         # print("The enviroment invariant is found")
                          logger.info("The enviroment invariant is found")
                          break
-                    # os.chdir(cosa_path)
-                    # cex_file_cosa = os.path.join(path,path_cex)
                     logger.info("The step is {:d}" .format(count))
                     # print("The step is {:d}" .format(count))           
-                    subprocess.run(["./build/pono-env","-e","{:s}" .format(engine),"--cex-reader","{:s}" .format(path_cex),
+                    subprocess.run(["./build/pono-env","-e","{:s}" .format(engine),"--bound","{:s}" .format("10"),"--cex-reader","{:s}" .format(path_cex),
                     "--num-of-itr","{:s}" .format(str(count)),"--sygus-initial-term-width","{:s}" .format(str(init_term_width)),
-                    "--find-environment-invariant","--show-invar","--promote-inputvars","--add_assumption_in_origin_file","--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(path_design)])
-                    count_file = len(open(inv_file,'r').readlines())
+                    "--find-environment-invariant","--show-invar","--promote-inputvars","--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(path_design)])
+                    count_file = try_open(inv_file)
+                    # count_file = len(open(inv_file,'r').readlines()) 
                     count = count+1     
                     if count !=count_file:
-                         # print("The enviroment invariant can not be found, the design is unsafe")
                          logger.info("The enviroment invariant can not be found, the design is unsafe")
                          break       
                     logger.info("The original bad state is blocked, continue to the next step")
@@ -115,10 +122,11 @@ if __name__ == '__main__':
                # cex_file_cosa = os.path.join(path,path_cex)
                # print("The step is {:d}" .format(count))           
                logger.info("The step is {:d}" .format(count))
-               subprocess.run(["./build/pono-env","-e","{:s}" .format(engine),"--cex-reader","{:s}" .format(path_cex),
+               subprocess.run(["./build/pono-env","-e","{:s}" .format(engine),"--bound","{:s}" .format("50"),"--cex-reader","{:s}" .format(path_cex),
                "--num-of-itr","{:s}" .format(str(count)),"--sygus-initial-term-width","{:s}" .format(str(init_term_width)),
-               "--find-environment-invariant","--show-invar","--check-invar","--promote-inputvars","--add_assumption_in_origin_file","--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(path_design)])
-               count_file = len(open(inv_file,'r').readlines())
+               "--find-environment-invariant","--show-invar","--check-invar","--promote-inputvars","--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(path_design)])
+               count_file = try_open(inv_file)
+               # count_file = len(open(inv_file,'r').readlines())
                count = count+1 
                if count_file !=count:
                     # print("The enviroment invariant can not be found, the design is unsafe")

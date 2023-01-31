@@ -148,7 +148,7 @@ smt::Term PropertyInterfacecex::cex_parse_to_pono_property(filter_t filter,filte
 }
 
 
-smt::Term PropertyInterfacecex::cex_parse_to_pono_property(filter_r filter_re){
+smt::Term PropertyInterfacecex::cex_parse_to_pono_property(filter_r filter_re, filter_t filter){
   smt::Term prop;
   for (const auto & var_val_pair : GetCex() ) {
     const auto & var_name = var_val_pair.first;
@@ -166,6 +166,10 @@ smt::Term PropertyInterfacecex::cex_parse_to_pono_property(filter_r filter_re){
     else
       prop = ts_.make_term(And, prop, eq);
   }
+  if (prop==nullptr)
+    {
+      return cex_parse_to_pono_property(filter);
+    }
   return ts_.make_term(Not, prop);
 
 }

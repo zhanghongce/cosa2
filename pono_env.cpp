@@ -262,14 +262,14 @@ Term get_term_with_width_fil(FilterConcat filter, PropertyInterfacecex prop_cex)
 
 
 
-Term get_term_with_repeat_fil(int num_consider, PropertyInterfacecex prop_cex, TransitionSystem &fts, int step, std::string filename_origin){
-        std::cout<<"The current reduction property cannot be used."<<std::endl;
-        RepeatFilter filter_re(filename_origin,fts,step);
-        Term prop_filter_single_re;
-        prop_filter_single_re = prop_cex.cex_parse_to_pono_property(filter_re);
-        std::cout <<"The new reduction property for the repeat filter is : "<< prop_filter_single_re->to_raw_string() << std::endl;
-        return prop_filter_single_re;
-}
+// Term get_term_with_repeat_fil(int num_consider, PropertyInterfacecex prop_cex, TransitionSystem &fts, int step, std::string filename_origin){
+//         std::cout<<"The current reduction property cannot be used."<<std::endl;
+//         RepeatFilter filter_re(filename_origin,fts,step);
+//         Term prop_filter_single_re;
+//         prop_filter_single_re = prop_cex.cex_parse_to_pono_property(filter_re,filter);
+//         std::cout <<"The new reduction property for the repeat filter is : "<< prop_filter_single_re->to_raw_string() << std::endl;
+//         return prop_filter_single_re;
+// }
 
 Term get_term_without_fil( PropertyInterfacecex prop_cex){
       std::cout <<"We cannot get any reduction."<<std::endl;
@@ -678,168 +678,17 @@ ProverResult check_prop(PonoOptions pono_options,
 
   return r;
 }
-// ProverResult get_prop_inv(PonoOptions pono_options, 
-//                   TransitionSystem fts, 
-//                   int step, 
-//                   SmtSolver s,
-//                   std::string filename_origin, 
-//                   vector<UnorderedTermMap> cex,
-//                   int num_consider)
-// {
-//       ProverResult res;
-//       PropertyInterfacecex prop_cex(pono_options.cex_reader_, std::string("RTL"), true, fts);
-//       FilterConcat filter;
-//       Term prop_filter;
-//       filter.filters.push_back(std::make_shared<MaxWidthFilter>(pono_options.sygus_initial_term_width_,fts));
-//       if(step>=num_consider){
-//           RepeatFilter filter_re(filename_origin,fts,step,num_consider);
-//           prop_filter = prop_cex.cex_parse_to_pono_property(filter,filter_re);
-//         }
-//         else{
-//           prop_filter = prop_cex.cex_parse_to_pono_property(filter);
-//         }
-//       bool inductiveness;
-//       std::cout <<"The initial reduction property for the filter is: "<< prop_filter->to_raw_string() << std::endl;
-//       if( ((inductiveness = check_for_inductiveness(prop_filter, fts)) == false)&&(step>=num_consider)) {
-//         if (num_consider>1){
-//             int copy_num = num_consider;
-//             while (copy_num>1){
-//               copy_num = copy_num - 1;
-//               auto prop_filter_dual = get_term_with_dual_fil(filter, copy_num, prop_cex, fts, step, filename_origin);
-//               if (((inductiveness = check_for_inductiveness(prop_filter_dual, fts)) == false)||(prop_filter_dual->to_string()==prop_filter->to_string())){
-//                 continue;
-//               }
-//               res = check_prop_inv(pono_options, prop_filter_dual, fts, s, cex, pono_options.smt_solver_, pono_options.engine_, step);
-//               if (res==TRUE){
-//                 return res;
-//               }
-//             }
-//           }
-//         else{
-//           auto prop_filter_single = get_term_with_width_fil(filter, prop_cex);
-//           if((prop_filter_single->to_string() == prop_filter->to_string())||((inductiveness = check_for_inductiveness(prop_filter_single, fts)) == false)){
-//             if (num_consider>=1){
-//               int copy_num = num_consider;
-//               while (copy_num>=1){
-//                 auto prop_filter_re = get_term_with_repeat_fil(copy_num, prop_cex, fts, step,filename_origin);
-//                 copy_num = copy_num - 1;
-//                 if (((inductiveness = check_for_inductiveness(prop_filter_re, fts)) == false)||(prop_filter_re->to_string()==prop_filter->to_string())){
-//                   continue;
-//                 }
-//                 res = check_prop_inv(pono_options, prop_filter_re, fts, s, cex, pono_options.smt_solver_, pono_options.engine_, step);
-//                 if (res==TRUE){
-//                   return res;
-//                 }
-//               }
-//             }
-//             auto prop = get_term_without_fil(prop_cex);
-//             res = check_prop_inv(pono_options, prop, fts, s, cex, pono_options.smt_solver_, pono_options.engine_, step);
-//             return res;
-//           }
-//           else{
-//               res = check_prop_inv(pono_options, prop_filter_single, fts, s, cex, pono_options.smt_solver_, pono_options.engine_, step);
-//               if(res==TRUE){
-//                 return res;
-//               }
-//               else if(res ==FALSE){
-//                 if (num_consider>=1){          
-//                   int copy_num = num_consider;
-//                   while (copy_num>=1){
-//                     auto prop_filter_re = get_term_with_repeat_fil(copy_num, prop_cex, fts, step,filename_origin);
-//                     copy_num = copy_num - 1;
-//                     if (((inductiveness = check_for_inductiveness(prop_filter_re, fts)) == false)||(prop_filter_re->to_string()==prop_filter->to_string())){
-//                       continue;
-//                     }
-//                     res = check_prop_inv(pono_options, prop_filter_re, fts, s, cex, pono_options.smt_solver_, pono_options.engine_, step);
-//                     if (res==TRUE){
-//                       return res;
-//                     }
-//                   }
-//                 }
-//                 auto prop = get_term_without_fil(prop_cex);
-//                 res = check_prop_inv(pono_options, prop, fts, s, cex, pono_options.smt_solver_, pono_options.engine_, step);
-//                 return res;
-                
-//               }
-//             }
-//           }
-//       }
-//       else{
-//         res = check_prop_inv(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_, pono_options.engine_, step);
-//         if(res == TRUE){
-//           return res;
-//         }
-//         else if(res == FALSE){
-//           if (step<num_consider){
-//             auto prop = get_term_without_fil(prop_cex);
-//             res = check_prop_inv(pono_options, prop, fts, s, cex, pono_options.smt_solver_, pono_options.engine_, step);
-//             return res;
-//           }
-          
-//           if (num_consider>1){
-//               int copy_num = num_consider;
-//               while (copy_num>1){
-//                 auto prop_filter_re = get_term_with_dual_fil(filter, copy_num, prop_cex, fts, step, filename_origin);
-//                 copy_num = copy_num - 1;
-//                 if (((inductiveness = check_for_inductiveness(prop_filter_re, fts)) == false)||(prop_filter_re->to_string()==prop_filter->to_string())){
-//                   continue;
-//                 }
-//                 res = check_prop_inv(pono_options, prop_filter_re, fts, s, cex, pono_options.smt_solver_, pono_options.engine_, step);
-//                 if (res==TRUE){
-//                   return res;
-//                 }
-//               }
-//             }
-//         auto prop_filter_single = get_term_with_width_fil(filter, prop_cex);
-//         if((prop_filter_single->to_string() == prop_filter->to_string())||((inductiveness = check_for_inductiveness(prop_filter_single, fts)) == false)){
-//           if (num_consider>=1){
-//             int copy_num = num_consider;
-//             while (copy_num>=1){
-//               auto prop_filter_re = get_term_with_repeat_fil(copy_num, prop_cex, fts, step,filename_origin);
-//               copy_num = copy_num - 1;
-//               if (((inductiveness = check_for_inductiveness(prop_filter_re, fts)) == false)||(prop_filter_re->to_string()==prop_filter->to_string())){
-//                 continue;
-//               }
-//               res = check_prop_inv(pono_options, prop_filter_re, fts, s, cex, pono_options.smt_solver_, pono_options.engine_, step);
-//               if (res==TRUE){
-//                 return res;
-//               }
-//             }
 
-//           }
-//           auto prop = get_term_without_fil(prop_cex);
-//           res = check_prop_inv(pono_options, prop, fts, s, cex, pono_options.smt_solver_, pono_options.engine_, step);
-//           return res;
-//         }
-//         else{
-//             res = check_prop_inv(pono_options, prop_filter_single, fts, s, cex, pono_options.smt_solver_, pono_options.engine_, step);
-//             if (res==TRUE){
-//               return res;
-//             }
-//             else if(res ==FALSE){        
-//               if (num_consider>=1){          
-//                 int copy_num = num_consider;
-//                 while (copy_num>=1){
-//                   auto prop_filter_re = get_term_with_repeat_fil(copy_num, prop_cex, fts, step,filename_origin);
-//                   copy_num = copy_num - 1;
-//                   if (((inductiveness = check_for_inductiveness(prop_filter_re, fts)) == false)&&(prop_filter_re->to_string()==prop_filter->to_string())){
-//                     continue;
-//                   }
-//                   res = check_prop_inv(pono_options, prop_filter_re, fts, s, cex, pono_options.smt_solver_, pono_options.engine_, step);
-//                   if (res==TRUE){
-//                     return res;
-//                   }
-//                 }
-//               }
-//               auto prop = get_term_without_fil(prop_cex);
-//               res = check_prop_inv(pono_options, prop, fts, s, cex, pono_options.smt_solver_, pono_options.engine_, step);
-//               return res;
-//             }
-//           }
-//         } 
+// int check_repeat(Term prop_filter,UnorderedTermSet prop_check){
+//     int idx = 0;
+//     for (Term it: prop_check){
+//       if (it->to_string()==prop_filter->to_string()){
+//         idx = 1;
+//         break;
 //       } 
+//     }
+//     return idx;
 // }
-  
 
 ProverResult get_prop_inv(PonoOptions pono_options, 
                   TransitionSystem fts, 
@@ -853,6 +702,7 @@ ProverResult get_prop_inv(PonoOptions pono_options,
       FilterConcat filter;
       Term prop_filter;
       std::queue<pair<Term,std::string>> prop_queue;
+      UnorderedTermSet prop_check;
       std::string filename_origin = pono_options.smt_path_ + "/" + "inv_origin.smt2";
       filter.filters.push_back(std::make_shared<MaxWidthFilter>(pono_options.sygus_initial_term_width_,fts));
       bool inductiveness;
@@ -866,38 +716,76 @@ ProverResult get_prop_inv(PonoOptions pono_options,
           RepeatFilter filter_re(filename_origin,fts,step);
           if(repeat_first){
             prop_filter = prop_cex.cex_parse_to_pono_property(filter,filter_re);
-            if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true))
+            if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true)){
               prop_queue.push(make_pair(prop_filter,"dual filter"));
-            prop_filter = prop_cex.cex_parse_to_pono_property(filter_re);
-            if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true))
-              prop_queue.push(make_pair(prop_filter,"repeat filter"));
+              // prop_check.insert(prop_filter);
+            }
+            prop_filter = prop_cex.cex_parse_to_pono_property(filter_re,filter);
+            if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true)){
+              // auto idx = check_repeat(prop_filter, prop_check);
+              // if(idx == 0){
+                prop_queue.push(make_pair(prop_filter,"repeat filter"));
+                // prop_check.insert(prop_filter);
+              // }
+                
+            }
             prop_filter = prop_cex.cex_parse_to_pono_property(filter);
-            if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true))
-              prop_queue.push(make_pair(prop_filter,"width filter"));
+            if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true)){
+              // auto idx = check_repeat(prop_filter, prop_check);
+              // if(idx == 0){
+                prop_queue.push(make_pair(prop_filter,"width filter"));
+              //   prop_check.insert(prop_filter);
+              // }
+                
+            }
             prop_filter = prop_cex.cex_parse_to_pono_property();
+            // auto idx = check_repeat(prop_filter, prop_check);
+            // if(idx == 0){
             prop_queue.push(make_pair(prop_filter,"without filter"));
+              // prop_check.insert(prop_filter);
+            // }
+            
           }
           else{
             prop_filter = prop_cex.cex_parse_to_pono_property(filter,filter_re);
-            if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true))
+            if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true)){
               prop_queue.push(make_pair(prop_filter,"dual filter"));
+              prop_check.insert(prop_filter);
+            }
             prop_filter = prop_cex.cex_parse_to_pono_property(filter);
-            if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true))
-              prop_queue.push(make_pair(prop_filter,"width filter"));
-            prop_filter = prop_cex.cex_parse_to_pono_property(filter_re);
-            if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true))
-              prop_queue.push(make_pair(prop_filter,"repeat filter"));
+            if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true)){
+              // auto idx = check_repeat(prop_filter, prop_check);
+              // if(idx == 0){
+                prop_queue.push(make_pair(prop_filter,"width filter"));
+              //   prop_check.insert(prop_filter);
+              // }    
+            }
+            prop_filter = prop_cex.cex_parse_to_pono_property(filter_re,filter);
+            if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true)){
+              // auto idx = check_repeat(prop_filter, prop_check);
+              // if(idx == 0){
+                prop_queue.push(make_pair(prop_filter,"repeat filter"));
+              //   prop_check.insert(prop_filter);
+              // }            
+            }
             prop_filter = prop_cex.cex_parse_to_pono_property();
-            prop_queue.push(make_pair(prop_filter,"without filter"));
+            // auto idx = check_repeat(prop_filter, prop_check);
+            // if(idx == 0){
+              prop_queue.push(make_pair(prop_filter,"without filter"));
+            // }
           }
-
         }
         else{
           prop_filter = prop_cex.cex_parse_to_pono_property(filter);
-          if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true))
+          if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true)){
             prop_queue.push(make_pair(prop_filter,"width filter"));
+            // prop_check.insert(prop_filter);
+          } 
           prop_filter = prop_cex.cex_parse_to_pono_property();
+          // auto idx = check_repeat(prop_filter, prop_check);
+          // if(idx = 0){
           prop_queue.push(make_pair(prop_filter,"without filter"));
+            // }
         }
       // std::cout <<"The initial reduction property for the filter is: "<< prop_filter->to_raw_string() << std::endl;
       Term prop;
@@ -907,13 +795,16 @@ ProverResult get_prop_inv(PonoOptions pono_options,
       prop_queue.pop();
       std::cout <<"The initial reduction property for the filter is: "<< prop->to_raw_string() <<std::endl;
       std::cout << "The filter we use is: "<< fil_name <<std::endl; 
-      while ((res = check_prop(pono_options, prop, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step))==FALSE)
+      while ((res = check_prop(pono_options, prop, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step))!=TRUE)
       {
         if(prop_queue.empty()==true){
           return res;
         }
         prop = prop_queue.front().first;
         fil_name = prop_queue.front().second;
+        if (prop_queue.size()==1){
+          pono_options.bound_ = 150;
+        }
         prop_queue.pop();
         std::cout << "The original filter cannot be used." <<std::endl;
         std::cout <<"The new reduction property for the filter is: "<< prop->to_raw_string() <<std::endl;

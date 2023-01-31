@@ -64,7 +64,7 @@ class PropertyInterfacecex : public CexExtractor
                            const std::string& scope,
                            bool reg_only, TransitionSystem & ts);
     smt::Term cex_parse_to_pono_property(filter_t filter);
-    smt::Term cex_parse_to_pono_property(filter_r filter_re);
+    smt::Term cex_parse_to_pono_property(filter_r filter_re, filter_t filter);
     smt::Term cex_parse_to_pono_property(filter_t filter,filter_r filter_re);
     smt::Term cex_parse_to_pono_property();
     int get_reg_width();
