@@ -711,7 +711,7 @@ ProverResult get_prop_inv(PonoOptions pono_options,
       FilterConcat filter;
       Term prop_filter;
       std::queue<pair<Term,std::string>> prop_queue;
-      UnorderedTermSet prop_check;
+      // UnorderedTermSet prop_check;
       std::string filename_origin = pono_options.smt_path_ + "/" + "inv_origin.smt2";
       filter.filters.push_back(std::make_shared<MaxWidthFilter>(pono_options.sygus_initial_term_width_,fts));
       bool inductiveness;
