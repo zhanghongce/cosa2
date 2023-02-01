@@ -16,17 +16,34 @@ def log2fs(s):
     t = datetime.datetime.now()
     print(t,'--->',s)
     with open('cegar.log', 'a') as fout:
-        fout.write(t)    
+        fout.write(str(t))
         fout.write(' ---> ')
         fout.write(s)    
         fout.write('\n')
+
+def getiter():
+    old_num = 0
+    with open("envinv.smt2") as fin:
+        for line in fin.readlines():
+            #                   01234567890123456789012
+            if line.startswith('(define-fun assumption.'):
+                idx = line.index(' ',22)
+                old_num = int(line[23:idx]) + 1
+    return old_num
 
 def run_cegar(n_iteration, qedbtor, dutbtor):
     # create envinv.smt2 when necessary
     if not os.path.exists("envinv.smt2"):
         with open("envinv.smt2",'w') as fout:
             fout.write('')
-    
+        if n_iteration != 0:
+            print ('WARNING : empty file should start from iter #0')
+    else:
+        n_iter_from_file = getiter()
+        if n_iter_from_file != n_iteration:
+            print ('WARNING : advancing iter from',n_iteration,'to',n_iter_from_file)
+            n_iteration = n_iter_from_file
+        
     errFlag = False
     while not errFlag:
         try_rm("check.result")
@@ -60,7 +77,7 @@ def run_cegar(n_iteration, qedbtor, dutbtor):
         try_rm("check.result")
         oldsize = os.path.getsize('envinv.smt2')
         log2fs('running cex validation iter #'+str(n_iteration))   
-        subprocess.run(["./cexvalidate","--num-of-itr", str(n_iteration), dutbtor])
+        subprocess.run(["./cexvalidate","--num-of-itr", str(n_iteration), "-k", '1000', dutbtor])
         
         try:
             result = open('result.txt')
