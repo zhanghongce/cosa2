@@ -731,7 +731,7 @@ ProverResult get_prop_inv(PonoOptions pono_options,
                 prop_queue.push(make_pair(prop_filter,"dual filter"));
                 prop_check.insert(prop_filter);
             }
-            prop_filter = prop_cex.cex_parse_to_pono_property(filter_re);
+            prop_filter = prop_cex.cex_parse_to_pono_property(filter_re,filter);
             if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true))
             {
                 re = check_previous(prop_filter,prop_check);
@@ -770,7 +770,7 @@ ProverResult get_prop_inv(PonoOptions pono_options,
                 prop_check.insert(prop_filter);
                 }
               }
-            prop_filter = prop_cex.cex_parse_to_pono_property(filter_re);
+            prop_filter = prop_cex.cex_parse_to_pono_property(filter_re,filter);
             if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true)){
                 re = check_previous(prop_filter,prop_check);
                 if(re==false){               
