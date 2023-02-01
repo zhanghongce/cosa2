@@ -33,8 +33,8 @@ if __name__ == '__main__':
      opts = parser.parse_args(args=[
           '--path_cex','cex_2.vcd',
           '--engine','sygus-pdr',
-          '--path_design','/data/zhiyuany/ILA-Tools/test/unit-data/vpipe/output/design.btor',
-          '--ILA_model' , '/data/zhiyuany/ILA-Tools/test/unit-data/vpipe/verify_two/ADD/problem.btor2',
+          '--path_design','/data/zhiyuany/EnvSynSamples/ILAng/RC/envinvsyn/design.btor',
+          '--ILA_model' , '/data/zhiyuany/EnvSynSamples/ILAng/RC/verification/INC/problem.btor2',
           '--inv_path','inductive_invariant'
           # '--continue_from',
           # '--continue-file','inv.smt2'

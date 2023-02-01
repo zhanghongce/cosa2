@@ -694,9 +694,9 @@ bool check_previous(Term prop_filter, UnorderedTermSet prop_check)
 {
   for (auto prop:prop_check){
     if(prop->to_string()== prop_filter->to_string())
-      return false;
+      return true;
   }
-  return true;
+  return false;
 }
 ProverResult get_prop_inv(PonoOptions pono_options, 
                   TransitionSystem fts, 
@@ -731,8 +731,8 @@ ProverResult get_prop_inv(PonoOptions pono_options,
                 prop_queue.push(make_pair(prop_filter,"dual filter"));
                 prop_check.insert(prop_filter);
             }
-            prop_filter = prop_cex.cex_parse_to_pono_property(filter_re,filter);
-            if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true))
+            prop_filter = prop_cex.cex_parse_to_pono_property(filter_re);
+            if((prop_filter!=nullptr)&&((inductiveness = check_for_inductiveness(prop_filter, fts)) == true))
             {
                 re = check_previous(prop_filter,prop_check);
                 if(re==false){               
@@ -749,12 +749,7 @@ ProverResult get_prop_inv(PonoOptions pono_options,
                 }
             }
             prop_filter = prop_cex.cex_parse_to_pono_property();
-            // auto idx = check_repeat(prop_filter, prop_check);
-            // if(idx == 0){
             prop_queue.push(make_pair(prop_filter,"without filter"));
-              // prop_check.insert(prop_filter);
-            // }
-            
           }
           else{
             prop_filter = prop_cex.cex_parse_to_pono_property(filter,filter_re);
@@ -770,8 +765,8 @@ ProverResult get_prop_inv(PonoOptions pono_options,
                 prop_check.insert(prop_filter);
                 }
               }
-            prop_filter = prop_cex.cex_parse_to_pono_property(filter_re,filter);
-            if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true)){
+            prop_filter = prop_cex.cex_parse_to_pono_property(filter_re);
+            if((prop_filter!=nullptr)&&((inductiveness = check_for_inductiveness(prop_filter, fts)) == true)){
                 re = check_previous(prop_filter,prop_check);
                 if(re==false){               
                   prop_queue.push(make_pair(prop_filter,"repeat filter"));
