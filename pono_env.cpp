@@ -841,6 +841,14 @@ ProverResult check_prop(PonoOptions pono_options,
 // }
   
 
+bool check_previous(Term prop_filter, UnorderedTermSet prop_check)
+{
+  for (auto prop:prop_check){
+    if(prop->to_string()== prop_filter->to_string())
+      return false;
+  }
+  return true;
+}
 ProverResult get_prop_inv(PonoOptions pono_options, 
                   TransitionSystem fts, 
                   int step, 
@@ -849,6 +857,7 @@ ProverResult get_prop_inv(PonoOptions pono_options,
 {
       ProverResult res;
       PropertyInterfacecex prop_cex(pono_options.cex_reader_, std::string("RTL"), true, fts);
+      UnorderedTermSet prop_check;
       pono_options.sygus_initial_term_width_= prop_cex.get_reg_width();
       FilterConcat filter;
       Term prop_filter;
@@ -862,31 +871,58 @@ ProverResult get_prop_inv(PonoOptions pono_options,
         add_to_frame.AddAssumptionsToTS();
       }      
       bool repeat_first = true;
+      bool re;
       if(step>0){
           RepeatFilter filter_re(filename_origin,fts,step);
           if(repeat_first){
             prop_filter = prop_cex.cex_parse_to_pono_property(filter,filter_re);
             if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true))
-              prop_queue.push(make_pair(prop_filter,"dual filter"));
+            {
+                prop_queue.push(make_pair(prop_filter,"dual filter"));
+                prop_check.insert(prop_filter);
+            }
             prop_filter = prop_cex.cex_parse_to_pono_property(filter_re);
             if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true))
-              prop_queue.push(make_pair(prop_filter,"repeat filter"));
+            {
+                re = check_previous(prop_filter,prop_check);
+                if(re==false){               
+                  prop_queue.push(make_pair(prop_filter,"repeat filter"));
+                  prop_check.insert(prop_filter);
+                }
+            }
             prop_filter = prop_cex.cex_parse_to_pono_property(filter);
-            if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true))
-              prop_queue.push(make_pair(prop_filter,"width filter"));
+            if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true)){
+                re = check_previous(prop_filter,prop_check);
+                if(re==false){
+                prop_queue.push(make_pair(prop_filter,"width filter"));
+                prop_check.insert(prop_filter);
+                }
+            }
             prop_filter = prop_cex.cex_parse_to_pono_property();
             prop_queue.push(make_pair(prop_filter,"without filter"));
           }
           else{
             prop_filter = prop_cex.cex_parse_to_pono_property(filter,filter_re);
-            if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true))
+            if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true)){
               prop_queue.push(make_pair(prop_filter,"dual filter"));
+              prop_check.insert(prop_filter);
+            }
             prop_filter = prop_cex.cex_parse_to_pono_property(filter);
-            if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true))
-              prop_queue.push(make_pair(prop_filter,"width filter"));
+            if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true)){
+                re = check_previous(prop_filter,prop_check);
+                if(re==false){
+                prop_queue.push(make_pair(prop_filter,"width filter"));
+                prop_check.insert(prop_filter);
+                }
+              }
             prop_filter = prop_cex.cex_parse_to_pono_property(filter_re);
-            if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true))
-              prop_queue.push(make_pair(prop_filter,"repeat filter"));
+            if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true)){
+                re = check_previous(prop_filter,prop_check);
+                if(re==false){               
+                  prop_queue.push(make_pair(prop_filter,"repeat filter"));
+                  prop_check.insert(prop_filter);
+                }
+            }
             prop_filter = prop_cex.cex_parse_to_pono_property();
             prop_queue.push(make_pair(prop_filter,"without filter"));
           }
