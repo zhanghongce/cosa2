@@ -502,7 +502,7 @@ int main(int argc, char ** argv)
     
     }
     else{
-    if (pono_options.cex_reader_.empty()){
+    if ((pono_options.cex_reader_.empty())&(pono_options.property_file_.empty())){
         const TermVec & propvec = btor_enc.propvec();
         unsigned int num_props = propvec.size();
         /// YZY: I am not sure whether we need to comment the following code
@@ -517,6 +517,10 @@ int main(int argc, char ** argv)
         prop = propvec[pono_options.prop_idx_];
     }
       if(!pono_options.property_file_.empty()) {
+        const TermVec & propvec = btor_enc.propvec();
+        unsigned int num_props = propvec.size();
+        if (num_props!=0)
+          prop = propvec[pono_options.prop_idx_];
         PropertyInterface prop_if (pono_options.property_file_,fts);
         prop_if.AddAssumptionsToTS();
         prop = prop_if.AddAssertions(prop);
@@ -603,7 +607,7 @@ int main(int argc, char ** argv)
       res = check_prop(pono_options, prop, rts, s, cex);
       // we assume that a prover never returns 'ERROR'
       assert(res != ERROR);
-      std::string filename = "/data/zhiyuany/cosa2/result_1.txt";
+      std::string filename = "/data/zhiyuany/cosa2/result_sat.txt";
       logger.log(
           0, "Property {} is {}", pono_options.prop_idx_, to_string(res));
 
@@ -620,11 +624,11 @@ int main(int argc, char ** argv)
         if (FILE* file = fopen(filename.c_str(), "r")){        
           ofstream res_collect;
           res_collect.open(filename, ios::app);
-          res_collect<<"step: "<<  pono_options.step_ << "sat" <<endl;
+          res_collect<< "sat" <<endl;
         }
         else{
           ofstream res_collect(filename.c_str());
-          res_collect<<"step: "<<  pono_options.step_ << "sat" <<endl;
+          res_collect<<"sat" <<endl;
         }
         if (!pono_options.vcd_name_.empty()) {
           VCDWitnessPrinter vcdprinter(rts, cex);
@@ -635,11 +639,11 @@ int main(int argc, char ** argv)
         if (FILE* file = fopen(filename.c_str(), "r")){        
           ofstream res_collect;
           res_collect.open(filename, ios::app);
-          res_collect<<"step: "<<  pono_options.step_ << "unsat" <<endl;
+          res_collect << "unsat" <<endl;
         }
         else{
           ofstream res_collect(filename.c_str());
-          res_collect<<"step: "<<  pono_options.step_ << "unsat" <<endl;
+          res_collect<< "unsat" <<endl;
         }
       } else {
         assert(res == pono::UNKNOWN);
