@@ -52,6 +52,9 @@ class Prover
 
   virtual bool witness(std::vector<smt::UnorderedTermMap> & out);
 
+  void compute_dynamic_COI(smt::UnorderedTermSet & init_state_variables);
+  void get_var_in_COI(const smt::TermVec & asts, smt::UnorderedTermSet & vars);
+
   /** Returns length of the witness
    *  this can be cheaper than actually computing the witness
    *  by default returns reached_k_+1, because reached_k_ was the

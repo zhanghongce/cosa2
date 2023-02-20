@@ -24,6 +24,7 @@
 #include "modifiers/static_coi.h"
 #include "smt/available_solvers.h"
 #include "utils/logger.h"
+#include "utils/partial_model.h"
 
 using namespace smt;
 using namespace std;
@@ -220,7 +221,48 @@ bool Prover::compute_witness()
     }
   }
 
+  smt::UnorderedTermSet varset;
+  compute_dynamic_COI(varset);
+  for (const auto & v : varset)
+    std::cout << v->to_string() << std::endl;
+
   return true;
+}
+
+
+void Prover::get_var_in_COI(const TermVec & asts, UnorderedTermSet & vars) {
+  PartialModelGen partial_model_getter(solver_);
+  partial_model_getter.GetVarListForAsts(asts, vars);
+}
+
+
+void Prover::compute_dynamic_COI(smt::UnorderedTermSet & init_state_variables) {
+  // bad_ ,  0...reached_k_+1
+  auto last_bad = unroller_.at_time(bad_, reached_k_+1);
+  UnorderedTermSet varset;
+  get_var_in_COI({last_bad}, varset); // varset contains variables like : a@n
+
+  for(int i = reached_k_; i>=0; --i) {
+    UnorderedTermSet newvarset;
+    TermVec update_functions_to_check;
+    for (const auto & var : varset) {
+      auto untimed_var = unroller_.untime(var);  // a@n --> a
+      auto pos = ts_.state_updates().find(untimed_var);
+      assert(pos != ts_.state_updates().end());
+      const auto & update_function = pos->second;  // a, b, c ...
+      // at_time is used to change the variable set in update_function
+      auto timed_update_function = unroller_.at_time(update_function, i); // i ?
+      update_functions_to_check.push_back(timed_update_function);
+    }
+    get_var_in_COI(update_functions_to_check, newvarset);
+  
+    varset.swap(newvarset); // the same as "varset = newvarset;" , but this is faster
+  }
+
+  // varset at this point: a@0 ,  b@0 , ...
+  for (const auto & timed_var : varset) { 
+    init_state_variables.emplace(unroller_.untime(timed_var));
+  }
 }
 
 }  // namespace pono
