@@ -48,6 +48,14 @@ Term Unroller::at_time(const Term & t, unsigned int k)
   return solver_->substitute(t, cache);
 }
 
+Term Unroller::untime_var(const smt::Term & v) const 
+{
+  auto pos = untime_cache_.find(v);
+  if (pos == untime_cache_.end())
+    throw PonoException("Unable to untime variable:" + v->to_string());
+  return pos->second;
+}
+
 Term Unroller::untime(const Term & t) const
 {
   return solver_->substitute(t, untime_cache_);

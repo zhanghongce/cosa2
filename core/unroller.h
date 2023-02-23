@@ -50,6 +50,7 @@ class Unroller
    */
   virtual smt::Term at_time(const smt::Term & t, unsigned int k);
 
+  smt::Term untime_var(const smt::Term & v) const;
   smt::Term untime(const smt::Term & t) const;
 
   /** Returns the time of an unrolled variable
