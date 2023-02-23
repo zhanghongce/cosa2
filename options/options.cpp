@@ -96,7 +96,8 @@ enum optionIndex
   FIND_ENV_INV,
   NUM_OF_ITR,
   SMTLIB_PATH,
-  ADD_ASSUMP_IN_ORIGIN
+  ADD_ASSUMP_IN_ORIGIN,
+  COI_Filter
 
 };
 
@@ -644,7 +645,13 @@ const option::Descriptor usage[] = {
     Arg::None,
     "  --add_assumption_in_origin_file, \tWe add assumption into the original design, to speed up the process"
     },
-    
+  { COI_Filter,
+    0,
+    "",
+    "coi_filter",
+    Arg::None,
+    "  --coi_filter, \tWe can use the cone of influence to remove some variable"
+    },    
   { 0, 0, 0, 0, 0, 0 }
 };
 /*********************************** end Option Handling setup
@@ -841,6 +848,7 @@ ProverResult PonoOptions::parse_and_set_options(int argc,
         case NUM_OF_ITR: step_ = atoi(opt.arg); break;
         case SMTLIB_PATH: smt_path_ = opt.arg; break;
         case ADD_ASSUMP_IN_ORIGIN: add_assuption_in_origin_ = true; break;
+        case COI_Filter: coi_filter_ = true; break;
         case UNKNOWN_OPTION:
         
           // not possible because Arg::Unknown returns ARG_ILLEGAL

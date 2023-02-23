@@ -68,7 +68,7 @@ class Prover
    * by some engines
    */
   smt::Term invar();
-
+  smt::Term transfer_to_orig_as_(const smt::Term &t,const  smt::SortKind &sk,smt::TermTranslator to_new_solver);
  protected:
   /** Take a term from the Prover's solver
    *  to the original transition system's solver
@@ -122,7 +122,7 @@ class Prover
   PonoOptions options_;
 
   Engine engine_;
-
+  
   // NOTE: both witness_ and invar_ use terms from the engine's solver
 
   std::vector<smt::UnorderedTermMap> witness_; ///< populated by a witness if a CEX is found

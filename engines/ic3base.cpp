@@ -360,6 +360,8 @@ IC3Formula IC3Base::inductive_generalization(size_t i, const IC3Formula & c)
   return block;
 }
 
+
+
 void IC3Base::predecessor_generalization(size_t i,
                                          const Term & c,
                                          IC3Formula & pred)

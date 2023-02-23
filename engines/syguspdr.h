@@ -36,6 +36,7 @@
 namespace pono {
 
 
+
 class SygusPdr : public IC3Base
 {
  public:
@@ -146,5 +147,31 @@ class SygusPdr : public IC3Base
   bool test_ts_has_op(const std::unordered_set<smt::PrimOp> & prim_ops) const;
 }; // class SygusPdr
 
+
+
+// class BTORbuffer{
+//     public:
+//       const int OP_VAR = 0;
+//       const int OP_NOT = 1;
+//       const int OP_AND = 2;
+//       const int OP_CONST = 3;
+
+//       const std::pair <int,int> _True = {0, 1};
+//       const std::pair <int,int> _False = {1, 0};
+//       const std::pair <int,int> _X = {1, 1};
+//       const std::pair <int,int> _BOT = {0, 0};
+//       BTORbuffer(){};
+//       virtual ~BTORbuffer(){};
+//       std::map<smt::Term,int> item;
+//       std::map<smt::Term,std::pair <int,int>> item_assign;
+//       int register_expr(smt::Term expr);
+//       void set_initial_var_assignment(smt::Term v, int val ,smt::SmtSolver solver_);
+//       void compute(int op, smt::Term valid_term);
+//       std::pair <int,int> _NOT(a){
+
+//       }
+
+// };
 }  // namespace pono
+
 

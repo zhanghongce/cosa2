@@ -58,9 +58,9 @@ void SygusPdr::build_ts_related_info() {
   const auto & all_state_vars = ts_.statevars();//The input and state in the btor
   for (const auto & sv : all_state_vars) {
     const auto & s_updates = ts_.state_updates();////The state in the btor
-    // for(const auto &s:  s_updates){
-    //   std::cout<< s.first->to_string() << std::endl;
-    // }
+    for(const auto &s:  s_updates){
+      std::cout<< s.first->to_string() << std::endl;
+    }
     if (!IN(sv, s_updates))
       no_next_vars_.insert(sv);
     else
@@ -367,7 +367,6 @@ IC3Formula SygusPdr::inductive_generalization(
       post_model, // IC3FormulaModel * cex 
       setup_cex_info(post_model)
     );
-
     uint64_t old_term_count = pred_collector_.term_summary();
     { // step 1 - check if the pred are good if not construct the model
       const auto & pred_nxt_ = pred_collector_.GetAllPredNext();
@@ -404,11 +403,56 @@ IC3Formula SygusPdr::inductive_generalization(
           D(3, "Generated MAY-block model (init) {}", pre_model->to_string());
         }
         // note Here you must give a formula with current variables
-      } else
+      } else{
         insufficient_pred = false;
+        
+        // failed_at_init = false;
+        // if (pre_full_model) {
+        //   delete pre_full_model;
+        //   pre_full_model = NULL;
+        // }
+        // if (!failed_at_init) {
+        //   // the idea of full model is we want to keep the assignment to
+        //   // some inputs that could be thrown away
+        //   std::tie(pre_formula, pre_model, pre_full_model) =
+        //     ExtractPartialAndFullModel( post_model );
+        //   D(3, "Generated MAY-block model {}", pre_model->to_string());
+        // } else {
+        //   // only pre_model and failed_at_init are used in later
+        //   std::tie(pre_formula, pre_model) =
+        //     ExtractInitPrimeModel( Init_prime ); // this can be only the prime vars
+        //   D(3, "Generated MAY-block model (init) {}", pre_model->to_string());
+        // }
+        // pop_solver_context();
+        // if (!failed_at_init) {
+        //         D(3, "Try recursive block the above model.");
+        //         if(try_recursive_block_goal(pre_formula, i-1))
+        //           continue; // see if we have next that we may need to block
+        //         if(pred_collector_.term_summary() > old_term_count) {
+        //           D(3, "though not blocked, we got {} > {} terms", pred_collector_.term_summary(), old_term_count);
+        //           continue;
+        //         }
+        //       } // if we failed at init, then we will anyway need to 
+        //       // propose new terms
+        //       D(3, "Cannot block MAY-block model {}", pre_model->to_string());
+        //       D(3, "Back to F[{}]->[{}], get new terms.", i-1,i);
+
+        //       if (!failed_at_init)
+        //         assert(pre_full_model);
+        //       else
+        //         assert(!pre_full_model);
+
+        //       bool succ = 
+        //         propose_new_terms(failed_at_init ? pre_model : pre_full_model, 
+        //           post_model,
+        //           F_T_not_cex, Init_prime, failed_at_init);
+        //       assert(succ);
+        //       delete pre_full_model;
+        //       pre_full_model = NULL;        
+        
+        }
       pop_solver_context();
     } // end of step 1
-
     if (insufficient_pred) {
       // extract Proof goal from partial_model
       if (!failed_at_init) {
@@ -436,7 +480,6 @@ IC3Formula SygusPdr::inductive_generalization(
       assert(succ);
       delete pre_full_model;
       pre_full_model = NULL;
-
       // it has loop inside
       // and it must succeed because eventually we will end with bit-level things
     } else { // if sufficient
@@ -779,6 +822,96 @@ std::tuple<IC3Formula, syntax_analysis::IC3FormulaModel *, syntax_analysis::IC3F
   } // end model making block
 } // ExtractPartialAndFullModel
 
+
+void RegsInAst(const smt::Term &t, smt::UnorderedTermSet & ret, const TransitionSystem & ts) {
+    UnorderedTermSet varset;
+    get_free_symbols(t, varset);
+    for(const auto & var : varset)
+        if(ts.statevars().find(var) != ts.statevars().end())
+            ret.insert(var);
+}
+
+
+
+bool InstructionCheckCOI(Term v, smt::SmtSolver s){
+    TermOpCollector collector(s);
+    UnorderedTermSet termset;
+    collector.find_matching_terms(v, {smt::PrimOp::Apply}, termset);
+    return !(termset.empty());
+}
+
+// void BTORbuffer::compute(int op, smt::Term valid_term){
+//   if(op==OP_AND){
+//     UnorderedTermSet varset;
+//     get_free_symbols(valid_term,varset);
+//     for(auto symbol:varset){
+
+//     }
+
+
+//   }
+// }
+
+// void BTORbuffer::set_initial_var_assignment(smt::Term v, int val ,smt::SmtSolver solver_){
+//     std::map<smt::Term,int> sat_assignment;
+
+//     auto val = solver_->get_value(v)->to_int();
+//     sat_assignment.insert(std::make_pair(v,val));
+    
+//     for(auto iter = item.begin();iter != item.end();iter++){
+//       auto op = iter->second;
+//       auto v = iter->first;
+//       if(op == OP_VAR){
+//         if(val==1)
+//           item_assign.insert(std::pair<Term,std::pair <int,int>>(v,std::make_pair(0,1)));
+//         else{
+//           item_assign.insert(std::pair<Term,std::pair <int,int>>(v,std::make_pair(0,1)));
+//         }
+//       }
+//     }
+//     for(auto iter = item.begin();iter != item.end();iter++){
+//       auto op = iter->second;
+//       auto v = iter->first;
+//       if((op == OP_AND) || (op == OP_NOT)){
+//         item_assign.insert(std::pair<Term,int>(v,sat_assignment[v]));
+//       }
+//     }
+// }
+
+// int BTORbuffer::register_expr(Term expr){
+  
+
+//   TermVec to_visit({expr});
+//   UnorderedTermSet visited;
+//   Term t;
+//   while (!to_visit.empty()) {
+//     t = to_visit.back();
+//     to_visit.pop_back();
+
+//     if (visited.find(t) != visited.end()) {
+//       // cache hit
+//       continue;
+//     }
+//     visited.insert(t);
+
+//     for (const auto & tt : t) {
+//       to_visit.push_back(tt);
+//       auto op = tt->get_op();
+//       if (op == smt::And){
+//         item.insert(std::make_pair(tt, OP_AND));
+//       }
+//       else if (op == smt::Not){
+//         item.insert(std::make_pair(tt, OP_NOT));
+//       } 
+//       else if(t->get_op().is_null()&&(tt->is_value()==false)){
+//         item.insert(std::make_pair(tt, OP_VAR));
+//       }
+//     }
+
+//   }
+// }
+
+
 std::pair<IC3Formula, syntax_analysis::IC3FormulaModel *>
     SygusPdr::ExtractPartialModel(const Term & p) {
   // extract using keep_var_in_partial_model  
@@ -812,19 +945,35 @@ std::pair<IC3Formula, syntax_analysis::IC3FormulaModel *>
   Term conj_partial;
   TermVec conjvec_partial;
   syntax_analysis::IC3FormulaModel::cube_t cube_partial;
-  
+  // BTORbuffer buffer;
+  // buffer.register_expr(p);
+  bool inst_check = false;
   for (const auto & v : varlist) {
     Term val = solver_->get_value(v);
     auto eq = solver_->make_term(Op(PrimOp::Equal), v,val );
-    if (keep_var_in_partial_model(v)) {
-      cube_partial.emplace(v,val);
-      conjvec_partial.push_back( eq );
-      if (conj_partial) {
-        conj_partial = solver_->make_term(Op(PrimOp::And), conj_partial, eq);
-      } else {
-        conj_partial = eq;
-      }
-    } // end of partial model
+    if(inst_check == true){
+      if ((keep_var_in_partial_model(v))&&(InstructionCheckCOI(v,solver_))) {
+        cube_partial.emplace(v,val);
+        conjvec_partial.push_back( eq );
+        if (conj_partial) {
+          conj_partial = solver_->make_term(Op(PrimOp::And), conj_partial, eq);
+        } else {
+          conj_partial = eq;
+        }
+      } // end of partial model
+    }
+    else{
+      if (keep_var_in_partial_model(v)) {
+        cube_partial.emplace(v,val);
+        conjvec_partial.push_back( eq );
+        if (conj_partial) {
+          conj_partial = solver_->make_term(Op(PrimOp::And), conj_partial, eq);
+        } else {
+          conj_partial = eq;
+        }
+      } // end of partial model
+    }
+
   }
   if (conj_partial == nullptr) {
     conj_partial = solver_true_;

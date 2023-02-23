@@ -24,6 +24,7 @@
 #include "smt-switch/smt.h"
 #include "smt-switch/smtlib_reader.h"
 #include "utils/exceptions.h"
+#include "options/options.h"
 #include "cexreader/cex_extract.h"
 namespace pono {
 class PropertyInterface : public smt::SmtLibReader
@@ -60,17 +61,21 @@ class PropertyInterfacecex : public CexExtractor
   std::vector<int> get_width;
   typedef std::function<bool(const std::string &n)> filter_t;
   typedef std::function<bool(const smt::Term &n)> filter_r;
-    PropertyInterfacecex(const std::string& vcd_file_name,
+    PropertyInterfacecex(const PonoOptions pono_options,
                            const std::string& scope,
                            bool reg_only, TransitionSystem & ts);
+    void get_COI_variable(PonoOptions pono_options_);
     smt::Term cex_parse_to_pono_property(filter_t filter);
     smt::Term cex_parse_to_pono_property(filter_r filter_re);
     smt::Term cex_parse_to_pono_property(filter_t filter,filter_r filter_re);
     smt::Term cex_parse_to_pono_property();
     int get_reg_width();
+    int get_reg_min_width();
   protected:
     TransitionSystem & ts_;
-
+    std::vector<std::string> name_terms;
+    std::vector<std::string> new_name_terms;
+    PonoOptions pono_options_;
     is_reg_t is_reg;
 };
 

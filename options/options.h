@@ -153,7 +153,8 @@ class PonoOptions
         kind_bound_step_(default_kind_bound_step_),
         find_environment_invariant_(default_find_environment_invariant_),
         step_(default_step_),
-        add_assuption_in_origin_(default_add_assuption_in_origin_)
+        add_assuption_in_origin_(default_add_assuption_in_origin_),
+        coi_filter_(defalut_coi_filter_)
   {
   }
 
@@ -244,6 +245,7 @@ class PonoOptions
   bool print_wall_time_;
   bool find_environment_invariant_;
   bool add_assuption_in_origin_;
+  bool coi_filter_;
   // BMC interval options (these options are modifiers of the 'BMC' engine;
   //   they do not apply to engine 'BMC-SP')
   // Default bmc_bound_start_ == 0, which starts search for cex at
@@ -371,6 +373,7 @@ private:
   //true if we want to find environment invariant
   static const bool default_find_environment_invariant_ = false;
   static const bool default_add_assuption_in_origin_ =false;
+  static const bool defalut_coi_filter_ = false;
   static const unsigned default_kind_bound_step_ = 1;
   static const unsigned default_step_ = 0;
 };

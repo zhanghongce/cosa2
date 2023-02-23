@@ -65,7 +65,7 @@
 
 #include <algorithm>
 #include <queue>
-
+#include<map>
 #include "engines/prover.h"
 #include "smt-switch/utils.h"
 
@@ -597,5 +597,7 @@ class IC3Base : public Prover
    */
   smt::Term smart_not(const smt::Term & t) const;
 };
+
+
 
 }  // namespace pono

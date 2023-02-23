@@ -168,7 +168,8 @@ void PredConstructor::terms_to_predicates() {
 
   bool use_lt = per_cex_info_.varset_info.use_lt();
   bool use_lte = per_cex_info_.varset_info.use_lte();
-
+  // bool use_lt = true;
+  // bool use_lte = true;
   auto & preds = per_cex_info_.predicates_nxt;/////When predicates_nxt has value?
   auto & pred_str = per_cex_info_.predicates_str;
   // auto & next_to_curr = per_cex_info_.pred_next_to_pred_curr;
