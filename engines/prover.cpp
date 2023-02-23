@@ -357,9 +357,20 @@ void Prover::compute_dynamic_COI(smt::UnorderedTermSet & init_state_variables) {
     UnorderedTermSet newvarset;
     TermVec update_functions_to_check;
     for (const auto & var : varset) {
-      auto untimed_var = unroller_.untime(var);  // a@n --> a
+      auto untimed_var = unroller_.untime_var(var);  // a@n --> a
+
+      if (ts_.is_input_var(untimed_var))
+        continue;
+      if (!ts_.is_curr_var(untimed_var)) // is_curr_var check if it is input var
+        continue;
+        
       auto pos = ts_.state_updates().find(untimed_var);
-      assert(pos != ts_.state_updates().end());
+
+      if (pos == ts_.state_updates().end()) // this is likely
+        continue; // because ts_ may promote input variables
+      // therefore, there could be state vars without next function
+
+      // assert(pos != ts_.state_updates().end());
       const auto & update_function = pos->second;  // a, b, c ...
       // at_time is used to change the variable set in update_function
       // get_input_var_in_COI(update_functions_to_check,varset_input);
@@ -375,7 +386,7 @@ void Prover::compute_dynamic_COI(smt::UnorderedTermSet & init_state_variables) {
 
   // varset at this point: a@0 ,  b@0 , ...
   for (const auto & timed_var : varset) { 
-    init_state_variables.emplace(unroller_.untime(timed_var));
+    init_state_variables.emplace(unroller_.untime_var(timed_var));
   }
 }
 
