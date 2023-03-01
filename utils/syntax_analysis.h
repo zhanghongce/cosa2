@@ -18,7 +18,8 @@
 
 #include "utils/syntax_analysis_common.h"
 #include "options/options.h"
-
+#include <fstream>
+#include "json/json.hpp"
 namespace pono {
 namespace syntax_analysis {
 
@@ -44,12 +45,13 @@ public:
     IC3FormulaModel * pre, IC3FormulaModel * post, TermLearner & term_learner,
     const smt::Term & trans, bool failed_at_init,
     SyGuSTermMode term_mode); // return delta terms
-
+  void get_COI_repeat_list(std::string smt_path_);
 protected:
   std::unordered_set<std::string> constants_strings_;
   std::map<unsigned, std::vector<smt::Term>> width_to_constants_;  
   terms_cache_t terms_cache_; // include constants here
-  
+  std::vector<std::string> name_terms;
+  std::vector<std::string> new_name_terms;
   std::vector<smt::Term> terms_to_check_;
   // from vars strings to the terms
 
@@ -61,7 +63,8 @@ protected:
   void term_const_w1_const(PerVarsetInfo & term_cache_item /*OUT*/, smt::SmtSolver & solver_);
   void const_to_per_varset(PerVarsetInfo & term_cache_item /*OUT*/, 
     unsigned width_bound_low /*IN*/, unsigned width_bound_high /*IN*/, unsigned & nterm_walked);
-
+  
+  bool check_in_COI_repeat_list(smt::UnorderedTermSet terms_to_check);
   unsigned insert_from_termsmap_w_width(
     const std::map<unsigned, smt::TermVec> & terms /*IN*/, PerVarsetInfo & term_cache_item /*OUT*/ , 
     unsigned width_bound_low /*IN*/, unsigned width_bound_high /*IN*/,bool check_symbol) ;

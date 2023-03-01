@@ -124,10 +124,12 @@ public:
 
   TermScore() {} // do nothing
   const score_map_t & GetScoreMap() const {return scores_;}
-  
+  void get_COI_repeat_list(std::string smt_path_);
 protected:
   score_map_t scores_;
-  
+  std::vector<std::string> name_terms;
+  std::vector<std::string> new_name_terms;
+  bool check_in_COI_repeat_list(smt::Term term_to_check);
   virtual bool Skip(const smt::Term & ast) override;
   virtual void PreChild(const smt::Term & ast) override;
   virtual void PostChild(const smt::Term & ast) override;

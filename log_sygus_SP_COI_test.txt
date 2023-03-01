@@ -1,0 +1,504 @@
+sat
+b0
+#0
+0 11111110 RTL.id_ex_rs1_val@0
+1 00000000 RTL.id_ex_rs2_val@0
+2 00 RTL.id_ex_op@0
+3 00000000 RTL.ex_wb_val@0
+4 10 state36@0
+5 00 RTL.reg_0_w_stage@0
+6 11 state42@0
+7 01 RTL.reg_1_w_stage@0
+8 10 state47@0
+9 00 RTL.reg_2_w_stage@0
+10 11 state52@0
+11 01 RTL.reg_3_w_stage@0
+12 00000000 RTL.registers[0]@0
+13 00000000 RTL.registers[1]@0
+14 00000000 RTL.registers[2]@0
+15 01000000 RTL.registers[3]@0
+16 0 __2ndENDED__@0
+17 00000 __CYCLE_CNT__@0
+18 0 __STARTED__@0
+19 0 __ENDED__@0
+20 1 __RESETED__@0
+21 00000000 ILA.r0@0
+22 00000000 ILA.r1@0
+23 00000000 ILA.r2@0
+24 00000000 ILA.r3@0
+25 1 __START__@0
+26 0 __auxvar0__recorder_sn_condmet@0
+27 00000000 __auxvar0__recorder@0
+28 00000000 __auxvar0__recorder_sn_vhold@0
+29 00000000 ILA.__COUNTER_start__n3@0
+30 0 RTL.id_ex_reg_wen@0
+31 00 RTL.id_ex_rd@0
+32 1 RTL.ex_wb_reg_wen@0
+33 00 RTL.ex_wb_rd@0
+@0
+0 11111111 ILA.r3_randinit@0
+1 11111111 ILA.r2_randinit@0
+2 11111111 ILA.r1_randinit@0
+3 11111111 ILA.r0_randinit@0
+4 01011001 __ILA_I_inst@0
+5 00 __VLG_I_dummy_read_rf@0
+6 01011001 __VLG_I_inst@0
+7 11111111 ____auxvar0__recorder_init__@0
+8 0 clk@0
+9 0 dummy_reset@0
+10 0 rst@0
+11 00000000 input15@0
+12 11111111 input498@0
+13 11 input500@0
+#1
+4 10 state36@1
+6 10 state42@1
+8 10 state47@1
+10 10 state52@1
+@1
+0 00000000 ILA.r3_randinit@1
+1 00000000 ILA.r2_randinit@1
+2 00000000 ILA.r1_randinit@1
+3 00000000 ILA.r0_randinit@1
+4 11111111 __ILA_I_inst@1
+5 00 __VLG_I_dummy_read_rf@1
+6 11111111 __VLG_I_inst@1
+7 00000000 ____auxvar0__recorder_init__@1
+8 0 clk@1
+9 0 dummy_reset@1
+10 0 rst@1
+11 00000000 input15@1
+12 00000000 input498@1
+13 00 input500@1
+.
+Trace written to cex_2.vcd
+Now the step is: 0
+The COI variable is: RTL.id_ex_rd
+The COI variable is: RTL.ex_wb_reg_wen
+The COI variable is: __ILA_I_inst
+The COI variable is: RTL.id_ex_reg_wen
+The COI variable is: RTL.reg_3_w_stage
+The COI variable is: __CYCLE_CNT__
+The COI variable is: __ENDED__
+The COI variable is: RTL.ex_wb_rd
+The COI variable is: __RESETED__
+The COI variable is: ILA.r3
+The COI variable is: rst
+The COI variable is: __STARTED__
+The COI variable is: dummy_reset
+The COI variable is: __START__
+The COI variable is: RTL.registers[3]
+The COI variable is: __VLG_I_inst
+The property: (bvnot (bvand (bvand (bvnot id_ex_reg_wen) (bvand (bvand ex_wb_reg_wen (ite (= #b00 ex_wb_rd) #b1 #b0)) (ite (= #b00 id_ex_rd) #b1 #b0))) (ite (= #b01 reg_3_w_stage) #b1 #b0)))  is inserted. We use COI and average width Filter. 
+The property: (bvnot (bvand (bvand (bvand (bvnot id_ex_reg_wen) (bvand (bvand ex_wb_reg_wen (ite (= #b00 ex_wb_rd) #b1 #b0)) (ite (= #b00 id_ex_rd) #b1 #b0))) (ite (= #b01 reg_3_w_stage) #b1 #b0)) (ite (= |registers[3]| #b01000000) #b1 #b0)))  is inserted. We use COI and average width Filter. 
+The initial reduction property for the filter is: (bvnot (bvand (bvand (bvnot id_ex_reg_wen) (bvand (bvand ex_wb_reg_wen (ite (= #b00 ex_wb_rd) #b1 #b0)) (ite (= #b00 id_ex_rd) #b1 #b0))) (ite (= #b01 reg_3_w_stage) #b1 #b0)))
+The filter we use is: coi and average width filter 
+The current step in the PDR is: 0
+The current step in the PDR is: 1
+The current step in the PDR is: 2
+INVAR: (and (and true (or (= #b0 ((_ extract 1 1) reg_3_w_stage)) (not (= #b00 id_ex_rd)))) (not (and (and (and (and (= ex_wb_rd #b00) (= ex_wb_reg_wen #b1)) (= id_ex_rd #b00)) (= id_ex_reg_wen #b0)) (= reg_3_w_stage #b01))))
+unsat
+b0
+sat
+b0
+#0
+0 11111110 RTL.id_ex_rs1_val@0
+1 00000000 RTL.id_ex_rs2_val@0
+2 00 RTL.id_ex_op@0
+3 00000000 RTL.ex_wb_val@0
+4 10 state36@0
+5 00 RTL.reg_0_w_stage@0
+6 11 state42@0
+7 01 RTL.reg_1_w_stage@0
+8 10 state47@0
+9 00 RTL.reg_2_w_stage@0
+10 11 state52@0
+11 01 RTL.reg_3_w_stage@0
+12 00000000 RTL.registers[0]@0
+13 00000000 RTL.registers[1]@0
+14 00000000 RTL.registers[2]@0
+15 01000000 RTL.registers[3]@0
+16 0 __2ndENDED__@0
+17 00000 __CYCLE_CNT__@0
+18 0 __STARTED__@0
+19 0 __ENDED__@0
+20 1 __RESETED__@0
+21 00000000 ILA.r0@0
+22 00000000 ILA.r1@0
+23 00000000 ILA.r2@0
+24 00000000 ILA.r3@0
+25 1 __START__@0
+26 0 __auxvar0__recorder_sn_condmet@0
+27 00000000 __auxvar0__recorder@0
+28 00000000 __auxvar0__recorder_sn_vhold@0
+29 00000000 ILA.__COUNTER_start__n3@0
+30 1 RTL.id_ex_reg_wen@0
+31 00 RTL.id_ex_rd@0
+32 1 RTL.ex_wb_reg_wen@0
+33 00 RTL.ex_wb_rd@0
+@0
+0 11111111 ILA.r3_randinit@0
+1 11111111 ILA.r2_randinit@0
+2 11111111 ILA.r1_randinit@0
+3 11111111 ILA.r0_randinit@0
+4 01011001 __ILA_I_inst@0
+5 00 __VLG_I_dummy_read_rf@0
+6 01011001 __VLG_I_inst@0
+7 11111111 ____auxvar0__recorder_init__@0
+8 0 clk@0
+9 0 dummy_reset@0
+10 0 rst@0
+11 00000000 input15@0
+12 11111111 input498@0
+13 11 input500@0
+#1
+4 10 state36@1
+6 10 state42@1
+8 10 state47@1
+10 10 state52@1
+@1
+0 00000000 ILA.r3_randinit@1
+1 00000000 ILA.r2_randinit@1
+2 00000000 ILA.r1_randinit@1
+3 00000000 ILA.r0_randinit@1
+4 11111111 __ILA_I_inst@1
+5 00 __VLG_I_dummy_read_rf@1
+6 11111111 __VLG_I_inst@1
+7 00000000 ____auxvar0__recorder_init__@1
+8 0 clk@1
+9 0 dummy_reset@1
+10 0 rst@1
+11 00000000 input15@1
+12 00000000 input498@1
+13 00 input500@1
+.
+Trace written to cex_2.vcd
+Now the step is: 1
+The COI variable is: __ENDED__
+The COI variable is: __CYCLE_CNT__
+The COI variable is: __ILA_I_inst
+The COI variable is: RTL.id_ex_reg_wen
+The COI variable is: RTL.reg_3_w_stage
+The COI variable is: __STARTED__
+The COI variable is: ILA.r3
+The COI variable is: rst
+The COI variable is: RTL.ex_wb_rd
+The COI variable is: __RESETED__
+The COI variable is: RTL.ex_wb_reg_wen
+The COI variable is: RTL.registers[3]
+The COI variable is: __VLG_I_inst
+The COI variable is: RTL.id_ex_rd
+The COI variable is: dummy_reset
+The COI variable is: __START__
+The property: (bvnot (bvand (bvand (ite (= #b00 id_ex_rd) #b1 #b0) (bvand ex_wb_reg_wen (ite (= #b00 ex_wb_rd) #b1 #b0))) (ite (= #b01 reg_3_w_stage) #b1 #b0)))  is formed. Now we try to insert. 
+The property: (bvnot (bvand (bvand (ite (= #b00 id_ex_rd) #b1 #b0) (bvand ex_wb_reg_wen (ite (= #b00 ex_wb_rd) #b1 #b0))) (ite (= #b01 reg_3_w_stage) #b1 #b0)))  is inserted. We use COI and repeat Filter. 
+The property: (bvnot (bvand (ite (= #b01 reg_3_w_stage) #b1 #b0) (bvand id_ex_reg_wen (bvand (ite (= #b00 id_ex_rd) #b1 #b0) (bvand ex_wb_reg_wen (ite (= #b00 ex_wb_rd) #b1 #b0))))))  is formed. Now we try to insert. 
+The property: (bvnot (bvand (ite (= |registers[3]| #b01000000) #b1 #b0) (bvand (ite (= #b01 reg_3_w_stage) #b1 #b0) (bvand id_ex_reg_wen (bvand (ite (= #b00 id_ex_rd) #b1 #b0) (bvand ex_wb_reg_wen (ite (= #b00 ex_wb_rd) #b1 #b0)))))))  is formed. Now we try to insert. 
+The initial reduction property for the filter is: (bvnot (bvand (bvand (ite (= #b00 id_ex_rd) #b1 #b0) (bvand ex_wb_reg_wen (ite (= #b00 ex_wb_rd) #b1 #b0))) (ite (= #b01 reg_3_w_stage) #b1 #b0)))
+The filter we use is: coi and repeat filter 
+The current step in the PDR is: 0
+The current step in the PDR is: 1
+The current step in the PDR is: 2
+INVAR: (and (and (and true (or (not (= #b10 reg_3_w_stage)) (not (= #b00 id_ex_rd)))) (or (not (= #b00 id_ex_rd)) (= id_ex_rd (concat #b0 ((_ extract 1 1) reg_3_w_stage))))) (not (and (and (and (= ex_wb_rd #b00) (= ex_wb_reg_wen #b1)) (= id_ex_rd #b00)) (= reg_3_w_stage #b01))))
+unsat
+b0
+sat
+b0
+#0
+0 11111110 RTL.id_ex_rs1_val@0
+1 00000000 RTL.id_ex_rs2_val@0
+2 00 RTL.id_ex_op@0
+3 00000000 RTL.ex_wb_val@0
+4 10 state36@0
+5 00 RTL.reg_0_w_stage@0
+6 11 state42@0
+7 01 RTL.reg_1_w_stage@0
+8 10 state47@0
+9 00 RTL.reg_2_w_stage@0
+10 11 state52@0
+11 01 RTL.reg_3_w_stage@0
+12 00000000 RTL.registers[0]@0
+13 00000000 RTL.registers[1]@0
+14 00000000 RTL.registers[2]@0
+15 01000000 RTL.registers[3]@0
+16 0 __2ndENDED__@0
+17 00000 __CYCLE_CNT__@0
+18 0 __STARTED__@0
+19 0 __ENDED__@0
+20 1 __RESETED__@0
+21 00000000 ILA.r0@0
+22 00000000 ILA.r1@0
+23 00000000 ILA.r2@0
+24 00000000 ILA.r3@0
+25 1 __START__@0
+26 0 __auxvar0__recorder_sn_condmet@0
+27 00000000 __auxvar0__recorder@0
+28 00000000 __auxvar0__recorder_sn_vhold@0
+29 00000000 ILA.__COUNTER_start__n3@0
+30 1 RTL.id_ex_reg_wen@0
+31 10 RTL.id_ex_rd@0
+32 1 RTL.ex_wb_reg_wen@0
+33 00 RTL.ex_wb_rd@0
+@0
+0 11111111 ILA.r3_randinit@0
+1 11111111 ILA.r2_randinit@0
+2 11111111 ILA.r1_randinit@0
+3 11111111 ILA.r0_randinit@0
+4 01011001 __ILA_I_inst@0
+5 00 __VLG_I_dummy_read_rf@0
+6 01011001 __VLG_I_inst@0
+7 11111111 ____auxvar0__recorder_init__@0
+8 0 clk@0
+9 0 dummy_reset@0
+10 0 rst@0
+11 00000000 input15@0
+12 11111111 input498@0
+13 11 input500@0
+#1
+4 10 state36@1
+6 10 state42@1
+8 10 state47@1
+10 10 state52@1
+@1
+0 00000000 ILA.r3_randinit@1
+1 00000000 ILA.r2_randinit@1
+2 00000000 ILA.r1_randinit@1
+3 00000000 ILA.r0_randinit@1
+4 11111111 __ILA_I_inst@1
+5 00 __VLG_I_dummy_read_rf@1
+6 11111111 __VLG_I_inst@1
+7 00000000 ____auxvar0__recorder_init__@1
+8 0 clk@1
+9 0 dummy_reset@1
+10 0 rst@1
+11 00000000 input15@1
+12 00000000 input498@1
+13 00 input500@1
+.
+Trace written to cex_2.vcd
+Now the step is: 2
+The COI variable is: RTL.id_ex_rd
+The COI variable is: __VLG_I_inst
+The COI variable is: RTL.reg_3_w_stage
+The COI variable is: RTL.ex_wb_rd
+The COI variable is: __ENDED__
+The COI variable is: RTL.registers[3]
+The COI variable is: RTL.ex_wb_reg_wen
+The COI variable is: __RESETED__
+The COI variable is: __ILA_I_inst
+The COI variable is: __CYCLE_CNT__
+The COI variable is: dummy_reset
+The COI variable is: __START__
+The COI variable is: __STARTED__
+The COI variable is: rst
+The COI variable is: ILA.r3
+The COI variable is: RTL.id_ex_reg_wen
+The property: (bvnot (bvand (bvand ex_wb_reg_wen (ite (= #b00 ex_wb_rd) #b1 #b0)) (ite (= #b01 reg_3_w_stage) #b1 #b0)))  is formed. Now we try to insert. 
+The property: (bvnot (bvand (bvand ex_wb_reg_wen (ite (= #b00 ex_wb_rd) #b1 #b0)) (ite (= #b01 reg_3_w_stage) #b1 #b0)))  is inserted. We use COI and repeat Filter. 
+The property: (bvnot (bvand (ite (= #b01 reg_3_w_stage) #b1 #b0) (bvand id_ex_reg_wen (bvand (bvand ex_wb_reg_wen (ite (= #b00 ex_wb_rd) #b1 #b0)) (ite (= #b10 id_ex_rd) #b1 #b0)))))  is formed. Now we try to insert. 
+The property: (bvnot (bvand (ite (= |registers[3]| #b01000000) #b1 #b0) (bvand (ite (= #b01 reg_3_w_stage) #b1 #b0) (bvand id_ex_reg_wen (bvand (bvand ex_wb_reg_wen (ite (= #b00 ex_wb_rd) #b1 #b0)) (ite (= #b10 id_ex_rd) #b1 #b0))))))  is formed. Now we try to insert. 
+The initial reduction property for the filter is: (bvnot (bvand (bvand ex_wb_reg_wen (ite (= #b00 ex_wb_rd) #b1 #b0)) (ite (= #b01 reg_3_w_stage) #b1 #b0)))
+The filter we use is: coi and repeat filter 
+The current step in the PDR is: 0
+The current step in the PDR is: 1
+The current step in the PDR is: 2
+INVAR: (and (and true (or (= #b0 ((_ extract 1 1) reg_3_w_stage)) (not (= #b00 id_ex_rd)))) (not (and (and (= ex_wb_rd #b00) (= ex_wb_reg_wen #b1)) (= reg_3_w_stage #b01))))
+unsat
+b0
+sat
+b0
+#0
+0 11111110 RTL.id_ex_rs1_val@0
+1 00000000 RTL.id_ex_rs2_val@0
+2 00 RTL.id_ex_op@0
+3 00000000 RTL.ex_wb_val@0
+4 10 state36@0
+5 00 RTL.reg_0_w_stage@0
+6 11 state42@0
+7 01 RTL.reg_1_w_stage@0
+8 10 state47@0
+9 00 RTL.reg_2_w_stage@0
+10 10 state52@0
+11 00 RTL.reg_3_w_stage@0
+12 01000000 RTL.registers[0]@0
+13 01000000 RTL.registers[1]@0
+14 01100000 RTL.registers[2]@0
+15 01000000 RTL.registers[3]@0
+16 0 __2ndENDED__@0
+17 00000 __CYCLE_CNT__@0
+18 0 __STARTED__@0
+19 0 __ENDED__@0
+20 1 __RESETED__@0
+21 01000000 ILA.r0@0
+22 00000000 ILA.r1@0
+23 01100000 ILA.r2@0
+24 01000000 ILA.r3@0
+25 1 __START__@0
+26 0 __auxvar0__recorder_sn_condmet@0
+27 01000000 __auxvar0__recorder@0
+28 00000000 __auxvar0__recorder_sn_vhold@0
+29 00000000 ILA.__COUNTER_start__n3@0
+30 1 RTL.id_ex_reg_wen@0
+31 00 RTL.id_ex_rd@0
+32 1 RTL.ex_wb_reg_wen@0
+33 11 RTL.ex_wb_rd@0
+@0
+0 11111111 ILA.r3_randinit@0
+1 11111111 ILA.r2_randinit@0
+2 11111111 ILA.r1_randinit@0
+3 11111111 ILA.r0_randinit@0
+4 01101001 __ILA_I_inst@0
+5 00 __VLG_I_dummy_read_rf@0
+6 01101001 __VLG_I_inst@0
+7 11111111 ____auxvar0__recorder_init__@0
+8 0 clk@0
+9 0 dummy_reset@0
+10 0 rst@0
+11 01000000 input15@0
+12 11111111 input498@0
+13 11 input500@0
+#1
+4 10 state36@1
+6 10 state42@1
+8 10 state47@1
+10 10 state52@1
+@1
+0 00000000 ILA.r3_randinit@1
+1 00000000 ILA.r2_randinit@1
+2 00000000 ILA.r1_randinit@1
+3 00000000 ILA.r0_randinit@1
+4 11111111 __ILA_I_inst@1
+5 00 __VLG_I_dummy_read_rf@1
+6 11111111 __VLG_I_inst@1
+7 00000000 ____auxvar0__recorder_init__@1
+8 0 clk@1
+9 0 dummy_reset@1
+10 0 rst@1
+11 00000000 input15@1
+12 00000000 input498@1
+13 00 input500@1
+.
+Trace written to cex_2.vcd
+Now the step is: 3
+The COI variable is: RTL.id_ex_reg_wen
+The COI variable is: __CYCLE_CNT__
+The COI variable is: RTL.reg_3_w_stage
+The COI variable is: __ENDED__
+The COI variable is: input15
+The COI variable is: __ILA_I_inst
+The COI variable is: RTL.id_ex_op
+The COI variable is: __STARTED__
+The COI variable is: rst
+The COI variable is: ILA.r3
+The COI variable is: __RESETED__
+The COI variable is: dummy_reset
+The COI variable is: __START__
+The COI variable is: __VLG_I_inst
+The COI variable is: RTL.id_ex_rd
+The property: (bvnot (bvand (ite (= #b00 reg_3_w_stage) #b1 #b0) (bvand id_ex_reg_wen (ite (and (= id_ex_op #b00) (= #b00 id_ex_rd)) #b1 #b0))))  is formed. Now we try to insert. 
+The property: (bvnot (bvand (ite (= #b00 reg_3_w_stage) #b1 #b0) (bvand id_ex_reg_wen (ite (and (= id_ex_op #b00) (= #b00 id_ex_rd)) #b1 #b0))))  is inserted. We use COI and average width Filter. 
+The property: (bvnot (bvand (ite (= #b00 reg_3_w_stage) #b1 #b0) (bvand id_ex_reg_wen (ite (and (= id_ex_op #b00) (= #b00 id_ex_rd)) #b1 #b0))))  is formed. Now we try to insert. 
+The initial reduction property for the filter is: (bvnot (bvand (ite (= #b00 reg_3_w_stage) #b1 #b0) (bvand id_ex_reg_wen (ite (and (= id_ex_op #b00) (= #b00 id_ex_rd)) #b1 #b0))))
+The filter we use is: coi filter and average width filter
+The current step in the PDR is: 0
+The current step in the PDR is: 1
+The current step in the PDR is: 2
+INVAR: (and true (not (and (and (and (= id_ex_op #b00) (= id_ex_rd #b00)) (= id_ex_reg_wen #b1)) (= reg_3_w_stage #b00))))
+unsat
+b0
+sat
+b0
+#0
+0 10100000 RTL.id_ex_rs1_val@0
+1 10100000 RTL.id_ex_rs2_val@0
+2 01 RTL.id_ex_op@0
+3 00000000 RTL.ex_wb_val@0
+4 10 state36@0
+5 00 RTL.reg_0_w_stage@0
+6 11 state42@0
+7 01 RTL.reg_1_w_stage@0
+8 10 state47@0
+9 00 RTL.reg_2_w_stage@0
+10 10 state52@0
+11 00 RTL.reg_3_w_stage@0
+12 01000000 RTL.registers[0]@0
+13 01000000 RTL.registers[1]@0
+14 01100000 RTL.registers[2]@0
+15 01000000 RTL.registers[3]@0
+16 0 __2ndENDED__@0
+17 00000 __CYCLE_CNT__@0
+18 0 __STARTED__@0
+19 0 __ENDED__@0
+20 1 __RESETED__@0
+21 01000000 ILA.r0@0
+22 00000000 ILA.r1@0
+23 01100000 ILA.r2@0
+24 01000000 ILA.r3@0
+25 1 __START__@0
+26 0 __auxvar0__recorder_sn_condmet@0
+27 01000000 __auxvar0__recorder@0
+28 00000000 __auxvar0__recorder_sn_vhold@0
+29 00000000 ILA.__COUNTER_start__n3@0
+30 1 RTL.id_ex_reg_wen@0
+31 00 RTL.id_ex_rd@0
+32 1 RTL.ex_wb_reg_wen@0
+33 11 RTL.ex_wb_rd@0
+@0
+0 11111111 ILA.r3_randinit@0
+1 11111111 ILA.r2_randinit@0
+2 11111111 ILA.r1_randinit@0
+3 11111111 ILA.r0_randinit@0
+4 01101001 __ILA_I_inst@0
+5 00 __VLG_I_dummy_read_rf@0
+6 01101001 __VLG_I_inst@0
+7 11111111 ____auxvar0__recorder_init__@0
+8 0 clk@0
+9 0 dummy_reset@0
+10 0 rst@0
+11 11111110 input15@0
+12 11111111 input498@0
+13 11 input500@0
+#1
+4 10 state36@1
+6 10 state42@1
+8 10 state47@1
+10 10 state52@1
+@1
+0 00000000 ILA.r3_randinit@1
+1 00000000 ILA.r2_randinit@1
+2 00000000 ILA.r1_randinit@1
+3 00000000 ILA.r0_randinit@1
+4 11111111 __ILA_I_inst@1
+5 00 __VLG_I_dummy_read_rf@1
+6 11111111 __VLG_I_inst@1
+7 00000000 ____auxvar0__recorder_init__@1
+8 0 clk@1
+9 0 dummy_reset@1
+10 0 rst@1
+11 00000000 input15@1
+12 00000000 input498@1
+13 00 input500@1
+.
+Trace written to cex_2.vcd
+Now the step is: 4
+The COI variable is: RTL.id_ex_rd
+The COI variable is: RTL.id_ex_rs2_val
+The COI variable is: RTL.id_ex_rs1_val
+The COI variable is: RTL.id_ex_reg_wen
+The COI variable is: __RESETED__
+The COI variable is: __ILA_I_inst
+The COI variable is: __ENDED__
+The COI variable is: __CYCLE_CNT__
+The COI variable is: RTL.reg_3_w_stage
+The COI variable is: __VLG_I_inst
+The COI variable is: ILA.r3
+The COI variable is: rst
+The COI variable is: __STARTED__
+The COI variable is: __START__
+The COI variable is: dummy_reset
+The COI variable is: RTL.id_ex_op
+The property: (bvnot (bvand (ite (= #b00 reg_3_w_stage) #b1 #b0) (bvand id_ex_reg_wen (ite (= #b00 id_ex_rd) #b1 #b0))))  is formed. Now we try to insert. 
+The property: (bvnot (bvand (ite (= #b00 reg_3_w_stage) #b1 #b0) (bvand id_ex_reg_wen (ite (and (= #b00 id_ex_rd) (= id_ex_op #b01)) #b1 #b0))))  is formed. Now we try to insert. 
+The property: (bvnot (bvand (ite (= #b00 reg_3_w_stage) #b1 #b0) (bvand (ite (= id_ex_rs2_val #b10100000) #b1 #b0) (bvand (ite (= id_ex_rs1_val #b10100000) #b1 #b0) (bvand id_ex_reg_wen (ite (and (= #b00 id_ex_rd) (= id_ex_op #b01)) #b1 #b0))))))  is formed. Now we try to insert. 
+There is some error, COI filter has bug
+The overall running time is 0.0000

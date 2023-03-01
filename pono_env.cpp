@@ -168,7 +168,7 @@ class RepeatFilter{
       // UnorderedTermSet::const_iterator got = out.find(n);
    
         for (Term it: out){
-          if (it->to_string() == n ->to_string()){
+          if (it->to_string() == n->to_string()){
             return true;
           }
     }
@@ -243,24 +243,24 @@ bool check_for_inductiveness(const Term & prop, const TransitionSystem & ts) {
 }
 
 
-Term get_term_with_dual_fil(FilterConcat filter, int num_consider, PropertyInterfacecex prop_cex, TransitionSystem &fts, int step, std::string filename_origin){
-    std::cout<<"The current reduction property cannot be used."<<std::endl;
-    RepeatFilter filter_re(filename_origin,fts,step);
-    Term prop_filter;
-    prop_filter = prop_cex.cex_parse_to_pono_property(filter,filter_re);
-    std::cout <<"The new reduction property for the width filter and repeat filter is : "<< prop_filter->to_raw_string() << std::endl;
-    return prop_filter;
+// Term get_term_with_dual_fil(FilterConcat filter, int num_consider, PropertyInterfacecex prop_cex, TransitionSystem &fts, int step, std::string filename_origin){
+//     std::cout<<"The current reduction property cannot be used."<<std::endl;
+//     RepeatFilter filter_re(filename_origin,fts,step);
+//     Term prop_filter;
+//     prop_filter = prop_cex.cex_parse_to_pono_property(filter,filter_re);
+//     std::cout <<"The new reduction property for the width filter and repeat filter is : "<< prop_filter->to_raw_string() << std::endl;
+//     return prop_filter;
 
-}
+// }
 
 
-Term get_term_with_width_fil(FilterConcat filter, PropertyInterfacecex prop_cex){
-      std::cout<<"The current reduction property cannot be used."<<std::endl;
-      Term prop_filter_single;
-      prop_filter_single = prop_cex.cex_parse_to_pono_property(filter);
-      std::cout <<"The new reduction property for the width filter is : "<< prop_filter_single->to_raw_string() << std::endl;
-      return prop_filter_single;
-}
+// Term get_term_with_width_fil(FilterConcat filter, PropertyInterfacecex prop_cex){
+//       std::cout<<"The current reduction property cannot be used."<<std::endl;
+//       Term prop_filter_single;
+//       prop_filter_single = prop_cex.cex_parse_to_pono_property(filter);
+//       std::cout <<"The new reduction property for the width filter is : "<< prop_filter_single->to_raw_string() << std::endl;
+//       return prop_filter_single;
+// }
 
 
 
@@ -681,16 +681,210 @@ ProverResult check_prop(PonoOptions pono_options,
   return r;
 }
 
-// int check_repeat(Term prop_filter,UnorderedTermSet prop_check){
-//     int idx = 0;
-//     for (Term it: prop_check){
-//       if (it->to_string()==prop_filter->to_string()){
-//         idx = 1;
-//         break;
-//       } 
-//     }
-//     return idx;
-// }
+ProverResult check_for_inductiveness_bmc(PonoOptions pono_options,
+                        const Term & prop_old,
+                        const TransitionSystem & original_ts,
+                        const SmtSolver & solver_old,
+                        std::vector<UnorderedTermMap> & cex,
+                        SolverEnum se,
+                        unsigned step)
+{
+  // create a solver for this
+  auto new_solver = create_solver_for(se, BMC, true,false);
+  TermTranslator to_new_solver(new_solver);
+  TermTranslator to_old_solver(solver_old);
+  FunctionalTransitionSystem new_fts(original_ts,to_new_solver);
+  std::vector<UnorderedTermMap> local_cex;
+  std::string filename_origin = pono_options.smt_path_ + "/" + "inv_origin.smt2";
+  if ((pono_options.add_assuption_in_origin_ == true)&&(step>0))
+      {       
+        PropertyInterface add_to_frame(filename_origin, new_fts);
+        add_to_frame.AddAssumptionsToTS();
+      }
+  Term prop = to_new_solver.transfer_term(prop_old);
+
+  // get property name before it is rewritten
+  const string prop_name = new_fts.get_name(prop);
+  logger.log(1, "Solving property: {}", prop_name);
+  logger.log(3, "INIT:\n{}", new_fts.init());
+  logger.log(3, "TRANS:\n{}", new_fts.trans());
+
+  // modify the transition system and property based on options
+  if (!pono_options.clock_name_.empty()) {
+    Term clock_symbol = new_fts.lookup(pono_options.clock_name_);
+    toggle_clock(new_fts, clock_symbol);
+  }
+  if (!pono_options.reset_name_.empty()) {
+    std::string reset_name = pono_options.reset_name_;
+    bool negative_reset = false;
+    if (reset_name.at(0) == '~') {
+      reset_name = reset_name.substr(1, reset_name.length() - 1);
+      negative_reset = true;
+    }
+    Term reset_symbol = new_fts.lookup(reset_name);
+    if (negative_reset) {
+      SortKind sk = reset_symbol->get_sort()->get_sort_kind();
+      reset_symbol = (sk == BV) ? new_solver->make_term(BVNot, reset_symbol)
+                                : new_solver->make_term(Not, reset_symbol);
+    }
+    Term reset_done = add_reset_seq(new_fts, reset_symbol, pono_options.reset_bnd_);
+    // guard the property with reset_done
+    prop = new_fts.solver()->make_term(Implies, reset_done, prop);
+  }
+
+
+  if (pono_options.static_coi_) {
+    /* Compute the set of state/input variables related to the
+       bad-state property. Based on that information, rebuild the
+       transition relation of the transition system. */
+    StaticConeOfInfluence coi(new_fts, { prop }, pono_options.verbosity_);
+  }
+
+  if (pono_options.pseudo_init_prop_) {
+    new_fts = pseudo_init_and_prop(new_fts, prop);
+  }
+
+  if (pono_options.promote_inputvars_) {
+    new_fts = promote_inputvars(new_fts);
+    assert(!new_fts.inputvars().size());
+  }
+
+  if (!new_fts.only_curr(prop)) {
+    logger.log(1,
+               "Got next state or input variables in property. "
+               "Generating a monitor state.");
+    prop = add_prop_monitor(new_fts, prop);
+  }
+
+  if (pono_options.assume_prop_) {
+    // NOTE: crucial that pseudo_init_prop and add_prop_monitor passes are
+    // before this pass. Can't assume the non-delayed prop and also
+    // delay it
+    prop_in_trans(new_fts, prop);
+  }
+
+  Property p(new_solver, prop, prop_name);
+
+  // end modification of the transition system and property
+
+  Engine eng = KIND;
+
+  std::shared_ptr<Prover> prover;
+  if (pono_options.cegp_abs_vals_) {
+    prover = make_cegar_values_prover(eng, p, new_fts, new_solver, pono_options);
+  } else if (pono_options.ceg_bv_arith_) {
+    prover = make_cegar_bv_arith_prover(eng, p, new_fts, new_solver, pono_options);
+  } else if (pono_options.ceg_prophecy_arrays_) {
+    prover = make_ceg_proph_prover(eng, p, new_fts, new_solver, pono_options);
+  } else {
+    prover = make_prover(eng, p, new_fts, new_solver, pono_options);
+  }
+  assert(prover);
+//TODO: W
+  // TODO: handle this in a more elegant way in the future
+  //       consider calling prover for CegProphecyArrays (so that underlying
+  //       model checker runs prove unbounded) or possibly, have a command line
+  //       flag to pick between the two
+  ProverResult r;
+  if (pono_options.engine_ == MSAT_IC3IA)
+  {
+    // HACK MSAT_IC3IA does not support check_until
+    r = prover->prove();
+  }
+  else
+  {
+    r = prover->check_until(pono_options.bound_);
+  }
+
+  // if (r == FALSE && pono_options.witness_) {
+  //   bool success = prover->witness(local_cex);
+  //   if (!success) {
+  //     logger.log(
+  //         0,
+  //         "Only got a partial witness from engine. Not suitable for printing.");
+  //   }
+  // }
+
+  // Term invar;
+  // if (r == TRUE && (pono_options.show_invar_ || pono_options.check_invar_)) {
+  //   try {
+  //     invar = prover->invar();
+
+  //     // write_inv_to_file(invar, outf,outf_origin, step, "RTL.");
+  //   }
+  //   catch (PonoException & e) {
+  //     std::cout << "Engine " << pono_options.engine_
+  //               << " does not support getting the invariant." << std::endl;
+  //     // outf << "(noinvar)" << endl;      
+  //   }
+
+  //   std::string folderPath = pono_options.smt_path_;
+  //   std::string filename = folderPath + "/" + "inv.smt2"; 
+  //   auto cvc5solver = smt::Cvc5SolverFactory::create(false);
+  //   auto transferer = smt::TermTranslator(cvc5solver);
+  //   auto invar_in_cvc5 = transferer.transfer_term(invar);
+  //   // auto invar_in_cvc5_origin = transferer.transfer_term(invar);
+  //   smt::UnorderedTermSet varset;
+   
+
+  //     varset = get_free_symbols(invar_in_cvc5);
+  //     auto invar_varname_rewritten = name_changed(invar_in_cvc5, varset, cvc5solver, "RTL.");
+  //     auto varset_new = get_free_symbols(invar_varname_rewritten);
+  //     std::string sort_list,sort_list_origin;
+  //     smt_lib2_front(varset_new, sort_list);
+  //     smt_lib2_front(varset, sort_list_origin);
+  //     // std::string folderPath = pono_options.smt_path_;
+  //     std::string origin_smt = folderPath + "/inv_origin.smt2"; 
+  //   // std::ofstream outf(filename, std::ofstream::out | std::ofstream::app);
+  //   // std::ofstream outf_origin(origin_smt, std::ofstream::out | std::ofstream::app);
+  //   if(step == 0){
+  //     std::string step_char = to_string(step);
+  //     std::string filename = folderPath + "/" + "inv.smt2"; 
+  //     ofstream res1(origin_smt.c_str());        
+  //     ofstream res(filename.c_str());
+  //     res<<"("<<"define-fun"<<" "<<"assumption." << step_char << " "<<"("<<sort_list<<")"<<" "<<"Bool"<<" "<<invar_varname_rewritten->to_string()<<")"<<endl;
+  //     res1<<"("<<"define-fun"<<" "<<"assumption." << step_char << " "<<"("<<sort_list_origin<<")"<<" "<<"Bool"<<" "<<invar_in_cvc5->to_string()<<")"<<endl;
+  //   }
+  //   else{
+  //     std::string step_char = to_string(step);
+  //     ofstream res;
+  //     ofstream res1;
+  //     std::string filename = folderPath + "/" + "inv"  +".smt2";
+  //     res.open(filename, ios::app);
+  //     res1.open(origin_smt, ios::app);
+  //     res<<"("<<"define-fun"<<" "<<"assumption." << step_char << " "<<"("<<sort_list<<")"<<" "<<"Bool"<<" "<<invar_varname_rewritten->to_string()<<")"<<endl;
+  //     res1<<"("<<"define-fun"<<" "<<"assumption." << step_char << " "<<"("<<sort_list_origin<<")"<<" "<<"Bool"<<" "<<invar_in_cvc5->to_string()<<")"<<endl;
+  //       }
+
+
+  // }
+    
+
+  // if (r == TRUE && pono_options.show_invar_ && invar) {
+  //   logger.log(0, "INVAR: {}", invar);
+  // }
+
+  // if (r == TRUE && pono_options.check_invar_ && invar) {
+  //   bool invar_passes = check_invar(new_fts, p.prop(), invar);
+  //   std::cout << "Invariant Check " << (invar_passes ? "PASSED" : "FAILED")
+  //             << std::endl;
+  //   if (!invar_passes) {
+  //     // shouldn't return true if invariant is incorrect
+  //     throw PonoException("Invariant Check FAILED");
+  //   }
+  // }
+
+  // // now translate cex back to original 
+  // for (const auto & frame: local_cex) {
+  //   cex.push_back(UnorderedTermMap());
+  //   for(const auto & var_val : frame) {
+  //     cex.back().emplace(to_old_solver.transfer_term(var_val.first, false), 
+  //                        to_old_solver.transfer_term(var_val.second, false));
+  //   }
+  // }
+
+  return r;
+}
 
 bool check_previous(Term prop_filter, UnorderedTermSet prop_check)
 {
@@ -707,6 +901,7 @@ ProverResult get_prop_inv(PonoOptions pono_options,
                   vector<UnorderedTermMap> &cex)
 {
       ProverResult res;
+      ProverResult res_bmc;
       PropertyInterfacecex prop_cex(pono_options, std::string("RTL"), true, fts);
       UnorderedTermSet prop_check;
       pono_options.sygus_initial_term_width_= prop_cex.get_reg_width();
@@ -717,7 +912,7 @@ ProverResult get_prop_inv(PonoOptions pono_options,
       // UnorderedTermSet prop_check;
       std::string filename_origin = pono_options.smt_path_ + "/" + "inv_origin.smt2";
       // filter.filters.push_back(std::make_shared<MaxWidthFilter>(pono_options.sygus_initial_term_width_,fts));
-      bool inductiveness;
+      // bool inductiveness;
       if ((pono_options.add_assuption_in_origin_ == true)&&(step>0))
       {       
         PropertyInterface add_to_frame(filename_origin, fts);
@@ -725,110 +920,194 @@ ProverResult get_prop_inv(PonoOptions pono_options,
       }      
       bool repeat_first = true;
       bool re;
-      if(step>0){
+      
+      
+      
+      if(step>0){       
           RepeatFilter filter_re(filename_origin,fts,step);
-          if(repeat_first){
-            auto max_width_1 = max_width;
-            while(max_width_1 < pono_options.sygus_initial_term_width_){            
-                filter.filters.push_back(std::make_shared<MaxWidthFilter>(max_width_1, fts));
-                prop_filter = prop_cex.cex_parse_to_pono_property(filter,filter_re);
-                if (((inductiveness = check_for_inductiveness(prop_filter, fts)) == true)&&((re = check_previous(prop_filter,prop_check)) == false)){
-                    prop_queue.push(make_pair(prop_filter,"dual filter with width: " + to_string(max_width)));
-                    std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use Dual Filter. "<<" The width is: "<<max_width_1<<std::endl;
-                    prop_check.insert(prop_filter);
-                }
-                filter.filters.pop_back();
-                max_width_1 *= 2;
-             }
-            MaxWidthFilter filter_wid(pono_options.sygus_initial_term_width_,fts);
-            prop_filter = prop_cex.cex_parse_to_pono_property(filter_wid,filter_re);
-            if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true))
-            {
-                re = check_previous(prop_filter,prop_check);
-                if(re==false){ 
-                prop_queue.push(make_pair(prop_filter,"dual filter with average width"));
-                std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use Dual Filter. "<<" The width is: "<<max_width_1<<std::endl;
-                prop_check.insert(prop_filter);
-                }
-            }
-            prop_filter = prop_cex.cex_parse_to_pono_property(filter_re);
-            if((prop_filter!=nullptr)&&((inductiveness = check_for_inductiveness(prop_filter, fts)) == true))
-            {
-                re = check_previous(prop_filter,prop_check);
-                if(re==false){               
-                  prop_queue.push(make_pair(prop_filter,"repeat filter"));
-                  std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use Repeat Filter. "<<" The width is: "<<max_width_1<<std::endl;
-                  prop_check.insert(prop_filter);
-                }
-            }
-            max_width_1 = max_width;
-            while(max_width_1 < pono_options.sygus_initial_term_width_){            
-                filter.filters.push_back(std::make_shared<MaxWidthFilter>(max_width_1, fts));
-                prop_filter = prop_cex.cex_parse_to_pono_property(filter);
-                if (((inductiveness = check_for_inductiveness(prop_filter, fts)) == true)&&((re = check_previous(prop_filter,prop_check)) == false)){
-                    prop_queue.push(make_pair(prop_filter,"width filter with width: " + to_string(max_width)));
-                    std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use Width Filter. "<<" The width is: "<<max_width_1<<std::endl;
-                    prop_check.insert(prop_filter);
-                }
-                filter.filters.pop_back();
-                max_width_1 *= 2;
-             }
+          // To begin with, we try to use the coi-repeat,coi-width filter
+          prop_filter = prop_cex.cex_parse_to_pono_property_coi(filter_re);
+          if(prop_filter!=nullptr){
+            std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
+          }
+          if((prop_filter!=nullptr)&&(prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step)) != FALSE)&&((re = check_previous(prop_filter,prop_check)) == false)){
+            prop_queue.push(make_pair(prop_filter,"coi and repeat filter "));
+            std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use COI and repeat Filter. "<<std::endl;
+            prop_check.insert(prop_filter);
+          }
+          MaxWidthFilter filter_wid(pono_options.sygus_initial_term_width_,fts);
+          prop_filter = prop_cex.cex_parse_to_pono_property_coi(filter_wid);
+          std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
+          if((prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step)) != FALSE)&&((re = check_previous(prop_filter,prop_check)) == false)&&(prop_filter!=nullptr)){
+            prop_queue.push(make_pair(prop_filter,"coi filter and average width filter"));
+            std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use COI and average width Filter. "<<std::endl;
+            prop_check.insert(prop_filter);
+          }
+          prop_filter = prop_cex.cex_parse_to_pono_property_coi();
+          std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
+          if((prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step)) != FALSE)&&((re = check_previous(prop_filter,prop_check)) == false)&&(prop_filter!=nullptr)){
+            prop_queue.push(make_pair(prop_filter,"coi filter "));
+            std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use COI Filter. "<<std::endl;
+            prop_check.insert(prop_filter);
+          }
+          // if(repeat_first){
+          //   // To begin with, we try to use the coi-repeat,coi-width filter. Everytime we increase the number of width, we also want to increase the COI variable.
+          //   auto max_width_1 = max_width;
+          //   while(max_width_1 < pono_options.sygus_initial_term_width_){            
+          //       filter.filters.push_back(std::make_shared<MaxWidthFilter>(max_width_1, fts));
+          //       prop_filter = prop_cex.cex_parse_to_pono_property(filter,filter_re,false);
+          //       if ((prop_filter!=nullptr)&&(prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step)) == TRUE)&&((re = check_previous(prop_filter,prop_check)) == false)){
+          //           prop_queue.push(make_pair(prop_filter,"dual filter with width: " + to_string(max_width_1)));
+          //           std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use Dual Filter. "<<" The width is: "<<max_width_1<<std::endl;
+          //           prop_check.insert(prop_filter);
+          //       }
+          //       prop_filter = prop_cex.cex_parse_to_pono_property(filter,filter_re,true);
+          //       if ((prop_filter!=nullptr)&&(prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step)) == TRUE)&&((re = check_previous(prop_filter,prop_check)) == false)){
+          //           prop_queue.push(make_pair(prop_filter,"add coi variable and dual filter with width: " + to_string(max_width_1)));
+          //           std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use Dual Filter and add coi variable. "<<" The width is: "<<max_width_1<<std::endl;
+          //           prop_check.insert(prop_filter);
+          //       }
+          //       filter.filters.pop_back();
+          //       max_width_1 *= 2;
+          //    }
+          //   MaxWidthFilter filter_wid(pono_options.sygus_initial_term_width_,fts);
+          //   prop_filter = prop_cex.cex_parse_to_pono_property(filter_wid,filter_re,false);
+          //   if((prop_filter!=nullptr)&&(prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step)) == TRUE)&&((re = check_previous(prop_filter,prop_check)) == false))
+          //   {
+          //       // re = check_previous(prop_filter,prop_check);
+          //       // if(re==false){ 
+          //       prop_queue.push(make_pair(prop_filter,"dual filter with average width"));
+          //       std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use Dual Filter. "<<" The width is: "<<pono_options.sygus_initial_term_width_<<std::endl;
+          //       prop_check.insert(prop_filter);
+          //       // }
+          //   }
+          //   prop_filter = prop_cex.cex_parse_to_pono_property(filter_wid,filter_re,true);
+          //   if((prop_filter!=nullptr)&&(prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step)) == TRUE)&&((re = check_previous(prop_filter,prop_check)) == false))
+          //   {
+          //       // re = check_previous(prop_filter,prop_check);
+          //       // if(re==false){ 
+          //       prop_queue.push(make_pair(prop_filter,"add coi variable and dual filter with average width"));
+          //       std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use Dual Filter and add coi variable. "<<" The width is: "<<pono_options.sygus_initial_term_width_<<std::endl;
+          //       prop_check.insert(prop_filter);
+          //       // }
+          //   }
+          //   prop_filter = prop_cex.cex_parse_to_pono_property(filter_re,false);
+          //   if((prop_filter!=nullptr)&&(prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step)) == TRUE)&&((re = check_previous(prop_filter,prop_check)) == false))
+          //   {
+          //       // re = check_previous(prop_filter,prop_check);
+          //       // if(re==false){               
+          //         prop_queue.push(make_pair(prop_filter,"repeat filter"));
+          //         std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use Repeat Filter. "<<" The width is: "<<max_width_1<<std::endl;
+          //         prop_check.insert(prop_filter);
+          //       // }
+          //   }
+          //   prop_filter = prop_cex.cex_parse_to_pono_property(filter_re,true);
+          //   if((prop_filter!=nullptr)&&(prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step)) == TRUE)&&((re = check_previous(prop_filter,prop_check)) == false))
+          //   {
+          //       // re = check_previous(prop_filter,prop_check);
+          //       // if(re==false){               
+          //         prop_queue.push(make_pair(prop_filter,"add coi variable and repeat filter"));
+          //         std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use Repeat Filter and add coi variable. "<<" The width is: "<<max_width_1<<std::endl;
+          //         prop_check.insert(prop_filter);
+          //       // }
+          //   }
+          //   max_width_1 = max_width;
+          //   while(max_width_1 < pono_options.sygus_initial_term_width_){            
+          //       filter.filters.push_back(std::make_shared<MaxWidthFilter>(max_width_1, fts));
+          //       prop_filter = prop_cex.cex_parse_to_pono_property(filter,false);
+          //       if ((prop_filter!=nullptr)&&(prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step)) != FALSE)&&((re = check_previous(prop_filter,prop_check)) == false)){
+          //           prop_queue.push(make_pair(prop_filter,"width filter with width: " + to_string(max_width_1)));
+          //           std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use Width Filter. "<<" The width is: "<<max_width_1<<std::endl;
+          //           prop_check.insert(prop_filter);
+          //       }
+          //       prop_filter = prop_cex.cex_parse_to_pono_property(filter,true);
+          //       if ((prop_filter!=nullptr)&&(prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step)) == TRUE)&&((re = check_previous(prop_filter,prop_check)) == false)){
+          //           prop_queue.push(make_pair(prop_filter,"add coi variable and width filter with width: " + to_string(max_width_1)));
+          //           std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use Width Filter and add coi variable . "<<" The width is: "<<max_width_1<<std::endl;
+          //           prop_check.insert(prop_filter);
+          //       }
+          //       filter.filters.pop_back();
+          //       max_width_1 *= 2;
+          //    }
 
-            prop_filter = prop_cex.cex_parse_to_pono_property();
-            std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use Without Filter. "<<" The width is: "<<max_width_1<<std::endl;
-            prop_queue.push(make_pair(prop_filter,"without filter"));
-          }
-          else{
-            prop_filter = prop_cex.cex_parse_to_pono_property(filter,filter_re);
-            if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true)){
-              prop_queue.push(make_pair(prop_filter,"dual filter"));
-              prop_check.insert(prop_filter);
-            }
-            prop_filter = prop_cex.cex_parse_to_pono_property(filter);
-            if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true)){
-                re = check_previous(prop_filter,prop_check);
-                if(re==false){
-                prop_queue.push(make_pair(prop_filter,"width filter"));
-                prop_check.insert(prop_filter);
-                }
-              }
-            prop_filter = prop_cex.cex_parse_to_pono_property(filter_re);
-            if((prop_filter!=nullptr)&&((inductiveness = check_for_inductiveness(prop_filter, fts)) == true)){
-                re = check_previous(prop_filter,prop_check);
-                if(re==false){               
-                  prop_queue.push(make_pair(prop_filter,"repeat filter"));
-                  prop_check.insert(prop_filter);
-                }
-            }
-            prop_filter = prop_cex.cex_parse_to_pono_property();
-            // auto idx = check_repeat(prop_filter, prop_check);
-            // if(idx == 0){
-              prop_queue.push(make_pair(prop_filter,"without filter"));
-            // }
-          }
+          //   prop_filter = prop_cex.cex_parse_to_pono_property();
+          //   std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use Without Filter. "<<" The width is: "<<max_width_1<<std::endl;
+          //   prop_queue.push(make_pair(prop_filter,"without filter"));
+          // }
+
+          //////This is Part of the width first
+          // else{
+          //   prop_filter = prop_cex.cex_parse_to_pono_property(filter,filter_re);
+          //   if(((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step)) != FALSE)){
+          //     prop_queue.push(make_pair(prop_filter,"dual filter"));
+          //     prop_check.insert(prop_filter);
+          //   }
+          //   prop_filter = prop_cex.cex_parse_to_pono_property(filter);
+          //   if(((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step)) != FALSE)){
+          //       re = check_previous(prop_filter,prop_check);
+          //       if(re==false){
+          //       prop_queue.push(make_pair(prop_filter,"width filter"));
+          //       prop_check.insert(prop_filter);
+          //       }
+          //     }
+          //   prop_filter = prop_cex.cex_parse_to_pono_property(filter_re);
+          //   if((prop_filter!=nullptr)&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step)) != FALSE)){
+          //       re = check_previous(prop_filter,prop_check);
+          //       if(re==false){               
+          //         prop_queue.push(make_pair(prop_filter,"repeat filter"));
+          //         prop_check.insert(prop_filter);
+          //       }
+          //   }
+          //   prop_filter = prop_cex.cex_parse_to_pono_property();
+          //   // auto idx = check_repeat(prop_filter, prop_check);
+          //   // if(idx == 0){
+          //     prop_queue.push(make_pair(prop_filter,"without filter"));
+          //   // }
+          // }
+          //////End of the width first
         }
         else{
-          auto max_width_1 = max_width;
-          while(max_width_1 < pono_options.sygus_initial_term_width_){            
-                filter.filters.push_back(std::make_shared<MaxWidthFilter>(max_width_1, fts));
-                prop_filter = prop_cex.cex_parse_to_pono_property(filter);
-                if (((inductiveness = check_for_inductiveness(prop_filter, fts)) == true)&&((re = check_previous(prop_filter,prop_check)) == false)){
-                    prop_queue.push(make_pair(prop_filter,"width filter with width: " + to_string(max_width)));
-                    std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use Width Filter. "<<" The width is: "<<max_width_1<<std::endl;
-                    prop_check.insert(prop_filter);
-                }
-                filter.filters.pop_back();
-                max_width_1 *= 2;
-             }
-          prop_filter = prop_cex.cex_parse_to_pono_property();
-          // auto idx = check_repeat(prop_filter, prop_check);
-          // if(idx = 0){
-          prop_queue.push(make_pair(prop_filter,"without filter"));
+          MaxWidthFilter filter_wid(pono_options.sygus_initial_term_width_,fts);
+          prop_filter = prop_cex.cex_parse_to_pono_property_coi(filter_wid);
+          if((prop_check.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step)) != FALSE)&&((re = check_previous(prop_filter,prop_check)) == false)&&(prop_filter!=nullptr)){
+            prop_queue.push(make_pair(prop_filter,"coi and average width filter "));
+            std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use COI and average width Filter. "<<std::endl;
+          }
+          prop_filter = prop_cex.cex_parse_to_pono_property_coi();
+          if((prop_check.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step)) != FALSE)&&((re = check_previous(prop_filter,prop_check)) == false)&&(prop_filter!=nullptr)){
+            prop_queue.push(make_pair(prop_filter,"coi filter "));
+            std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use COI and average width Filter. "<<std::endl;
+          }
+          // auto max_width_1 = max_width;
+          // while(max_width_1 < pono_options.sygus_initial_term_width_){            
+          //       filter.filters.push_back(std::make_shared<MaxWidthFilter>(max_width_1, fts));
+          //       prop_filter = prop_cex.cex_parse_to_pono_property(filter,false);
+          //       if ((prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step)) != FALSE)&&((re = check_previous(prop_filter,prop_check)) == false)){
+          //           prop_queue.push(make_pair(prop_filter,"width filter with width: " + to_string(max_width)));
+          //           std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use Width Filter. "<<" The width is: "<<max_width_1<<std::endl;
+          //           prop_check.insert(prop_filter);
+          //       }
+          //       prop_filter = prop_cex.cex_parse_to_pono_property(filter,true);
+          //       if ((prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step)) != FALSE)&&((re = check_previous(prop_filter,prop_check)) == false)){
+          //           prop_queue.push(make_pair(prop_filter,"add coi variable and width filter with width: " + to_string(max_width)));
+          //           std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use Width Filter and add coi variable. "<<" The width is: "<<max_width_1<<std::endl;
+          //           prop_check.insert(prop_filter);
+          //       }
+          //       filter.filters.pop_back();
+          //       max_width_1 *= 2;
+          //    }
+          // prop_filter = prop_cex.cex_parse_to_pono_property();
+          // // auto idx = check_repeat(prop_filter, prop_check);
+          // // if(idx = 0){
+          // prop_queue.push(make_pair(prop_filter,"without filter"));
             // }
         }
       // std::cout <<"The initial reduction property for the filter is: "<< prop_filter->to_raw_string() << std::endl;
       Term prop;
       std::string fil_name;
+      if(prop_queue.empty()){
+        std::cout<<"There is some error, COI filter has bug"<<std::endl;
+      }
       prop = prop_queue.front().first;
       fil_name = prop_queue.front().second;
       prop_queue.pop();
@@ -964,7 +1243,7 @@ int main(int argc, char ** argv)
         }
         assert(pono_options.witness_ || !cex.size());
         if (cex.size()) {
-          print_witness_btor(btor_enc, cex, fts,pono_options);
+          print_witness_btor(btor_enc, cex, fts);
           if (!pono_options.vcd_name_.empty()) {
             VCDWitnessPrinter vcdprinter(fts, cex);
             vcdprinter.dump_trace_to_file(pono_options.vcd_name_);
@@ -1017,7 +1296,7 @@ int main(int argc, char ** argv)
       if(!pono_options.cex_reader_.empty()){
         PropertyInterfacecex prop_cex(pono_options, std::string("RTL"), true, fts);
         FilterConcat filter;
-        prop = prop_cex.cex_parse_to_pono_property(filter);
+        prop = prop_cex.cex_parse_to_pono_property();
         std::cout << prop->to_raw_string() << std::endl;
 
           
@@ -1044,7 +1323,7 @@ int main(int argc, char ** argv)
         }
         assert(pono_options.witness_ || !cex.size());
         if (cex.size()) {
-          print_witness_btor(btor_enc, cex, fts,pono_options);
+          print_witness_btor(btor_enc, cex, fts);
           if (!pono_options.vcd_name_.empty()) {
             VCDWitnessPrinter vcdprinter(fts, cex);
             vcdprinter.dump_trace_to_file(pono_options.vcd_name_);

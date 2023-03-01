@@ -86,8 +86,8 @@ bool Prover::witness(std::vector<UnorderedTermMap> & out)
         "Recovering witness failed. Make sure that there was "
         "a counterexample and that the engine supports witness generation.");
   }
-  bool success = true;
-  if(options_.coi_filter_==false){
+  // bool success = true;
+  // if(options_.coi_filter_==true){
   function<Term(const Term &, SortKind)> transfer_to_prover_as;
   function<Term(const Term &, SortKind)> transfer_to_orig_ts_as;
   TermTranslator to_orig_ts_solver(orig_ts_.solver());
@@ -153,57 +153,57 @@ bool Prover::witness(std::vector<UnorderedTermMap> & out)
       }
     }
   }
-  }
-  else{
-  auto new_solver = create_solver_for(BTOR, options_.engine_, true,false);
-  TermTranslator to_new_solver(new_solver);
-  // TermTranslator to_old_solver(solver_);
-  FunctionalTransitionSystem new_fts(ts_,to_new_solver);
-  UnorderedTermMap & cache = to_new_solver.get_cache();
-  for (const auto &v : orig_ts_.statevars()) {
-    cache[to_new_solver.transfer_term(v)] = v;
-  }
-  for (const auto &v : orig_ts_.inputvars()) {
-    cache[to_new_solver.transfer_term(v)] = v;
-  }
+  // }
+  // else{
+  // auto new_solver = create_solver_for(BTOR, options_.engine_, true,false);
+  // TermTranslator to_new_solver(new_solver);
+  // // TermTranslator to_old_solver(solver_);
+  // FunctionalTransitionSystem new_fts(ts_,to_new_solver);
+  // UnorderedTermMap & cache = to_new_solver.get_cache();
+  // for (const auto &v : orig_ts_.statevars()) {
+  //   cache[to_new_solver.transfer_term(v)] = v;
+  // }
+  // for (const auto &v : orig_ts_.inputvars()) {
+  //   cache[to_new_solver.transfer_term(v)] = v;
+  // }
    
-  for (const auto & wit_map : witness_) {
-    out.push_back(UnorderedTermMap());
-    UnorderedTermMap & map = out.back();
+  // for (const auto & wit_map : witness_) {
+  //   out.push_back(UnorderedTermMap());
+  //   UnorderedTermMap & map = out.back();
 
-    for (const auto &v : ts_.statevars()) {
-      const SortKind &sk = v->get_sort()->get_sort_kind();
-      const Term &pv = transfer_to_orig_as_(v, sk,new_solver);
-      map[pv] = transfer_to_orig_as_(wit_map.at(v), sk,new_solver);
-    }
+  //   for (const auto &v : ts_.statevars()) {
+  //     const SortKind &sk = v->get_sort()->get_sort_kind();
+  //     const Term &pv = transfer_to_orig_as_(v, sk,new_solver);
+  //     map[pv] = transfer_to_orig_as_(wit_map.at(v), sk,new_solver);
+  //   }
 
-    for (const auto &v : ts_.inputvars()) {
-      const SortKind &sk = v->get_sort()->get_sort_kind();
-      const Term &pv = transfer_to_orig_as_(v, sk,new_solver);
-      try {
-        map[pv] = transfer_to_orig_as_(wit_map.at(v), sk,new_solver);
-      }
-      catch (std::exception & e) {
-        success = false;
-        break;
-      }
-    }
+  //   for (const auto &v : ts_.inputvars()) {
+  //     const SortKind &sk = v->get_sort()->get_sort_kind();
+  //     const Term &pv = transfer_to_orig_as_(v, sk,new_solver);
+  //     try {
+  //       map[pv] = transfer_to_orig_as_(wit_map.at(v), sk,new_solver);
+  //     }
+  //     catch (std::exception & e) {
+  //       success = false;
+  //       break;
+  //     }
+  //   }
 
-    if (success) {
-      for (const auto &elem : ts_.named_terms()) {
-        const SortKind &sk = elem.second->get_sort()->get_sort_kind();
-        const Term &pt = transfer_to_orig_as_(elem.second, sk,new_solver);
-        try {
-          map[pt] = transfer_to_orig_as_(wit_map.at(elem.second), sk,new_solver);
-        }
-        catch (std::exception & e) {
-          success = false;
-          break;
-        }
-      }
-    }
-  }
-  }
+  //   if (success) {
+  //     for (const auto &elem : ts_.named_terms()) {
+  //       const SortKind &sk = elem.second->get_sort()->get_sort_kind();
+  //       const Term &pt = transfer_to_orig_as_(elem.second, sk,new_solver);
+  //       try {
+  //         map[pt] = transfer_to_orig_as_(wit_map.at(elem.second), sk,new_solver);
+  //       }
+  //       catch (std::exception & e) {
+  //         success = false;
+  //         break;
+  //       }
+  //     }
+  //   }
+  // }
+  // }
 
   return success;
 }
@@ -267,8 +267,8 @@ bool Prover::compute_witness()
     std::string filename = folderPath + "/" + "COI_variable.json";
     std::ofstream output(filename);
     output<<j<<std::endl;
-    for (const auto & v : varset)
-      std::cout << v->to_string() << std::endl;
+  //   for (const auto & v : varset)
+  //     std::cout << v->to_string() << std::endl;
   }
   for (int i = 0; i <= reached_k_ + 1; ++i) {
     witness_.push_back(UnorderedTermMap());
@@ -350,9 +350,9 @@ void Prover::compute_dynamic_COI(smt::UnorderedTermSet & init_state_variables) {
   UnorderedTermSet varset;
   UnorderedTermSet varset_input;
   get_var_in_COI({last_bad}, varset); // varset contains variables like : a@n
-  for(auto var:ts_.inputvars()){
-    std::cout<<"The input var is: "<<var->to_string()<<std::endl;
-  }
+  // for(auto var:ts_.inputvars()){
+  //   std::cout<<"The input var is: "<<var->to_string()<<std::endl;
+  // }
   for(int i = reached_k_; i>=0; --i) {
     UnorderedTermSet newvarset;
     TermVec update_functions_to_check;

@@ -65,10 +65,13 @@ class PropertyInterfacecex : public CexExtractor
                            const std::string& scope,
                            bool reg_only, TransitionSystem & ts);
     void get_COI_variable(PonoOptions pono_options_);
-    smt::Term cex_parse_to_pono_property(filter_t filter);
-    smt::Term cex_parse_to_pono_property(filter_r filter_re);
-    smt::Term cex_parse_to_pono_property(filter_t filter,filter_r filter_re);
+    smt::Term cex_parse_to_pono_property(filter_t filter,bool add_coi);
+    smt::Term cex_parse_to_pono_property(filter_r filter_re,bool add_coi);
+    smt::Term cex_parse_to_pono_property(filter_t filter,filter_r filter_re,bool add_coi);
     smt::Term cex_parse_to_pono_property();
+    smt::Term cex_parse_to_pono_property_coi(filter_r filter_re);
+    smt::Term cex_parse_to_pono_property_coi(filter_t filter);
+    smt::Term cex_parse_to_pono_property_coi();
     int get_reg_width();
     int get_reg_min_width();
   protected:

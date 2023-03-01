@@ -635,7 +635,7 @@ int main(int argc, char ** argv)
         cout << "b" << pono_options.prop_idx_ << endl;
         assert(pono_options.witness_ || !cex.size());
         if (cex.size()) {
-          print_witness_btor(btor_enc, cex, fts,pono_options);
+          print_witness_btor(btor_enc, cex, fts);
           if (!pono_options.vcd_name_.empty()) {
             VCDWitnessPrinter vcdprinter(fts, cex);
             vcdprinter.dump_trace_to_file(pono_options.vcd_name_);
@@ -707,10 +707,10 @@ int main(int argc, char ** argv)
           res_collect<<"step: "<<  pono_options.step_ << "sat" <<endl;
         }
         if (cex.size()) {
-          auto new_solver = create_solver_for(BTOR, pono_options.engine_, true,false);
-          TermTranslator to_new_solver(new_solver);
-          // TermTranslator to_old_solver(solver_);
-          FunctionalTransitionSystem new_fts(fts,to_new_solver);
+          // auto new_solver = create_solver_for(BTOR, pono_options.engine_, true,false);
+          // TermTranslator to_new_solver(new_solver);
+          // // TermTranslator to_old_solver(solver_);
+          // FunctionalTransitionSystem new_fts(fts,to_new_solver);
           // // BTOR2Encoder btor_enc(pono_options.filename_, new_fts);
           // vector<UnorderedTermMap> btor_cex;
           // for (const auto & frame: cex) {
@@ -720,9 +720,13 @@ int main(int argc, char ** argv)
           //                       var_val.second);
           //   }
           // }
+          print_witness_btor(btor_enc, cex, fts);
+          if (!pono_options.vcd_name_.empty()) {
+            VCDWitnessPrinter vcdprinter(fts, cex);
+            vcdprinter.dump_trace_to_file(pono_options.vcd_name_);
+          }
           // print_witness_btor(btor_enc, cex, fts);
-          print_witness_btor(btor_enc, cex, new_fts,pono_options);
-          cex.clear();
+          // cex.clear();
         }
 
       } else if (res == TRUE) {

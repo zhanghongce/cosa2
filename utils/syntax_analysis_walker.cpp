@@ -18,7 +18,8 @@
 #include "utils/logger.h"
 #include "utils/container_shortcut.h"
 #include "utils/term_analysis.h"
- 
+#include <fstream> 
+#include "json/json.hpp" 
 #include "smt-switch/utils.h"
 
 // #define DEBUG
@@ -289,6 +290,35 @@ void TermExtractor::PostChild(const smt::Term & ast) {
 //              TermScore Map                     //
 //                                                //
 // ---------------------------------------------- //
+void TermScore::get_COI_repeat_list(std::string smt_path_){
+    const std::string json_name = smt_path_ + "/" + "COI_variable.json";
+    std::ifstream f(json_name);
+    if(!f.is_open() )
+        return ;
+    nlohmann::json data = nlohmann::json::parse(f);
+    data.at("name").get_to(name_terms); 
+      for(const auto var: name_terms) {
+      // std::cout<<"The COI variable is: "<<var<<std::endl;
+      auto var_copy = var;
+      if (var_copy.length() > 2 && var_copy.front() == var_copy.back() &&
+        var_copy.front() == '|') // remove extra | pair
+        var_copy = var_copy.substr(1,var_copy.length()-2);
+      auto pos_1 = var_copy.rfind("RTL.");
+      if(pos_1!=std::string::npos){
+        var_copy = var_copy.substr(pos_1+4);
+      }
+      var_copy = var_copy+".next";
+      new_name_terms.push_back(var_copy);
+}
+}
+bool TermScore::check_in_COI_repeat_list(smt::Term term_to_check){
+
+    std::vector<std::string>::iterator result = std::find( new_name_terms.begin(), new_name_terms.end(), term_to_check->to_string() );
+    if(result != new_name_terms.end()){
+      return true;
+    }
+  return false;
+}
 
 
 bool TermScore::Skip(const smt::Term & ast) {
@@ -307,15 +337,39 @@ void TermScore::PostChild(const smt::Term & ast) {
     width = 1;
   else if (ast->get_sort()->get_sort_kind() == smt::SortKind::BV)
     width = ast->get_sort()->get_width();
-
+  bool control_coi = false;
   if (ast->is_symbolic_const()) {
-    scores_.emplace(ast,term_score_t(width)); // width*2
+    bool in_coi = check_in_COI_repeat_list(ast);
+    if(control_coi)
+    {
+    if(in_coi==true){
+      scores_.emplace(ast,term_score_t(1)); 
+    }
+    else{
+      scores_.emplace(ast,term_score_t(width));
+    }
+    }
+    else{
+      scores_.emplace(ast,term_score_t(width));
+    }
+     // width*2
   } else if ( ast->is_value() ) { 
     scores_.emplace(ast,term_score_t(width*2)); // width
   } else { // we will hope it is op
     auto ret = scores_.emplace(ast,term_score_t(width));   // width  
     for(auto && c : *ast) { // for each of its child node
+    if(control_coi)
+    {
+      bool in_coi = check_in_COI_repeat_list(c);
+      if(in_coi==true){
+        ret.first->second.score = 1;
+        break;
+      }
       ret.first->second.score += scores_.at(c).score;
+      }
+    else{
+      ret.first->second.score += scores_.at(c).score;
+    }
       //  iterator->the score
     } // sum their scores and add one for itself
   } // end of op

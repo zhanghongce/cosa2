@@ -390,6 +390,36 @@ void VarTermManager::const_to_per_varset(PerVarsetInfo & term_cache_item /*OUT*/
   } // end of for each width_constant_pair
 } //const_to_per_varset
 
+void VarTermManager::get_COI_repeat_list(std::string smt_path_){
+    const std::string json_name = smt_path_ + "/" + "COI_variable.json";
+    std::ifstream f(json_name);
+    if(!f.is_open() )
+        return ;
+    nlohmann::json data = nlohmann::json::parse(f);
+    data.at("name").get_to(name_terms); 
+      for(const auto var: name_terms) {
+      // std::cout<<"The COI variable is: "<<var<<std::endl;
+      auto var_copy = var;
+      if (var_copy.length() > 2 && var_copy.front() == var_copy.back() &&
+        var_copy.front() == '|') // remove extra | pair
+        var_copy = var_copy.substr(1,var_copy.length()-2);
+      auto pos_1 = var_copy.rfind("RTL.");
+      if(pos_1!=std::string::npos){
+        var_copy = var_copy.substr(pos_1+4);
+      }
+      new_name_terms.push_back(var_copy);
+}
+}
+bool VarTermManager::check_in_COI_repeat_list(smt::UnorderedTermSet terms_to_check){
+  for(auto symbol_name: terms_to_check){
+    std::vector<std::string>::iterator result = std::find( new_name_terms.begin(), new_name_terms.end(), symbol_name->to_string() );
+    if(result != new_name_terms.end()){
+      return true;
+    }
+  }
+  return false;
+}
+
 unsigned VarTermManager::insert_from_termsmap_w_width(
   const std::map<unsigned, smt::TermVec> & terms /*IN*/, PerVarsetInfo & term_cache_item /*OUT*/ , 
   unsigned width_bound_low /*IN*/, unsigned width_bound_high /*IN*/, bool check_symbol) 
@@ -402,6 +432,7 @@ unsigned VarTermManager::insert_from_termsmap_w_width(
       int width_symbol;
       for(auto && t : tvec){
         auto symbol_set = get_free_symbols(t);
+        auto have_coi_repeat_symbol = check_in_COI_repeat_list(symbol_set);
         std::vector<int> width_vec;
         for(auto symbol_name: symbol_set){
           assert((symbol_name->get_sort()->to_string())!="BOOL");          
@@ -414,7 +445,7 @@ unsigned VarTermManager::insert_from_termsmap_w_width(
             width_symbol = *max_element(width_vec.begin(), width_vec.end());
           }
         }
-        if (! (width_symbol >= width_bound_low && width_symbol < width_bound_high))
+        if (! ((width_symbol >= width_bound_low && width_symbol < width_bound_high)||have_coi_repeat_symbol))
             continue; 
         auto tstr = t->to_string();
         auto ins_res = term_cache_item.terms_strings.insert(tstr);

@@ -40,6 +40,7 @@ namespace pono {
 
 unsigned SygusPdr::GetScore(const Term & t) {
   const auto & score_map = term_score_walker_.GetScoreMap();
+  term_score_walker_.get_COI_repeat_list(options_.smt_path_);
   auto pos = score_map.find(t);
   if (pos != score_map.end())
     return pos->second.score;
@@ -58,9 +59,9 @@ void SygusPdr::build_ts_related_info() {
   const auto & all_state_vars = ts_.statevars();//The input and state in the btor
   for (const auto & sv : all_state_vars) {
     const auto & s_updates = ts_.state_updates();////The state in the btor
-    for(const auto &s:  s_updates){
-      std::cout<< s.first->to_string() << std::endl;
-    }
+    // for(const auto &s:  s_updates){
+    //   std::cout<< s.first->to_string() << std::endl;
+    // }
     if (!IN(sv, s_updates))
       no_next_vars_.insert(sv);
     else
@@ -406,50 +407,6 @@ IC3Formula SygusPdr::inductive_generalization(
       } else{
         insufficient_pred = false;
         
-        // failed_at_init = false;
-        // if (pre_full_model) {
-        //   delete pre_full_model;
-        //   pre_full_model = NULL;
-        // }
-        // if (!failed_at_init) {
-        //   // the idea of full model is we want to keep the assignment to
-        //   // some inputs that could be thrown away
-        //   std::tie(pre_formula, pre_model, pre_full_model) =
-        //     ExtractPartialAndFullModel( post_model );
-        //   D(3, "Generated MAY-block model {}", pre_model->to_string());
-        // } else {
-        //   // only pre_model and failed_at_init are used in later
-        //   std::tie(pre_formula, pre_model) =
-        //     ExtractInitPrimeModel( Init_prime ); // this can be only the prime vars
-        //   D(3, "Generated MAY-block model (init) {}", pre_model->to_string());
-        // }
-        // pop_solver_context();
-        // if (!failed_at_init) {
-        //         D(3, "Try recursive block the above model.");
-        //         if(try_recursive_block_goal(pre_formula, i-1))
-        //           continue; // see if we have next that we may need to block
-        //         if(pred_collector_.term_summary() > old_term_count) {
-        //           D(3, "though not blocked, we got {} > {} terms", pred_collector_.term_summary(), old_term_count);
-        //           continue;
-        //         }
-        //       } // if we failed at init, then we will anyway need to 
-        //       // propose new terms
-        //       D(3, "Cannot block MAY-block model {}", pre_model->to_string());
-        //       D(3, "Back to F[{}]->[{}], get new terms.", i-1,i);
-
-        //       if (!failed_at_init)
-        //         assert(pre_full_model);
-        //       else
-        //         assert(!pre_full_model);
-
-        //       bool succ = 
-        //         propose_new_terms(failed_at_init ? pre_model : pre_full_model, 
-        //           post_model,
-        //           F_T_not_cex, Init_prime, failed_at_init);
-        //       assert(succ);
-        //       delete pre_full_model;
-        //       pre_full_model = NULL;        
-        
         }
       pop_solver_context();
     } // end of step 1
@@ -650,6 +607,7 @@ syntax_analysis::PerCexInfo & SygusPdr::setup_cex_info (syntax_analysis::IC3Form
   auto cex_term_map_pos = cex_term_map_.find(post_model);
   if (cex_term_map_pos == cex_term_map_.end()) { // set up per cex candidates
     bool nouse;
+    sygus_term_manager_.get_COI_repeat_list(options_.smt_path_);
     std::tie(cex_term_map_pos ,  nouse) =
       cex_term_map_.emplace(post_model, 
           syntax_analysis::PerCexInfo( 
@@ -952,7 +910,7 @@ std::pair<IC3Formula, syntax_analysis::IC3FormulaModel *>
     Term val = solver_->get_value(v);
     auto eq = solver_->make_term(Op(PrimOp::Equal), v,val );
     if(inst_check == true){
-      if ((keep_var_in_partial_model(v))&&(InstructionCheckCOI(v,solver_))) {
+      if ((keep_var_in_partial_model(v))) {
         cube_partial.emplace(v,val);
         conjvec_partial.push_back( eq );
         if (conj_partial) {
