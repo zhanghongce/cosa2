@@ -403,8 +403,11 @@ int main(int argc, char ** argv)
   FunctionalTransitionSystem fts(s);
   BTOR2Encoder btor_enc(pono_options.filename_, fts);
   Term prop;
-  CexInfoForEnvInvSyn cexinfo("invsyn-config.json");
-  logger.log(0, "Datapath reg: {} , aux var removal: {}", cexinfo.datapath_elements_.size(), cexinfo.auxvar_removal_.size());
+  CexInfoForEnvInvSyn cexinfo("invsyn-config.json", "COI.txt");
+  logger.log(0, "Datapath reg: {} , aux var removal: {}, COI in range: {}", 
+    cexinfo.datapath_elements_.size(), 
+    cexinfo.auxvar_removal_.size(),
+    cexinfo.COI_to_consider_.size());
   
   // HERE we load the assumptions from environment invariant synthesis
   if(!pono_options.property_file_.empty()) {
@@ -418,13 +421,14 @@ int main(int argc, char ** argv)
 
   QedCexParser cexreader(
     cexinfo.cex_path_, 
-    cexinfo.module_name_filter_,
-    cexinfo.module_name_removal_,
+    cexinfo.module_name_filter_,  // will only keep var with this as the prefix
+    cexinfo.module_name_removal_, // will remove this prefix
     fts);
   
   FilterConcat filter;
   unsigned max_width = 32;
   filter.filters.push_back(std::make_shared<NameFilter>(cexinfo.auxvar_removal_, fts, false));
+  filter.filters.push_back(std::make_shared<NameFilter>(cexinfo.COI_to_consider_, fts, true));
   filter.filters.push_back(std::make_shared<NameFilter>(cexinfo.datapath_elements_, fts, false));
   filter.filters.push_back(std::make_shared<MaxWidthFilter>(max_width, fts));
   prop = cexreader.cex2property(filter);

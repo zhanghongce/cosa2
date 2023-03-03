@@ -19,6 +19,7 @@
 #include <cassert>
 #include <climits>
 #include <functional>
+#include <fstream>
 
 #include "core/rts.h"
 #include "modifiers/static_coi.h"
@@ -195,6 +196,12 @@ bool Prover::compute_witness()
 {
   // TODO: make sure the solver state is SAT
 
+  smt::UnorderedTermSet varset;
+  compute_dynamic_COI(varset);
+  std::ofstream fout("COI.txt");
+  for (const auto & v : varset)
+    fout << v->to_string() << std::endl;
+
   for (int i = 0; i <= reached_k_ + 1; ++i) {
     witness_.push_back(UnorderedTermMap());
     UnorderedTermMap & map = witness_.back();
@@ -220,11 +227,6 @@ bool Prover::compute_witness()
       map[elem.second] = solver_->get_value(ti);
     }
   }
-
-  smt::UnorderedTermSet varset;
-  compute_dynamic_COI(varset);
-  for (const auto & v : varset)
-    std::cout << v->to_string() << std::endl;
 
   return true;
 }
