@@ -196,6 +196,8 @@ int main(int argc, char ** argv)
     pono_options.vcd_name_ = "cex.vcd";
   // in this case, we are only interested in the first state
   pono_options.witness_ = pono_options.witness_first_state_only_ = true;
+  pono_options.compute_dynamic_coi_upon_cex_ = true;
+  pono_options.logging_smt_solver_ = true; // it seems that logging solver helps with COI
 
   if (res == ERROR) return res;
   // expected result returned by option parsing and setting is
