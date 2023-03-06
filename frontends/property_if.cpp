@@ -89,6 +89,48 @@ void PropertyInterface::AddAssumptionsToTS() {
 
 // --------------------------------------------------------------------------
 
+std::string static remove_vertical_bar(const std::string & in) {
+  if (in.length() > 2 && in.front() == '|' && in.back() == '|')
+    return in.substr(1,in.length()-2);
+  return in;
+}
+
+AssumptionRelationReader::AssumptionRelationReader(std::string filename, TransitionSystem & ts)
+    : super(ts.get_solver()), filename_(filename), ts_(ts)
+{
+  set_logic_all();
+  int res = parse(filename_);
+  assert(!res);  // 0 means success
+
+  for(const auto & n_prop : defs_){
+    auto fun_name = remove_vertical_bar(n_prop.first);
+    if ( fun_name.find("cond.") == 0 ) {
+      //                01234
+      auto sv_name = fun_name.substr(5);
+      sv_cond_.emplace(sv_name, n_prop.second);
+    } else if (fun_name.find("val.") == 0) {
+      //                      0123
+      auto sv_name = fun_name.substr(4);
+      sv_value_.emplace(sv_name, n_prop.second);
+    }     
+  }
+} // end of AssumptionRelationReader::AssumptionRelationReader
+
+
+smt::Term AssumptionRelationReader::register_arg(const std::string & name, const smt::Sort & sort) {
+  auto tmpvar = ts_.lookup(name);
+  arg_param_map_.add_mapping(name, tmpvar);
+  return tmpvar; // we expect to get the term in the transition system.
+}
+
+smt::Term AssumptionRelationReader::GetConditionInAssumption(const std::string & t) const {
+  if(sv_cond_.find(t) == sv_cond_.end())
+    return ts_.get_solver()->make_term(true); // return true;
+  return sv_cond_.at(t);
+}
+
+// --------------------------------------------------------------------------
+
 PropertyInterfacecex::PropertyInterfacecex(const std::string& vcd_file_name,
                            const std::string& scope,
                            bool reg_only, TransitionSystem & ts):

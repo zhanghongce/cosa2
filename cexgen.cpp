@@ -197,6 +197,10 @@ int main(int argc, char ** argv)
   // in this case, we are only interested in the first state
   pono_options.witness_ = pono_options.witness_first_state_only_ = true;
   pono_options.compute_dynamic_coi_upon_cex_ = true;
+  { // dynamically check if asmpt-ila.smt2 is available or not
+    std::ifstream fin("asmpt-ila.smt2");
+    pono_options.use_ilang_coi_constraint_file_ = fin.is_open();
+  }
   pono_options.logging_smt_solver_ = true; // it seems that logging solver helps with COI
 
   if (res == ERROR) return res;

@@ -98,6 +98,7 @@ class PonoOptions
         smt_solver_(default_smt_solver_),
         logging_smt_solver_(default_logging_smt_solver_),
         compute_dynamic_coi_upon_cex_(default_compute_dynamic_coi_upon_cex_),
+        use_ilang_coi_constraint_file_(default_use_ilang_coi_constraint_file_),
         static_coi_(default_static_coi_),
         show_invar_(default_show_invar_),
         check_invar_(default_check_invar_),
@@ -195,6 +196,7 @@ class PonoOptions
   smt::SolverEnum smt_solver_;  ///< underlying smt solver
   bool logging_smt_solver_;
   bool compute_dynamic_coi_upon_cex_;  ///< will generate a COI.txt along with cex.vcd
+  bool use_ilang_coi_constraint_file_; ///< will read asmpt-ila.smt2 when generate COI.txt
   bool static_coi_;
   bool show_invar_;   ///< display invariant when running from command line
   bool check_invar_;  ///< check invariants (if available) when run through CLI
@@ -313,6 +315,7 @@ private:
   static const bool default_witness_first_state_only_ = false;
   static const bool default_witness_ = false;
   static const bool default_compute_dynamic_coi_upon_cex_ = false;
+  static const bool default_use_ilang_coi_constraint_file_ = false;
   static const bool default_static_coi_ = false;
   static const bool default_show_invar_ = false;
   static const bool default_check_invar_ = false;

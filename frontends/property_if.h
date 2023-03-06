@@ -53,6 +53,30 @@ class PropertyInterface : public smt::SmtLibReader
 
 };
 
+class AssumptionRelationReader : public smt::SmtLibReader {
+  
+public:
+  AssumptionRelationReader(std::string filename, TransitionSystem & ts);
+  typedef SmtLibReader super;
+
+  // the input value t should be the term for state variable
+  bool IsConstrainedInAssumption(const std::string& t) const { return sv_value_.find(t) != sv_value_.end();}
+  smt::Term GetConditionInAssumption(const std::string & t) const;
+  smt::Term GetValueTermInAssumption(const std::string & t) const { return sv_value_.at(t); }
+
+protected:
+  // overloaded function, used when arg list of function is parsed
+  // NOTE: | |  pipe quotes are removed.
+  virtual smt::Term register_arg(const std::string & name, const smt::Sort & sort) override;
+
+  std::string filename_;
+  TransitionSystem & ts_;
+
+  std::unordered_map<std::string, smt::Term> sv_cond_;
+  std::unordered_map<std::string, smt::Term> sv_value_;
+
+}; // end of class AssumptionRelationReader
+
 class PropertyInterfacecex : public CexExtractor 
 {
   public:

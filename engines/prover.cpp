@@ -26,6 +26,7 @@
 #include "smt/available_solvers.h"
 #include "utils/logger.h"
 #include "utils/partial_model.h"
+#include "frontends/property_if.h"
 
 using namespace smt;
 using namespace std;
@@ -195,12 +196,17 @@ Term Prover::to_orig_ts(Term t)
 bool Prover::compute_witness()
 {
   // TODO: make sure the solver state is SAT
-
-  smt::UnorderedTermSet varset;
-  compute_dynamic_COI(varset);
-  std::ofstream fout("COI.txt");
-  for (const auto & v : varset)
-    fout << v->to_string() << std::endl;
+  if (options_.compute_dynamic_coi_upon_cex_) {
+    smt::UnorderedTermSet varset;
+    if (options_.use_ilang_coi_constraint_file_) {
+      recursive_dynamic_COI_using_ILA_info(varset);
+    } else {
+      compute_dynamic_COI_from_term(bad_, reached_k_+1, varset);
+    }
+    std::ofstream fout("COI.txt");
+    for (const auto & v : varset)
+      fout << v->to_string() << std::endl;
+  }
 
   for (int i = 0; i <= reached_k_ + 1; ++i) {
     witness_.push_back(UnorderedTermMap());
@@ -238,9 +244,11 @@ void Prover::get_var_in_COI(const TermVec & asts, UnorderedTermSet & vars) {
 }
 
 
-void Prover::compute_dynamic_COI(smt::UnorderedTermSet & init_state_variables) {
+void Prover::compute_dynamic_COI_from_term(const smt::Term & t, int k, smt::UnorderedTermSet & init_state_variables) {
   // bad_ ,  0...reached_k_+1
-  auto last_bad = unroller_.at_time(bad_, reached_k_+1);
+  // auto last_bad = unroller_.at_time(bad_, reached_k_+1);
+
+  auto last_bad = unroller_.at_time(t, k);
   UnorderedTermSet varset;
   get_var_in_COI({last_bad}, varset); // varset contains variables like : a@n
 
@@ -276,6 +284,57 @@ void Prover::compute_dynamic_COI(smt::UnorderedTermSet & init_state_variables) {
   for (const auto & timed_var : varset) { 
     init_state_variables.emplace(unroller_.untime(timed_var));
   }
+} // end of compute_dynamic_COI_from_term
+
+
+std::string static remove_vertical_bar(const std::string & in) {
+  if (in.length() > 2 && in.front() == '|' && in.back() == '|')
+    return in.substr(1,in.length()-2);
+  return in;
 }
+
+void Prover::recursive_dynamic_COI_using_ILA_info(smt::UnorderedTermSet & init_state_variables) {
+
+  AssumptionRelationReader IlaAsmptLoader("asmpt-ila.smt2", ts_);
+  UnorderedTermSet init_sv;
+  
+  // initially, we extract bad
+  set<std::pair<smt::Term, int>> next_round_to_track = { {bad_, reached_k_+1} };
+
+  while(!next_round_to_track.empty()) {
+    for (const auto & term_k_pair : next_round_to_track) {
+      compute_dynamic_COI_from_term(term_k_pair.first, term_k_pair.second, init_sv);
+    } // compute all sub var in 
+    next_round_to_track.clear();
+
+    // then let's go through all variables
+    for (const auto & v : init_sv) {
+      auto vname = remove_vertical_bar(v->to_string());
+      if (IlaAsmptLoader.IsConstrainedInAssumption(vname)) {
+        logger.log(0, "SV {} is in constraints", vname);
+        auto cond = IlaAsmptLoader.GetConditionInAssumption(vname);
+        auto val = IlaAsmptLoader.GetValueTermInAssumption(vname);
+
+        for(int k = 0; k <= reached_k_+1; k++) {
+          auto cond_at_k = unroller_.at_time(cond, k);
+          auto is_cond_true_at_k = solver_->get_value(cond_at_k)->to_int();
+          if(is_cond_true_at_k) {
+            
+            logger.log(0, "SV {} is triggered at Cycle #{}", vname, k);
+            next_round_to_track.emplace(std::make_pair(val, k));
+            break;
+          }
+        }
+        logger.log(0, "WARNING: [COI] condition for {} was NOT triggered!", vname);
+      } else {
+        logger.log(0, "SV {} is NOT in constraints", vname);
+        init_state_variables.emplace(v);
+      }
+    } // end for each init_sv
+    
+    logger.log(0, "----------------END of a round ----------------");
+  } // end of while next_round_to_track is not empty
+
+} // end of recursive_dynamic_COI_using_ILA_info
 
 }  // namespace pono
