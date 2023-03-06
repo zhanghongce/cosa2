@@ -309,6 +309,8 @@ void Prover::recursive_dynamic_COI_using_ILA_info(smt::UnorderedTermSet & init_s
 
     // then let's go through all variables
     for (const auto & v : init_sv) {
+      if (init_state_variables.find(v) != init_state_variables.end())
+        continue; // to avoid repitition like v : v == another variable
       auto vname = remove_vertical_bar(v->to_string());
       if (IlaAsmptLoader.IsConstrainedInAssumption(vname)) {
         logger.log(0, "SV {} is in constraints", vname);
