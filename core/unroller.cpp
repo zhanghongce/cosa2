@@ -38,14 +38,25 @@ Unroller::~Unroller() {}
 Term Unroller::at_time(const Term & t, unsigned int k)
 {
   UnorderedTermMap & cache = var_cache_at_time(k);
-
+  // auto count = 0;
+  // for(auto termmap: time_cache_){
+  //   std::cout<<"Now we get the #"<<count<<" in the time_cache_"<<std::endl;
+  //   count = count + 1;
+  //   for(auto term:termmap){
+  //     std::cout<<" The Term in the UnorderedTermMap is: "<<std::endl;
+  //     std::cout<<"    "<<std::endl;
+  //     std::cout<<"---------------------"<<"The first: "<<term.first<<". The second: "<<term.second<<std::endl;
+  //     std::cout<<"    "<<std::endl;
+  //   }
+    
+  // }
   // if t is a variable, it will be cached
   auto it = cache.find(t);
   if (it != cache.end()) {
     return it->second;
   }
 
-  return solver_->substitute(t, cache);
+  return solver_->AbsSmtSolver::substitute(t, cache);
 }
 
 Term Unroller::untime_var(const smt::Term & v) const 
@@ -58,7 +69,7 @@ Term Unroller::untime_var(const smt::Term & v) const
 
 Term Unroller::untime(const Term & t) const
 {
-  return solver_->substitute(t, untime_cache_);
+  return solver_->AbsSmtSolver::substitute(t, untime_cache_);
 }
 
 size_t Unroller::get_var_time(const Term & v) const

@@ -83,6 +83,24 @@ void PartialModelGen::GetVarList(const smt::Term & ast,
   out_vars.insert(dfs_vars_.begin(), dfs_vars_.end());
 }
 
+void PartialModelGen::GetVarList_coi(const smt::Term & ast, 
+  std::unordered_set<smt::Term> & out_vars,std::vector<std::pair<std::string,std::string>> & varset_slice) {
+
+  dfs_walked_.clear();
+  dfs_vars_.clear();
+  dfs_walk_deep(ast,varset_slice);
+  out_vars.insert(dfs_vars_.begin(), dfs_vars_.end());
+}
+
+void PartialModelGen::GetVarList_coi_extract(const smt::Term & ast, 
+  std::unordered_set<smt::Term> & out_vars,std::vector<std::pair<std::string,std::string>> & varset_slice) {
+
+  dfs_walked_extract.clear();
+  dfs_vars_extract.clear();
+  dfs_walk_deep_extract(ast,varset_slice);
+  out_vars.insert(dfs_vars_extract.begin(), dfs_vars_extract.end());
+}
+
 void PartialModelGen::GetVarListForAsts(const smt::TermVec & asts, 
   smt::UnorderedTermSet & out_vars ) {
   dfs_walked_.clear();
@@ -208,7 +226,7 @@ static inline bool is_all_one(const std::string & s, uint64_t w)  {
       assert (ptr == ast->end());
 
 
-void PartialModelGen::dfs_walk(const smt::Term & input_ast ) {
+void PartialModelGen::dfs_walk(const smt::Term & input_ast) {
   smt::TermVec node_stack_;
   node_stack_.push_back(input_ast);
   while(!node_stack_.empty()) {
@@ -336,5 +354,517 @@ void PartialModelGen::dfs_walk(const smt::Term & input_ast ) {
   } // while ( not empty )
 } // end of PartialModelGen::dfs_walk
 
+// void PartialModelGen::op_Extract(smt::Term ast,smt::TermVec & node_stack_,std::vector<std::pair<std::string,std::string>> & varset_slice){
+//           smt::UnorderedTermSet varset;
+//         // auto b = op.idx0;
+//         // auto p = op.idx1;
+//         smt::get_free_symbols(ast, varset);
+//         for (const auto & arg : *ast)
+//           node_stack_.push_back(arg);
+      
+//         if(varset.size()==1){
+//         auto ast_string = ast->to_string();
+//           for(const auto v: varset){
+//             auto pos = ast_string.find(v->to_string());
+//             auto extracted = ast_string.substr(1,pos-1);
+//             extracted.erase(std::remove(extracted.begin(),extracted.end(),'('),extracted.end());
+//             extracted.erase(std::remove(extracted.begin(),extracted.end(),')'),extracted.end());
+//             varset_slice.push_back(std::make_pair(v->to_string(),extracted));
+//           }
+//         }
+//         else{
+//           smt::UnorderedTermSet out;
+//           //There should be only one variable
+//           std::string sign;
+//           auto ast_string = ast->to_string();
+//           for (const auto &arg :* ast){
+//             std::vector<std::pair<std::string,std::string>> temp_slice;           
+//             sign = arg->to_string();
+//             GetVarList_coi_extract(arg,out,temp_slice);
+//             node_stack_.push_back(arg);
+//           }          
+//           assert(out.size()==1);  
+//           for(const auto v: out){
+//             auto pos = ast_string.find(sign);
+//             auto extracted = ast_string.substr(1,pos-1);////TODO: we can use the arg->to_string() directly.
+//             extracted.erase(std::remove(extracted.begin(),extracted.end(),'('),extracted.end());
+//             extracted.erase(std::remove(extracted.begin(),extracted.end(),')'),extracted.end());
+//             varset_slice.push_back(std::make_pair(v->to_string(),extracted));
+//           }
 
+//         }
+// }
+
+void PartialModelGen::dfs_walk_deep(const smt::Term & input_ast,std::vector<std::pair<std::string,std::string>> & varset_slice) {
+  smt::TermVec node_stack_;
+  smt::TermVec extracted_terms;
+  node_stack_.push_back(input_ast);
+  while(!node_stack_.empty()) {
+    const auto & ast = node_stack_.back();
+    if ((dfs_walked_.find(ast) != dfs_walked_.end())&&(ast->is_symbolic_const()==false)) {//TODO: need to add another constraints, that is ast->is_symbolic_const(), to prevent bvcomp
+      node_stack_.pop_back();
+      continue;
+    }
+    dfs_walked_.insert(ast);
+
+    smt::Op op = ast->get_op();
+    if (op.is_null()) { // this is the root node
+      if (ast->is_symbolic_const()) {
+        std::vector<smt::Term>::iterator it = find(extracted_terms.begin(),extracted_terms.end(),ast);
+        if(it != extracted_terms.end()){
+          extracted_terms.erase(it);
+        }
+        else{///We need to remove the varset_slice
+          std::vector<std::pair<std::string,std::string>>  varset_slice_temp;
+          varset_slice_temp = varset_slice;
+          for(const auto var_pair: varset_slice_temp){
+            if(var_pair.first==ast->to_string()){
+              std::vector<std::pair<std::string,std::string>>::iterator it = find(varset_slice.begin(),varset_slice.end(),var_pair);
+              varset_slice.erase(it);
+            }
+          }
+        }
+        dfs_vars_.insert(ast);
+      }
+      node_stack_.pop_back(); // no need to wait for the next time
+      continue;
+    } else { // non variable/non constant case
+      if (op.prim_op == smt::PrimOp::Ite)  {
+        ARG3(cond, texpr, fexpr)
+        auto cond_val = solver_->get_value(cond);
+        assert(cond_val->is_value());
+        if ( is_all_one(cond_val->to_string(),1) ) {
+          node_stack_.push_back(cond);
+          node_stack_.push_back(texpr);
+        }
+        else {
+          node_stack_.push_back(cond);
+          node_stack_.push_back(fexpr);
+        }
+      } else if (op.prim_op == smt::PrimOp::Implies) {
+        ARG2(left,right)
+        auto cond_left = solver_->get_value(left);
+        auto cond_right = solver_->get_value(right);
+        assert(cond_left->is_value() && cond_right->is_value());
+        if (!( is_all_one(cond_left->to_string(),1) )) // if it is false
+          node_stack_.push_back(left);
+        else if ( is_all_one(cond_right->to_string(), 1) ) {
+          node_stack_.push_back(right);
+        } else {
+          node_stack_.push_back(left);
+          node_stack_.push_back(right);
+        }
+      } else if (op.prim_op == smt::PrimOp::And) {
+        ARG2(left,right)
+        auto cond_left = solver_->get_value(left);
+        auto cond_right = solver_->get_value(right);
+        assert(cond_left->is_value() && cond_right->is_value());
+        if (!( is_all_one(cond_left->to_string(),1) )) // if it is false
+          node_stack_.push_back(left);
+        else if (!(is_all_one(cond_right->to_string(), 1))) {
+          node_stack_.push_back(right);
+        } else {
+          node_stack_.push_back(left);
+          node_stack_.push_back(right);
+        }
+      } else if (op.prim_op == smt::PrimOp::Or) {
+        ARG2(left,right)
+        auto cond_left = solver_->get_value(left);
+        auto cond_right = solver_->get_value(right);
+        assert(cond_left->is_value() && cond_right->is_value());
+        if (is_all_one(cond_left->to_string(),1)) // if it is true
+          node_stack_.push_back(left);
+        else if (is_all_one(cond_right->to_string(), 1)) {
+          node_stack_.push_back(right);
+        } else  { // it is 0, so both matter
+          node_stack_.push_back(left);
+          node_stack_.push_back(right);
+        }
+      } else if (op.prim_op == smt::PrimOp::BVAnd || op.prim_op == smt::PrimOp::BVNand) {
+        ARG2(left,right)
+        auto cond_left = solver_->get_value(left);
+        auto cond_right = solver_->get_value(right);
+        assert(cond_left->is_value() && cond_right->is_value());
+        std::string left_val = cond_left->to_string();
+        std::string right_val = cond_right->to_string();
+
+        if (is_all_zero(left_val)) // if all zeros
+          node_stack_.push_back(left);
+        else if (is_all_zero(right_val)) {
+          node_stack_.push_back(right);
+        } else { // it is 0, so both matter
+          node_stack_.push_back(left);
+          node_stack_.push_back(right);
+        }
+
+      } else if (op.prim_op == smt::PrimOp::BVOr  || op.prim_op == smt::PrimOp::BVNor) {
+        ARG2(left,right)
+        auto cond_left = solver_->get_value(left);
+        auto cond_right = solver_->get_value(right);
+        assert(cond_left->is_value() && cond_right->is_value());
+        std::string left_val = cond_left->to_string();
+        std::string right_val = cond_right->to_string();
+
+        if (is_all_one(left_val, left->get_sort()->get_width())) // if all ones
+          node_stack_.push_back(left);
+        else if (is_all_one(right_val, right->get_sort()->get_width())) {
+          node_stack_.push_back(right);
+        } else { // it is 0, so both matter
+          node_stack_.push_back(left);
+          node_stack_.push_back(right);
+        }
+      } else if (op.prim_op == smt::PrimOp::BVMul) {
+        ARG2(left,right)
+        auto cond_left = solver_->get_value(left);
+        auto cond_right = solver_->get_value(right);
+        assert(cond_left->is_value() && cond_right->is_value());
+        std::string left_val = cond_left->to_string();
+        std::string right_val = cond_right->to_string();
+
+        if (is_all_zero(left_val)) // if all zeros
+          node_stack_.push_back(left);
+        else if (is_all_zero(right_val)) {
+          node_stack_.push_back(right);
+        } else { // it is not 0, so both matter
+          node_stack_.push_back(left);
+          node_stack_.push_back(right);
+        }
+      } 
+      else if((op.prim_op == smt::PrimOp::BVAdd)||(op.prim_op==smt::PrimOp::BVSub)) {
+        ARG2(left,right)
+        auto val = solver_->get_value(ast);
+        if(is_all_zero(val->to_string())){
+          continue;
+        }
+        auto val_left = solver_->get_value(left);
+        auto val_right = solver_->get_value(right);
+
+        if (is_all_zero(val_left->to_string())){
+          node_stack_.push_back(left);
+        }
+        else if(is_all_zero(val_right->to_string())){
+          node_stack_.push_back(right);
+        }
+        else{
+          node_stack_.push_back(left);
+          node_stack_.push_back(right);
+        }
+      }
+      else if((op.prim_op== smt::PrimOp::Extract)){
+        smt::UnorderedTermSet varset;
+        // auto b = op.idx0;
+        // auto p = op.idx1;
+        smt::get_free_symbols(ast, varset);
+        if(varset.size()==1){
+        auto ast_string = ast->to_string();
+        // for (const auto & arg : *ast)
+          for(const auto v: varset){
+            node_stack_.push_back(v);
+            extracted_terms.push_back(v);
+            auto pos = ast_string.find(v->to_string());
+            auto extracted = ast_string.substr(1,pos-1);
+            extracted.erase(std::remove(extracted.begin(),extracted.end(),'('),extracted.end());
+            extracted.erase(std::remove(extracted.begin(),extracted.end(),')'),extracted.end());
+            varset_slice.push_back(std::make_pair(v->to_string(),extracted));
+          }
+        }
+        else{
+          smt::UnorderedTermSet out;
+          //There should be only one variable
+          std::string sign;
+          auto ast_string = ast->to_string();
+          for (const auto &arg :* ast){
+            std::vector<std::pair<std::string,std::string>> temp_slice;           
+            sign = arg->to_string();
+            GetVarList_coi_extract(arg,out,temp_slice);
+            node_stack_.push_back(arg);
+          }          
+          assert(out.size()==1);  
+          for(const auto v: out){
+            auto pos = ast_string.find(sign);
+            extracted_terms.push_back(v);
+            auto extracted = ast_string.substr(1,pos-1);////TODO: we can use the arg->to_string() directly.
+            extracted.erase(std::remove(extracted.begin(),extracted.end(),'('),extracted.end());
+            extracted.erase(std::remove(extracted.begin(),extracted.end(),')'),extracted.end());
+            varset_slice.push_back(std::make_pair(v->to_string(),extracted));
+          }
+
+        }
+      }
+      else if((op.prim_op== smt::PrimOp::Concat)){
+        ARG2(left,right);
+        auto left_op = left->get_op();
+        auto right_op = right->get_op();
+        if((left_op.is_null()&&right_op.is_null())){
+          node_stack_.push_back(left);
+          node_stack_.push_back(right);
+        }
+        else if(left_op.is_null()){
+          if(right_op.prim_op==smt::PrimOp::Extract){
+            smt::UnorderedTermSet out;
+            std::vector<std::pair<std::string,std::string>> temp_slice;  
+            GetVarList_coi_extract(right,out,temp_slice);
+            assert(out.size()==1);
+            for(const auto v:out){
+              node_stack_.push_back(v);
+            }
+          }
+          else{
+            node_stack_.push_back(right);
+          }
+        }
+        else if(right_op.is_null()){
+          if(left_op.prim_op==smt::PrimOp::Extract){
+            smt::UnorderedTermSet out;
+            std::vector<std::pair<std::string,std::string>> temp_slice;  
+            GetVarList_coi_extract(left,out,temp_slice);
+            assert(out.size()==1);
+            for(const auto v:out){
+              node_stack_.push_back(v);
+            }
+          }
+          else{
+            node_stack_.push_back(left);
+          }
+        }
+        else{
+          node_stack_.push_back(left);
+          node_stack_.push_back(right);
+        }
+      }
+      else {
+        for (const auto & arg : *ast)
+          node_stack_.push_back(arg);
+      }
+    } // end non-variable case
+  } // while ( not empty )
+} // end of PartialModelGen::dfs_walk
+
+void PartialModelGen::dfs_walk_deep_extract(const smt::Term & input_ast,std::vector<std::pair<std::string,std::string>> & varset_slice) {
+  smt::TermVec node_stack_;
+  node_stack_.push_back(input_ast);
+  while(!node_stack_.empty()) {
+    const auto & ast = node_stack_.back();
+    if ((dfs_walked_extract.find(ast) != dfs_walked_extract.end())&&(ast->is_symbolic_const()==false)) {//TODO: need to add another constraints, that is ast->is_symbolic_const(), to prevent bvcomp
+      node_stack_.pop_back();
+      continue;
+    }
+    dfs_walked_extract.insert(ast);
+
+    smt::Op op = ast->get_op();
+    if (op.is_null()) { // this is the root node
+      if (ast->is_symbolic_const()) {
+        dfs_vars_extract.insert(ast);
+      }
+      node_stack_.pop_back(); // no need to wait for the next time
+      continue;
+    } else { // non variable/non constant case
+      if (op.prim_op == smt::PrimOp::Ite)  {
+        ARG3(cond, texpr, fexpr)
+        auto cond_val = solver_->get_value(cond);
+        assert(cond_val->is_value());
+        if ( is_all_one(cond_val->to_string(),1) ) {
+          // node_stack_.push_back(cond);
+          node_stack_.push_back(texpr);
+        }
+        else {
+          // node_stack_.push_back(cond);
+          node_stack_.push_back(fexpr);
+        }
+      } else if (op.prim_op == smt::PrimOp::Implies) {
+        ARG2(left,right)
+        auto cond_left = solver_->get_value(left);
+        auto cond_right = solver_->get_value(right);
+        assert(cond_left->is_value() && cond_right->is_value());
+        if (!( is_all_one(cond_left->to_string(),1) )) // if it is false
+          node_stack_.push_back(left);
+        else if ( is_all_one(cond_right->to_string(), 1) ) {
+          node_stack_.push_back(right);
+        } else {
+          node_stack_.push_back(left);
+          node_stack_.push_back(right);
+        }
+      } else if (op.prim_op == smt::PrimOp::And) {
+        ARG2(left,right)
+        auto cond_left = solver_->get_value(left);
+        auto cond_right = solver_->get_value(right);
+        assert(cond_left->is_value() && cond_right->is_value());
+        if (!( is_all_one(cond_left->to_string(),1) )) // if it is false
+          node_stack_.push_back(left);
+        else if (!(is_all_one(cond_right->to_string(), 1))) {
+          node_stack_.push_back(right);
+        } else {
+          node_stack_.push_back(left);
+          node_stack_.push_back(right);
+        }
+      } else if (op.prim_op == smt::PrimOp::Or) {
+        ARG2(left,right)
+        auto cond_left = solver_->get_value(left);
+        auto cond_right = solver_->get_value(right);
+        assert(cond_left->is_value() && cond_right->is_value());
+        if (is_all_one(cond_left->to_string(),1)) // if it is true
+          node_stack_.push_back(left);
+        else if (is_all_one(cond_right->to_string(), 1)) {
+          node_stack_.push_back(right);
+        } else  { // it is 0, so both matter
+          node_stack_.push_back(left);
+          node_stack_.push_back(right);
+        }
+      } else if (op.prim_op == smt::PrimOp::BVAnd || op.prim_op == smt::PrimOp::BVNand) {
+        ARG2(left,right)
+        auto cond_left = solver_->get_value(left);
+        auto cond_right = solver_->get_value(right);
+        assert(cond_left->is_value() && cond_right->is_value());
+        std::string left_val = cond_left->to_string();
+        std::string right_val = cond_right->to_string();
+
+        if (is_all_zero(left_val)) // if all zeros
+          node_stack_.push_back(left);
+        else if (is_all_zero(right_val)) {
+          node_stack_.push_back(right);
+        } else { // it is 0, so both matter
+          node_stack_.push_back(left);
+          node_stack_.push_back(right);
+        }
+
+      } else if (op.prim_op == smt::PrimOp::BVOr  || op.prim_op == smt::PrimOp::BVNor) {
+        ARG2(left,right)
+        auto cond_left = solver_->get_value(left);
+        auto cond_right = solver_->get_value(right);
+        assert(cond_left->is_value() && cond_right->is_value());
+        std::string left_val = cond_left->to_string();
+        std::string right_val = cond_right->to_string();
+
+        if (is_all_one(left_val, left->get_sort()->get_width())) // if all ones
+          node_stack_.push_back(left);
+        else if (is_all_one(right_val, right->get_sort()->get_width())) {
+          node_stack_.push_back(right);
+        } else { // it is 0, so both matter
+          node_stack_.push_back(left);
+          node_stack_.push_back(right);
+        }
+      } else if (op.prim_op == smt::PrimOp::BVMul) {
+        ARG2(left,right)
+        auto cond_left = solver_->get_value(left);
+        auto cond_right = solver_->get_value(right);
+        assert(cond_left->is_value() && cond_right->is_value());
+        std::string left_val = cond_left->to_string();
+        std::string right_val = cond_right->to_string();
+
+        if (is_all_zero(left_val)) // if all zeros
+          node_stack_.push_back(left);
+        else if (is_all_zero(right_val)) {
+          node_stack_.push_back(right);
+        } else { // it is not 0, so both matter
+          node_stack_.push_back(left);
+          node_stack_.push_back(right);
+        }
+      } 
+      else if((op.prim_op == smt::PrimOp::BVAdd)||(op.prim_op==smt::PrimOp::BVSub)) {
+        ARG2(left,right)
+        auto val = solver_->get_value(ast);
+        // if(is_all_zero(val->to_string())){
+        //   continue;
+        // }
+        auto val_left = solver_->get_value(left);
+        auto val_right = solver_->get_value(right);
+
+        if (is_all_zero(val_left->to_string())){
+          node_stack_.push_back(left);
+        }
+        else if(is_all_zero(val_right->to_string())){
+          node_stack_.push_back(right);
+        }
+        else{
+          node_stack_.push_back(left);
+          node_stack_.push_back(right);
+        }
+      }
+      else if((op.prim_op== smt::PrimOp::Extract)){
+        smt::UnorderedTermSet varset;
+        auto ast_string = ast->to_string();
+        smt::get_free_symbols(ast, varset);
+        // for (const auto & arg : *ast)
+        //   node_stack_.push_back(arg);
+      
+        if(varset.size()==1){        
+          for(const auto v: varset){
+            node_stack_.push_back(v);
+            auto pos = ast_string.find(v->to_string());
+            auto extracted = ast_string.substr(1,pos-1);
+            extracted.erase(std::remove(extracted.begin(),extracted.end(),'('),extracted.end());
+            extracted.erase(std::remove(extracted.begin(),extracted.end(),')'),extracted.end());
+            varset_slice.push_back(std::make_pair(v->to_string(),extracted));
+          }
+        }
+        else{
+          smt::UnorderedTermSet out;
+          //There should be only one variable
+          std::string sign;
+          auto ast_string = ast->to_string();
+          for (const auto &arg :* ast){
+            std::vector<std::pair<std::string,std::string>> temp_slice;           
+            sign = arg->to_string();
+            GetVarList_coi_extract(arg,out,temp_slice);
+            node_stack_.push_back(arg);
+          }          
+          assert(out.size()==1);  
+          for(const auto v: out){
+            auto pos = ast_string.find(sign);
+            auto extracted = ast_string.substr(1,pos-1);////TODO: we can use the arg->to_string() directly.
+            extracted.erase(std::remove(extracted.begin(),extracted.end(),'('),extracted.end());
+            extracted.erase(std::remove(extracted.begin(),extracted.end(),')'),extracted.end());
+            varset_slice.push_back(std::make_pair(v->to_string(),extracted));
+          }
+
+        }
+      }
+      else if((op.prim_op== smt::PrimOp::Concat)){
+        ARG2(left,right);
+        auto left_op = left->get_op();
+        auto right_op = right->get_op();
+        if((left_op.is_null()&&right_op.is_null())){
+          node_stack_.push_back(left);
+          node_stack_.push_back(right);
+        }
+        else if(left_op.is_null()){
+          if(right_op==smt::PrimOp::Extract){
+            smt::UnorderedTermSet out;
+            std::vector<std::pair<std::string,std::string>> temp_slice;  
+            GetVarList_coi_extract(right,out,temp_slice);
+            assert(out.size()==1);
+            for(const auto v:out){
+              node_stack_.push_back(v);
+            }
+          }
+          else{
+            node_stack_.push_back(right);
+          }
+        }
+        else if(right_op.is_null()){
+          if(left_op==smt::PrimOp::Extract){
+            smt::UnorderedTermSet out;
+            std::vector<std::pair<std::string,std::string>> temp_slice;  
+            GetVarList_coi_extract(left,out,temp_slice);
+            assert(out.size()==1);
+            for(const auto v:out){
+              node_stack_.push_back(v);
+            }
+          }
+          else{
+            node_stack_.push_back(left);
+          }
+        }
+        else{
+          node_stack_.push_back(left);
+          node_stack_.push_back(right);
+        }
+      }
+      else {
+        for (const auto & arg : *ast)
+          node_stack_.push_back(arg);
+      }
+    } // end non-variable case
+  } // while ( not empty )
+} // end of PartialModelGen::dfs_walk
 } // namespace pono

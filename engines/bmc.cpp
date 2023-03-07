@@ -90,6 +90,8 @@ bool Bmc::step(int i)
     logger.log(2, "  BMC reached_k = {}, i = {} ", reached_k_, i);
     for (int j = reached_k_ == -1 ? 1 : reached_k_ + 1; j <= i; j++) {
       logger.log(2, "  BMC adding transition for j-1 = {}", j - 1);
+      //TODO: To see the tran, it seems do not have any problem
+      auto tran = unroller_.at_time(ts_.trans(), j - 1);
       solver_->assert_formula(unroller_.at_time(ts_.trans(), j - 1));
       if (options_.bmc_neg_init_step_) {
 	logger.log(2, "  BMC adding negated init constraint for step {}", j);
@@ -111,7 +113,9 @@ bool Bmc::step(int i)
     clause = solver_->make_term(false);
     for (int j = reached_k_ + 1; j <= i; j++) {
       logger.log(2, "  BMC adding bad state constraint for j = {}", j);
-      clause = solver_->make_term(PrimOp::Or, clause, unroller_.at_time(bad_, j));
+      //TODO: The clause_2 output is very strange
+      auto clause_2 = unroller_.at_time(bad_, j);
+      clause = solver_->make_term(PrimOp::Or, clause, clause_2);
     }
   } else {
     // Add a single bad state predicate (bugs might be missed)
@@ -203,6 +207,7 @@ int Bmc::bmc_interval_get_cex_ub(const int lb, const int ub)
   
   int j;
   for (j = lb; j <= ub; j++) {
+    //TODO: This is also suffer from the same problem of the substitude
     Term bad_state_at_j = unroller_.at_time(bad_, j);
     logger.log(2, "    BMC get cex upper bound, checking value of bad state constraint j = {}", j);
     if (solver_->get_value(bad_state_at_j) == true_term) {

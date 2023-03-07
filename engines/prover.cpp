@@ -208,9 +208,9 @@ bool Prover::witness(std::vector<UnorderedTermMap> & out)
   return success;
 }
 
-Term Prover::transfer_to_orig_as_(const Term &t, const smt::SortKind &sk,TermTranslator to_new_solver){
-  return to_new_solver.transfer_term(t, sk);
-}
+// Term Prover::transfer_to_orig_as_(const Term &t, const smt::SortKind &sk,TermTranslator to_new_solver){
+//   return to_new_solver.transfer_term(t, sk);
+// }
 
 size_t Prover::witness_length() const { return reached_k_ + 1; }
 
@@ -256,12 +256,30 @@ bool Prover::compute_witness()
   // TODO: make sure the solver state is SAT
   if(options_.coi_filter_==true)
   {   
-    smt::UnorderedTermSet varset;
-    compute_dynamic_COI(varset);
+    smt::UnorderedTermMap varset;
+    std::vector<std::pair<std::string,std::string>> varset_slice;
+    compute_dynamic_COI(varset,varset_slice);
     nlohmann::json j;
-    for(const auto v:varset){
-      auto name = v->to_string();
-      j["name"].push_back(name);
+    // for(const auto v:varset){
+    //   auto name = v->to_string();
+    //   j["name"].push_back(name);
+    // }
+    auto btorsolver = create_solver(BTOR);
+    auto transferer = smt::TermTranslator(btorsolver);
+    
+    for(auto v = varset.begin(); v != varset.end(); v++) {
+       std:: cout << v->first->to_string() << " : " << v->second->to_string() << std::endl;
+       auto name = v->first->to_string();
+       auto value_tansfer = transferer.transfer_term(v->second);
+       j["name"].push_back(name);
+       j["value"].push_back(value_tansfer->to_string());
+    }
+    for(auto v: varset_slice) {
+       std:: cout<< "The extracted term is: " << v.first<< " : " << v.second << std::endl;
+      //  auto name = v->first->to_string();
+      //  auto value_tansfer = transferer.transfer_term(v->second);
+       j["name_to_extract"].push_back(v.first);
+       j["extract_width"].push_back(v.second);
     }
     std::string folderPath = options_.smt_path_;
     std::string filename = folderPath + "/" + "COI_variable.json";
@@ -329,9 +347,26 @@ bool Prover::compute_witness()
 }
 
 
-void Prover::get_var_in_COI(const TermVec & asts, UnorderedTermSet & vars) {
-  PartialModelGen partial_model_getter(solver_);
-  partial_model_getter.GetVarListForAsts(asts, vars);
+// void Prover::get_var_in_COI(const TermVec & asts, UnorderedTermSet & vars) {
+//   PartialModelGen partial_model_getter(solver_);
+//   partial_model_getter.GetVarListForAsts(asts, vars);
+// }
+
+
+void Prover::get_var_in_COI(const TermVec & asts, UnorderedTermSet & vars,std::vector<std::pair<std::string,std::string>> & varset_slice) {
+  for (const auto & t: asts) {
+    UnorderedTermSet tmp;
+    std::vector<std::pair<std::string,std::string>> temp_slice;
+    PartialModelGen partial_model_getter(solver_);
+    partial_model_getter.GetVarList_coi(t, tmp,varset_slice);
+    std::cout << "Term "<< t->to_string() << " COI:";
+    for (const auto & v: tmp)
+      std::cout << v->to_string() <<",";
+    std::cout << std::endl;
+    vars.insert(tmp.begin(),tmp.end());
+    for(const auto slice:temp_slice)
+        varset_slice.push_back(slice);
+  }
 }
 
 // void Prover::get_input_var_in_COI(const TermVec & asts, UnorderedTermSet & varset_input){
@@ -341,7 +376,7 @@ void Prover::get_var_in_COI(const TermVec & asts, UnorderedTermSet & vars) {
 //     }
 //   }
 // }
-void Prover::compute_dynamic_COI(smt::UnorderedTermSet & init_state_variables) {
+void Prover::compute_dynamic_COI(UnorderedTermMap & init_state_variables, std::vector<std::pair<std::string,std::string>> & varset_slice) {
   // bad_ ,  0...reached_k_+1
   // unroller_.change_solver(new_solver,new_ts_);
   // auto transferer = smt::TermTranslator(new_solver);
@@ -349,13 +384,16 @@ void Prover::compute_dynamic_COI(smt::UnorderedTermSet & init_state_variables) {
   auto last_bad = unroller_.at_time(bad_, reached_k_+1);
   UnorderedTermSet varset;
   UnorderedTermSet varset_input;
-  get_var_in_COI({last_bad}, varset); // varset contains variables like : a@n
+  std::cout<<"property:"<<std::endl;
+  get_var_in_COI({last_bad}, varset, varset_slice); // varset contains variables like : a@n
   // for(auto var:ts_.inputvars()){
   //   std::cout<<"The input var is: "<<var->to_string()<<std::endl;
   // }
   for(int i = reached_k_; i>=0; --i) {
     UnorderedTermSet newvarset;
     TermVec update_functions_to_check;
+    TermVec vars_remained;
+    std::vector<std::pair<std::string,std::string>> newvarset_slice;
     for (const auto & var : varset) {
       auto untimed_var = unroller_.untime_var(var);  // a@n --> a
 
@@ -365,9 +403,11 @@ void Prover::compute_dynamic_COI(smt::UnorderedTermSet & init_state_variables) {
         continue;
         
       auto pos = ts_.state_updates().find(untimed_var);
-
       if (pos == ts_.state_updates().end()) // this is likely
+      {        
+        std::cout<<"The variable "<<untimed_var->to_string()<< " is not in the state update."<<std::endl;
         continue; // because ts_ may promote input variables
+        }
       // therefore, there could be state vars without next function
 
       // assert(pos != ts_.state_updates().end());
@@ -376,17 +416,22 @@ void Prover::compute_dynamic_COI(smt::UnorderedTermSet & init_state_variables) {
       // get_input_var_in_COI(update_functions_to_check,varset_input);
       auto timed_update_function = unroller_.at_time(update_function, i); // i ?
       update_functions_to_check.push_back(timed_update_function);
-
+      vars_remained.push_back(untimed_var);
     }
-    get_var_in_COI(update_functions_to_check, newvarset);
+    
+    for(const auto &v : vars_remained)
+      std::cout << v->to_string() <<"@"<<i<<" , ";
+    std::cout << std::endl;
+    get_var_in_COI(update_functions_to_check, newvarset, newvarset_slice);
     
   
     varset.swap(newvarset); // the same as "varset = newvarset;" , but this is faster
+    varset_slice.swap(newvarset_slice);
   }
 
   // varset at this point: a@0 ,  b@0 , ...
   for (const auto & timed_var : varset) { 
-    init_state_variables.emplace(unroller_.untime_var(timed_var));
+    init_state_variables[unroller_.untime_var(timed_var)] = solver_->get_value(timed_var);
   }
 }
 

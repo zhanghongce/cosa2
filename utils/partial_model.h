@@ -38,15 +38,19 @@ public:
 protected:
   // let's keep a reference to the solver since we need to add terms
   smt::SmtSolver & solver_;
-
+  void GetVarList_coi_extract(const smt::Term & ast, 
+  std::unordered_set<smt::Term> & out_vars,std::vector<std::pair<std::string,std::string>> & varset_slice);
+  // void op_Extract(smt::Term ast,smt::TermVec & node_stack_,std::vector<std::pair<std::string,std::string>> & varset_slice);
   // for the DFS, will not use the stack but use one reference here
   std::unordered_set<smt::Term> dfs_walked_;
   std::unordered_set<smt::Term> dfs_vars_;
+  std::unordered_set<smt::Term> dfs_walked_extract;
+  std::unordered_set<smt::Term> dfs_vars_extract;
   void dfs_walk(const smt::Term & ast);
-
+  void dfs_walk_deep(const smt::Term & input_ast,std::vector<std::pair<std::string,std::string>> & varset_slice);
   // conditon var buffer
   void GetVarList(const smt::Term & ast);
-
+  
 public:
 
   /** This class computes the variables that need to
@@ -56,7 +60,8 @@ public:
    */
   void GetVarList(const smt::Term & ast, 
     std::unordered_set<smt::Term> & out_vars);
-
+  void GetVarList_coi(const smt::Term & ast, std::unordered_set<smt::Term> & out_vars,std::vector<std::pair<std::string,std::string>> & varset_slice);
+  void dfs_walk_deep_extract(const smt::Term & input_ast,std::vector<std::pair<std::string,std::string>> & varset_slice);
   /** This class computes the variables that need to
    *  appear in the partial model of asts in the vector
    *  @param the vector of ast to walk

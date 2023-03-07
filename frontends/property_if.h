@@ -101,4 +101,32 @@ class QedCexParser : public SelectiveExtractor
     is_reg_t is_reg;
 };
 
+class JsonCexParser
+{
+  public:
+    typedef std::function<bool(const std::string &n)> filter_t;
+    typedef std::function<bool(const smt::Term &n)> filter_r;
+  ////Build the Constructor//////
+    JsonCexParser(PonoOptions & pono_options,TransitionSystem & ts);
+    smt::Term json_cex_parse_to_pono_property(filter_r filter_re);
+    smt::Term json_cex_parse_to_pono_property(filter_t filter);
+    smt::Term json_cex_parse_to_pono_property();
+    int get_reg_width();
+    int get_reg_min_width();
+    std::vector<int> get_width;
+  protected:
+    bool is_extracted(const std::string & var_name, std::unordered_set<std::string> & extract_info);
+    void get_info(const std::string & out, int & idx0, int & idx1);
+    TransitionSystem & ts_;
+    std::vector<std::string> name_terms;
+    std::vector<std::string> value_terms;
+    std::vector<std::string> new_name_terms;
+    std::vector<std::string> new_value_terms;
+    std::vector<std::string> name_extract;
+    std::vector<std::string> extract_val;
+    PonoOptions pono_options_;
+    bool having_extract;
+    // is_reg_t is_reg;
+};
+
 }  // namespace pono
