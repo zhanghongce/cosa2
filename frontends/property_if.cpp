@@ -478,8 +478,13 @@ JsonCexParser::JsonCexParser(PonoOptions & pono_options,TransitionSystem & ts):
       data.at("name").get_to(name_terms); 
       data.at("value").get_to(value_terms); 
       having_extract = data.find("name_to_extract")!=data.end();
+      // std::vector<std::vector<std::pair<int,int>>> extract_val_middle;
       if(having_extract){
         data.at("name_to_extract").get_to(name_extract);
+        // auto extract_val_middle =  data.at("extract_width").get<std::array>();
+        auto extracted_size = name_extract.size();
+        // std::vector<std::array<int,10>> extract_val_middle; 
+        
         data.at("extract_width").get_to(extract_val);
       }
 
@@ -535,7 +540,7 @@ JsonCexParser::JsonCexParser(PonoOptions & pono_options,TransitionSystem & ts):
   }
 }
 
-bool JsonCexParser::is_extracted(const std::string & var_name, std::unordered_set<std::string> & extract_info){
+bool JsonCexParser::is_extracted(const std::string & var_name, std::vector<std::pair<int,int>> & extract_info){
   auto count = 1;
   auto count_pos = 0;
   for(auto name_ext: name_extract){
@@ -543,7 +548,7 @@ bool JsonCexParser::is_extracted(const std::string & var_name, std::unordered_se
     if(pos!=std::string::npos){
       std::cout<<"The COI variable: "<< var_name<<" can be extracted "<< count << " times"<<std::endl; 
       count = count + 1;
-      extract_info.insert(extract_val.at(count_pos));
+      extract_info.push_back(extract_val.at(count_pos));
     }
     count_pos = count_pos + 1;
   }
@@ -553,17 +558,19 @@ bool JsonCexParser::is_extracted(const std::string & var_name, std::unordered_se
   return true;
 }
 
-void JsonCexParser::get_info(const std::string & out, int & idx0, int & idx1){
-  auto pos_extract = out.find("extract");
-  std::string middle_extract;
-  if(pos_extract!=std::string::npos){
-    middle_extract = out.substr(pos_extract+8);
-  }
-  auto pos_space = middle_extract.find(" ");
-  auto idx_first = middle_extract.substr(0,pos_space);
-  auto idx_second = middle_extract.substr(pos_space+1);
-  idx0 = stoi(idx_first);
-  idx1 = stoi(idx_second);
+void JsonCexParser::get_info(const std::pair<int,int> & out, int & idx0, int & idx1){
+  // auto pos_extract = out.find("extract");
+  // std::string middle_extract;
+  // if(pos_extract!=std::string::npos){
+  //   middle_extract = out.substr(pos_extract+8);
+  // }
+  // auto pos_space = middle_extract.find(" ");
+  // auto idx_first = middle_extract.substr(0,pos_space);
+  // auto idx_second = middle_extract.substr(pos_space+1);
+  // idx0 = stoi(idx_first);
+  // idx1 = stoi(idx_second);
+  idx0 = out.first;
+  idx1 = out.second;
 }
 
 smt::Term JsonCexParser::json_cex_parse_to_pono_property(filter_r filter_re){
@@ -572,7 +579,7 @@ smt::Term JsonCexParser::json_cex_parse_to_pono_property(filter_r filter_re){
   smt::Term eq;
   bool is_extract = false;
   for (auto var_name: new_name_terms){
-    std::unordered_set<std::string> extracted_out;
+    std::vector<std::pair<int,int>> extracted_out;
     auto pos = ts_.named_terms().find(var_name);
     assert(pos != ts_.named_terms().end());
     auto var = pos->second;
@@ -627,7 +634,7 @@ smt::Term JsonCexParser::json_cex_parse_to_pono_property(filter_t filter){
         count = count + 1;
         continue;
         }  
-    std::unordered_set<std::string> extracted_out;
+    std::vector<std::pair<int,int>> extracted_out;
     auto pos = ts_.named_terms().find(var_name);
     assert(pos != ts_.named_terms().end());
     auto var = pos->second;
@@ -677,7 +684,7 @@ smt::Term JsonCexParser::json_cex_parse_to_pono_property(){
   smt::Term eq;
   bool is_extract;
   for (auto var_name: new_name_terms){   
-    std::unordered_set<std::string> extracted_out;
+    std::vector<pair<int,int>> extracted_out;
     auto pos = ts_.named_terms().find(var_name);
     assert(pos != ts_.named_terms().end());
     auto var = pos->second;

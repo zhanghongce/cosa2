@@ -47,7 +47,7 @@ protected:
   std::unordered_set<smt::Term> dfs_walked_extract;
   std::unordered_set<smt::Term> dfs_vars_extract;
   void dfs_walk(const smt::Term & ast);
-  void dfs_walk_deep(const smt::Term & input_ast,std::vector<std::pair<std::string,std::string>> & varset_slice);
+  void dfs_walk_deep(const smt::Term & input_ast,std::vector <std::pair<smt::Term,std::pair<int,int>>> & varset_slice);
   // conditon var buffer
   void GetVarList(const smt::Term & ast);
   
@@ -60,8 +60,8 @@ public:
    */
   void GetVarList(const smt::Term & ast, 
     std::unordered_set<smt::Term> & out_vars);
-  void GetVarList_coi(const smt::Term & ast, std::unordered_set<smt::Term> & out_vars,std::vector<std::pair<std::string,std::string>> & varset_slice);
-  void dfs_walk_deep_extract(const smt::Term & input_ast,std::vector<std::pair<std::string,std::string>> & varset_slice);
+  void get_extract(const smt::Term arg,const std::pair<int,int> extract_bit,std::vector <std::pair<smt::Term,std::pair<int,int>>> & node_stack_,bool using_extracted);
+  void GetVarList_coi(const smt::Term & ast, std::unordered_set<smt::Term> & out_vars,std::vector <std::pair<smt::Term,std::pair<int,int>>> & varset_slice);
   /** This class computes the variables that need to
    *  appear in the partial model of asts in the vector
    *  @param the vector of ast to walk

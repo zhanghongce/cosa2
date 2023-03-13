@@ -257,7 +257,8 @@ bool Prover::compute_witness()
   if(options_.coi_filter_==true)
   {   
     smt::UnorderedTermMap varset;
-    std::vector<std::pair<std::string,std::string>> varset_slice;
+    
+    std::unordered_map <smt::Term,std::vector<pair<int,int>>> varset_slice;
     compute_dynamic_COI(varset,varset_slice);
     nlohmann::json j;
     // for(const auto v:varset){
@@ -266,7 +267,9 @@ bool Prover::compute_witness()
     // }
     auto btorsolver = create_solver(BTOR);
     auto transferer = smt::TermTranslator(btorsolver);
-    
+    std::string folderPath = options_.smt_path_;
+    std::string filename = folderPath + "/" + "COI_variable.json";
+    std::ofstream output(filename);    
     for(auto v = varset.begin(); v != varset.end(); v++) {
        std:: cout << v->first->to_string() << " : " << v->second->to_string() << std::endl;
        auto name = v->first->to_string();
@@ -275,15 +278,19 @@ bool Prover::compute_witness()
        j["value"].push_back(value_tansfer->to_string());
     }
     for(auto v: varset_slice) {
-       std:: cout<< "The extracted term is: " << v.first<< " : " << v.second << std::endl;
-      //  auto name = v->first->to_string();
-      //  auto value_tansfer = transferer.transfer_term(v->second);
-       j["name_to_extract"].push_back(v.first);
-       j["extract_width"].push_back(v.second);
+       auto width = v.first->get_sort()->get_width();
+       for(const auto width_pair: v.second){
+          if((width_pair.first-width_pair.second+1)==width){
+            std:: cout<< "The term: " << v.first->to_string()<< " cannot be extracted." << std::endl;
+          }
+          else{
+            std:: cout<< "The extracted term is: " << v.first->to_string()<< " : " << width_pair.first<<" "<<width_pair.second << std::endl;
+            j["name_to_extract"].push_back(v.first->to_string());
+            j["extract_width"].push_back(width_pair);
+          }
+       }
     }
-    std::string folderPath = options_.smt_path_;
-    std::string filename = folderPath + "/" + "COI_variable.json";
-    std::ofstream output(filename);
+
     output<<j<<std::endl;
   //   for (const auto & v : varset)
   //     std::cout << v->to_string() << std::endl;
@@ -353,19 +360,57 @@ bool Prover::compute_witness()
 // }
 
 
-void Prover::get_var_in_COI(const TermVec & asts, UnorderedTermSet & vars,std::vector<std::pair<std::string,std::string>> & varset_slice) {
+void Prover::get_var_in_COI(const TermVec & asts, UnorderedTermSet & vars,std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> & varset_slice) {
   for (const auto & t: asts) {
     UnorderedTermSet tmp;
-    std::vector<std::pair<std::string,std::string>> temp_slice;
+    std::vector <std::pair<smt::Term,std::pair<int,int>>> temp_slice;
     PartialModelGen partial_model_getter(solver_);
-    partial_model_getter.GetVarList_coi(t, tmp,varset_slice);
+    partial_model_getter.GetVarList_coi(t, tmp,temp_slice);
     std::cout << "Term "<< t->to_string() << " COI:";
-    for (const auto & v: tmp)
+    // std::unordered_map <smt::Term,std::unordered_set<pair<int,int>>> max_width;
+    for (const auto & v: tmp){
       std::cout << v->to_string() <<",";
+      for(const auto & slice: temp_slice){
+        auto width = slice.first->get_sort()->get_width();
+        if(v==slice.first){
+          if(varset_slice.find(v) == varset_slice.end()){
+            varset_slice[v].push_back(slice.second);
+          }
+          else if(width==(slice.second.first-slice.second.second+1)){
+            varset_slice[v].clear();
+            varset_slice[v].push_back(slice.second);
+          }
+          else{
+            auto width_pairs = varset_slice[v];
+            for(const auto width_pair: width_pairs){
+              if(((width_pair.first-width_pair.second)<(slice.second.first-slice.second.second))
+              &&((slice.second.first>=width_pair.first)&&(slice.second.second<=width_pair.second))){
+                auto iter = std::remove(std::begin(varset_slice[v]), std::end(varset_slice[v]), width_pair);
+                varset_slice[v].push_back(slice.second);
+              }          
+              else if(((width_pair.first-width_pair.second)>(slice.second.first-slice.second.second))
+              &&((slice.second.first<=width_pair.first)&&(slice.second.second>=width_pair.second))){
+                continue;
+              }
+              else{
+                varset_slice[v].push_back(slice.second);
+              }   
+
+            }
+          }
+        }
+      }  
+    }
+
     std::cout << std::endl;
     vars.insert(tmp.begin(),tmp.end());
-    for(const auto slice:temp_slice)
-        varset_slice.push_back(slice);
+    // for(const auto slice:max_width){
+    //     auto width = slice.first->get_sort()->get_width();
+    //     for(const auto extracted:slice.second){
+    //       if(width>(extracted.first-extracted.second))
+    //         varset_slice[slice.first].insert(extracted);
+    //     }
+    // }   
   }
 }
 
@@ -376,7 +421,7 @@ void Prover::get_var_in_COI(const TermVec & asts, UnorderedTermSet & vars,std::v
 //     }
 //   }
 // }
-void Prover::compute_dynamic_COI(UnorderedTermMap & init_state_variables, std::vector<std::pair<std::string,std::string>> & varset_slice) {
+void Prover::compute_dynamic_COI(UnorderedTermMap & init_state_variables, std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> & varset_slice) {
   // bad_ ,  0...reached_k_+1
   // unroller_.change_solver(new_solver,new_ts_);
   // auto transferer = smt::TermTranslator(new_solver);
@@ -393,7 +438,7 @@ void Prover::compute_dynamic_COI(UnorderedTermMap & init_state_variables, std::v
     UnorderedTermSet newvarset;
     TermVec update_functions_to_check;
     TermVec vars_remained;
-    std::vector<std::pair<std::string,std::string>> newvarset_slice;
+    std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> newvarset_slice;
     for (const auto & var : varset) {
       auto untimed_var = unroller_.untime_var(var);  // a@n --> a
 

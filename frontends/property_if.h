@@ -115,15 +115,17 @@ class JsonCexParser
     int get_reg_min_width();
     std::vector<int> get_width;
   protected:
-    bool is_extracted(const std::string & var_name, std::unordered_set<std::string> & extract_info);
-    void get_info(const std::string & out, int & idx0, int & idx1);
+    bool is_extracted(const std::string & var_name, std::vector<std::pair<int,int>> & extract_info);
+    void get_info(const std::pair<int,int> & out, int & idx0, int & idx1);
     TransitionSystem & ts_;
     std::vector<std::string> name_terms;
     std::vector<std::string> value_terms;
     std::vector<std::string> new_name_terms;
     std::vector<std::string> new_value_terms;
     std::vector<std::string> name_extract;
-    std::vector<std::string> extract_val;
+    std::vector<std::pair<int,int>> extract_val;
+    // std::vector<std::string> extract_val;
+    // std::array<int> extract_val_arr;
     PonoOptions pono_options_;
     bool having_extract;
     // is_reg_t is_reg;

@@ -35,6 +35,17 @@ enum RefineResult
   REFINE_FAIL       // failed to refine
 };
 
+
+struct pair_hash {
+	template<class T1, class T2>
+	std::size_t operator() (const std::pair<T1, T2>& p) const {
+		auto h1 = std::hash<T1>{}(p.first);
+		auto h2 = std::hash<T2>{}(p.second);
+		return h1 ^ h2;
+	}
+};
+
+
 class Prover
 {
  public:
@@ -52,8 +63,8 @@ class Prover
 
   virtual bool witness(std::vector<smt::UnorderedTermMap> & out);
 
-  void compute_dynamic_COI(smt::UnorderedTermMap & init_state_variables,std::vector<std::pair<std::string,std::string>> & varset_slice);
-  void get_var_in_COI(const smt::TermVec & asts, smt::UnorderedTermSet & vars,std::vector<std::pair<std::string,std::string>> & varset_slice);
+  void compute_dynamic_COI(smt::UnorderedTermMap & init_state_variables,std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> & varset_slice);
+  void get_var_in_COI(const smt::TermVec & asts, smt::UnorderedTermSet & vars,std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> & varset_slice);
 
   /** Returns length of the witness
    *  this can be cheaper than actually computing the witness
@@ -130,4 +141,7 @@ class Prover
   smt::Term invar_; ///< populated with an invariant if the engine supports it
 
 };
+
+
+
 }  // namespace pono
