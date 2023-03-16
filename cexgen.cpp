@@ -156,6 +156,14 @@ ProverResult check_prop(PonoOptions pono_options,
           0,
           "Only got a partial witness from engine. Not suitable for printing.");
     }
+    bool res_COI = prover->check_coi();
+    if(!res_COI) {
+        std::vector<smt::UnorderedTermMap> coi_cex;
+        prover->coi_failure_witness(coi_cex);
+        VCDWitnessPrinter vcdprinter(ts, coi_cex);
+        vcdprinter.dump_trace_to_file("COI_failure.vcd");
+    } else
+      logger.log(0, "COI check passed");
   }
 
   Term invar;
@@ -195,7 +203,8 @@ int main(int argc, char ** argv)
   if (pono_options.vcd_name_.empty())
     pono_options.vcd_name_ = "cex.vcd";
   // in this case, we are only interested in the first state
-  pono_options.witness_ = pono_options.witness_first_state_only_ = true;
+  pono_options.witness_ = true;
+  pono_options.witness_first_state_only_ = true;
   pono_options.compute_dynamic_coi_upon_cex_ = true;
   { // dynamically check if asmpt-ila.smt2 is available or not
     std::ifstream fin("asmpt-ila.smt2");

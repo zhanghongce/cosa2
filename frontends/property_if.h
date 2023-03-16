@@ -64,6 +64,7 @@ public:
   smt::Term GetConditionInAssumption(const std::string & t) const;
   smt::Term GetValueTermInAssumption(const std::string & t) const { return sv_value_.at(t); }
 
+  std::string ReportStatus() const { return "SV:"+std::to_string(sv_value_.size()); }
 protected:
   // overloaded function, used when arg list of function is parsed
   // NOTE: | |  pipe quotes are removed.

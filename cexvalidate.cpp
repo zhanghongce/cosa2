@@ -429,8 +429,10 @@ int main(int argc, char ** argv)
   unsigned max_width = 32;
   filter.filters.push_back(std::make_shared<NameFilter>(cexinfo.auxvar_removal_, fts, false));
   filter.filters.push_back(std::make_shared<NameFilter>(cexinfo.COI_to_consider_, fts, true));
+  auto COI_filter = filter.filters.back(); // mark this down and we should not remove it, so later we will check this
   filter.filters.push_back(std::make_shared<NameFilter>(cexinfo.datapath_elements_, fts, false));
   filter.filters.push_back(std::make_shared<MaxWidthFilter>(max_width, fts));
+
   prop = cexreader.cex2property(filter);
   bool inductiveness;
   while( (inductiveness = check_for_inductiveness(prop, fts)) == true && max_width > 1 ) {
@@ -459,6 +461,8 @@ int main(int argc, char ** argv)
   while (  (res = check_prop(pono_options, prop, fts, s, cex, 
       pono_options.smt_solver_, pono_options.engine_, pono_options.step_, cexinfo.module_name_removal_)) == FALSE 
    && !filter.filters.empty()) {
+    if (filter.filters.back() == COI_filter)
+      throw PonoException("Removing COI filter! Something is wrong here!");
     filter.filters.pop_back();
     cout << "Reachable, removing filter, after: " << filter.to_string() << endl;
     prop = cexreader.cex2property(filter);

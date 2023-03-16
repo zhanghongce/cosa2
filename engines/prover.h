@@ -56,6 +56,12 @@ class Prover
   void compute_dynamic_COI_from_term(const smt::Term & t, int k, smt::UnorderedTermSet & init_state_variables);
   void get_var_in_COI(const smt::TermVec & asts, smt::UnorderedTermSet & vars);
 
+  void record_coi_info(const smt::UnorderedTermSet &sv, const smt::UnorderedTermSet &inp, int k);
+  smt::UnorderedTermMap all_coi_values;
+  bool check_coi();
+  std::vector<smt::UnorderedTermMap> coi_failure_witness_; 
+  virtual bool coi_failure_witness(std::vector<smt::UnorderedTermMap> & out);
+
   /** Returns length of the witness
    *  this can be cheaper than actually computing the witness
    *  by default returns reached_k_+1, because reached_k_ was the
@@ -125,7 +131,6 @@ class Prover
   Engine engine_;
 
   // NOTE: both witness_ and invar_ use terms from the engine's solver
-
   std::vector<smt::UnorderedTermMap> witness_; ///< populated by a witness if a CEX is found
 
   smt::Term invar_; ///< populated with an invariant if the engine supports it

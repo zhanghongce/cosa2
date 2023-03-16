@@ -17,6 +17,7 @@
 #pragma once
 
 #include "engines/ic3.h"
+#include "utils/syntax_analysis.h"
 
 namespace pono {
 
@@ -47,6 +48,15 @@ class IC3Bits : public IC3
   bool ic3formula_check_valid(const IC3Formula & u) const override;
 
   void check_ts() const override;
+
+#if 0
+  virtual void predecessor_generalization(size_t i,
+                                          const smt::Term & c,
+                                          IC3Formula & pred) override;
+
+  IC3Formula ExtractPartialModel(const smt::Term & p);
+#endif
+
 };
 
 }  // namespace pono

@@ -102,15 +102,15 @@ AssumptionRelationReader::AssumptionRelationReader(std::string filename, Transit
   int res = parse(filename_);
   assert(!res);  // 0 means success
 
-  for(const auto & n_prop : defs_){
+  for(const auto & n_prop : defs_) {
     auto fun_name = remove_vertical_bar(n_prop.first);
     if ( fun_name.find("cond.") == 0 ) {
       //                01234
       auto sv_name = fun_name.substr(5);
       sv_cond_.emplace(sv_name, n_prop.second);
-    } else if (fun_name.find("val.") == 0) {
-      //                      0123
-      auto sv_name = fun_name.substr(4);
+    } else if (fun_name.find("value.") == 0) {
+      //                      012345
+      auto sv_name = fun_name.substr(6);
       sv_value_.emplace(sv_name, n_prop.second);
     }     
   }

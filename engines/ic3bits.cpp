@@ -110,4 +110,60 @@ void IC3Bits::check_ts() const
   }
 }
 
+
+#if 0
+IC3Formula IC3Bits::ExtractPartialModel(const Term & p) {
+  // extract using keep_var_in_partial_model  
+  assert(ts_.no_next(p));
+
+  UnorderedTermSet varlist;
+  Term bad_state_no_nxt = next_curr_replace(ts_.next(p));
+
+  // we need to make sure input vars are mapped to next input vars
+
+  D(4, "[PartialModel] prime state : {}", bad_state_no_nxt->to_string());
+  if (has_assumptions) {
+    D(4, "[PartialModel] assumptions (mapped): {}", constraints_curr_var_.size());
+    unsigned idx = 0;
+    for (const auto & c : constraints_curr_var_)
+      D(4, "[PartialModel] assumption #{} : {}", idx ++, c->to_string());
+    constraints_curr_var_.push_back(bad_state_no_nxt);
+    partial_model_getter.GetVarListForAsts(constraints_curr_var_, varlist);
+    constraints_curr_var_.pop_back();
+  } else {
+    partial_model_getter.GetVarList(bad_state_no_nxt, varlist);
+  }
+
+  {
+    D(4, "[PartialModel] before cutting vars: ");
+    for (const auto & v : varlist)
+      D(4, "[PartialModel] {} := {} ", v->to_string(), solver_->get_value(v)->to_string());
+    D(4, "[PartialModel] ------------------- ");
+  }
+
+  TermVec conjvec_partial;
+  
+  for (const auto & v : varlist) {
+    Term val = solver_->get_value(v);
+    auto eq = solver_->make_term(Op(PrimOp::Equal), v,val );
+    if (keep_var_in_partial_model(v)) {
+      conjvec_partial.push_back( eq );
+    } // end of partial model
+  }
+  return ic3formula_conjunction(conjvec_partial);
+
+} // SygusPdr::ExtractPartialAndFullModel
+
+void IC3Bits::predecessor_generalization(size_t i, const Term & cterm, IC3Formula & pred) {
+  // used in rel_ind_check
+  // extract the model based on var list
+  // NOTE: i may be incorrect, it is given as F/\T->(here is i)
+
+  // no need to pop (pop in rel_ind_check)
+  // return the model and build IC3FormulaModel
+  auto partial_full_model = ExtractPartialModel(cterm);
+  pred = partial_full_model;
+} // generalize_predecessor
+#endif
+
 }  // namespace pono
