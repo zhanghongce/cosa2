@@ -388,7 +388,7 @@ void Prover::get_var_in_COI(const TermVec & asts, UnorderedTermSet & vars,std::u
                 auto iter = std::remove(std::begin(varset_slice[v]), std::end(varset_slice[v]), width_pair);
                 varset_slice[v].push_back(slice.second);
               }          
-              else if(((width_pair.first-width_pair.second)>(slice.second.first-slice.second.second))
+              else if(((width_pair.first-width_pair.second)>=(slice.second.first-slice.second.second))
               &&((slice.second.first<=width_pair.first)&&(slice.second.second>=width_pair.second))){
                 continue;
               }

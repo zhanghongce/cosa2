@@ -17,7 +17,9 @@
 
 #include "utils/partial_model.h"
 #include "utils/str_util.h"
-
+#include "smt-switch/boolector_factory.h"
+#include "engines/prover.h"
+#include "smt/available_solvers.h"
 #include "assert.h"
 
 namespace pono {
@@ -88,7 +90,14 @@ void PartialModelGen::GetVarList_coi(const smt::Term & ast,
 
   dfs_walked_.clear();
   dfs_vars_.clear();
-  dfs_walk_deep(ast,varset_slice);
+  term_leaf_map.clear();
+  std::vector <std::pair<smt::Term,std::vector<std::pair<int,int>>>> varset_slice_walk;
+  dfs_walk_deep(ast,varset_slice_walk);
+  for(const auto walk_slice:varset_slice_walk){
+    for(const auto pair: walk_slice.second){
+      varset_slice.push_back(std::make_pair(walk_slice.first,pair));
+    }
+  }
   out_vars.insert(dfs_vars_.begin(), dfs_vars_.end());
 }
 
@@ -179,24 +188,72 @@ static inline bool is_all_zero(const std::string & s)  {
   return convert_to_boolean_and_check(decimal, width, false);
 }
 
-static inline bool detect_partial_zero(const std::string & s)  {
-  if (s == "true")
-    return false;
-  if (s == "false")
-    return true;
-  assert (s.length() > 2);
-  if (s.substr(0,2) == "#b") {
-    for (auto pos = s.begin()+2; pos != s.end(); ++ pos)
-      if (*pos != '0')
-        return false;
-    return true;
-  } // else
-  std::string decimal, width;
-  bool conv_succ = extract_decimal_width(s, decimal, width);
-  assert(conv_succ);
+static inline void push_extracted_bit(std::vector<std::pair<int,int>> & extracted_bit,int site){
 
-  return convert_to_boolean_and_check(decimal, width, false);
+  if(!extracted_bit.empty()){
+    auto pair = extracted_bit.back();
+    if(pair.first==site-1){
+      extracted_bit.pop_back();
+      extracted_bit.push_back(std::make_pair(site,pair.second));
+    }
+    else{
+      extracted_bit.push_back(std::make_pair(site,site));
+    }
+  }
+  else{
+    extracted_bit.push_back(std::make_pair(site,site));
+  }    
 }
+
+
+static inline void detect_partial_zero(const std::string & left,const std::string & right,const std::vector<std::pair<int,int>> & extracted_bit,std::vector<std::pair<int,int>> & extracted_bit_left, std::vector<std::pair<int,int>>  & extracted_bit_right){
+  assert ((left.length() > 2)&&(right.length() > 2));
+  if (left.substr(0,2) == "#b") {
+    for(const auto extract:extracted_bit){
+      auto left_bound = extract.first;
+      auto right_bound = extract.second;
+      auto site = right_bound;
+      for (auto pos = left.rbegin()+right_bound; pos != left.rbegin()+left_bound+1; ++ pos){
+        if (*pos == '0'){
+          push_extracted_bit(extracted_bit_left,site);
+        }
+        else if(right.substr(site,site+1) =="0"){
+          push_extracted_bit(extracted_bit_right,site);
+        }
+        else{
+          push_extracted_bit(extracted_bit_left,site);
+          push_extracted_bit(extracted_bit_right,site);
+        }
+        site = site + 1;
+      }
+    }
+  }
+}
+
+static inline void detect_partial_one(const std::string & left,const std::string & right,const std::vector<std::pair<int,int>> & extracted_bit,std::vector<std::pair<int,int>> & extracted_bit_left, std::vector<std::pair<int,int>>  & extracted_bit_right){
+  assert ((left.length() > 2)&&(right.length() > 2));
+  if (left.substr(0,2) == "#b") {
+    for(const auto extract:extracted_bit){
+      auto left_bound = extract.first;
+      auto right_bound = extract.second;
+      auto site = right_bound;
+      for (auto pos = left.rbegin()+right_bound; pos != left.rbegin()+left_bound+1; ++ pos){
+        if (*pos == '1'){
+          push_extracted_bit(extracted_bit_left,site);
+        }
+        else if(right.substr(site,site+1) =="1"){
+          push_extracted_bit(extracted_bit_right,site);
+        }
+        else{
+          push_extracted_bit(extracted_bit_left,site);
+          push_extracted_bit(extracted_bit_right,site);
+        }
+        site = site + 1;
+      }
+    }
+  }
+}
+
 
 
 /* Internal Function */
@@ -373,24 +430,35 @@ void PartialModelGen::dfs_walk(const smt::Term & input_ast) {
 } // end of PartialModelGen::dfs_walk
 
 
-void PartialModelGen::dfs_walk_deep(const smt::Term & input_ast,std::vector <std::pair<smt::Term,std::pair<int,int>>> & varset_slice) {
-  std::vector <std::pair<smt::Term,std::pair<int,int>>> node_stack_;
-  // smt::TermVec extracted_terms;
+void PartialModelGen::dfs_walk_deep(const smt::Term & input_ast,std::vector <std::pair<smt::Term,std::vector<std::pair<int,int>>>> & varset_slice) {
+  std::vector <std::pair<smt::Term,std::vector<std::pair<int,int>>>> node_stack_;
+  std::vector <bool> using_extract_track;
+  
+  auto btorsolver = create_solver(smt::BTOR);
+  auto transferer = smt::TermTranslator(btorsolver);
+  std::vector<std::pair<int,int>> node_pairs;
   bool using_extracted = false;
+  bool same_parent;
   auto sort = input_ast->get_sort();
   if(sort->to_string()=="Bool"){
-    node_stack_.push_back(std::make_pair(input_ast,std::make_pair(0,0)));
+    node_pairs.push_back(std::make_pair(0,0));
+    node_stack_.push_back(std::make_pair(input_ast,node_pairs));
+    using_extract_track.push_back(using_extracted);
   }
   else{
     auto width = sort->get_width();
-    node_stack_.push_back(std::make_pair(input_ast,std::make_pair(width-1,0)));
+    node_pairs.push_back(std::make_pair(width-1,0));
+    node_stack_.push_back(std::make_pair(input_ast,node_pairs));
+    using_extract_track.push_back(using_extracted);
   }
-
   while(!node_stack_.empty()) {
     const auto & ast = node_stack_.back().first;
+    const auto ast_copy = node_stack_.back().first;
     const auto extracted_bit =  node_stack_.back().second;
-    if ((dfs_walked_.find(ast) != dfs_walked_.end())&&(ast->is_symbolic_const()==false)) {//TODO: need to add another constraints, that is ast->is_symbolic_const(), to prevent bvcomp
+    using_extracted = using_extract_track.back();
+    if ((dfs_walked_.find(ast) != dfs_walked_.end())&&(ast->is_symbolic_const()==false)) {//TODO: need to add another constraints, that is ast->is_symbolic_const()
       node_stack_.pop_back();
+      using_extract_track.pop_back();
       continue;
     }
     dfs_walked_.insert(ast);
@@ -401,127 +469,152 @@ void PartialModelGen::dfs_walk_deep(const smt::Term & input_ast,std::vector <std
         auto ast_recoder = node_stack_.back();
         varset_slice.push_back(ast_recoder);
         dfs_vars_.insert(ast);
-        using_extracted = false;
       }
+      // using_extracted = false;
       node_stack_.pop_back(); // no need to wait for the next time
+      using_extract_track.pop_back();
       continue;
     } else { // non variable/non constant case
       if (op.prim_op == smt::PrimOp::Ite)  {
         ARG3(cond, texpr, fexpr)
         auto cond_val = solver_->get_value(cond);
         assert(cond_val->is_value());
+        // using_extracted = true;
         if ( is_all_one(cond_val->to_string(),1) ) {
           ///For the condition, we never use the extracted terms.
-          get_extract(cond,extracted_bit,node_stack_,false);
-          get_extract(texpr,extracted_bit,node_stack_,using_extracted);
+          push_to_node_stack(cond,ast_copy,extracted_bit,node_stack_,false,using_extract_track);
+          push_to_node_stack(texpr,ast_copy,extracted_bit,node_stack_,using_extracted,using_extract_track);
         }
         else {
-          get_extract(cond,extracted_bit,node_stack_,false);
-          get_extract(fexpr,extracted_bit,node_stack_,using_extracted);
+          push_to_node_stack(cond,ast_copy,extracted_bit,node_stack_,false,using_extract_track);
+          push_to_node_stack(fexpr,ast_copy,extracted_bit,node_stack_,using_extracted,using_extract_track);
         }
       } else if (op.prim_op == smt::PrimOp::Implies) {
         ARG2(left,right)
         auto cond_left = solver_->get_value(left);
         auto cond_right = solver_->get_value(right);
         assert(cond_left->is_value() && cond_right->is_value());
+        assert(ast->get_sort()->get_width()==1);
+        using_extracted = false;
         if (!( is_all_one(cond_left->to_string(),1) )) {          
-          get_extract(left,extracted_bit,node_stack_,false);
+          push_to_node_stack(left,ast_copy,extracted_bit,node_stack_,using_extracted,using_extract_track);
         }
         else if ( is_all_one(cond_right->to_string(), 1) ) {
-          get_extract(right,extracted_bit,node_stack_,false);
+          push_to_node_stack(right,ast_copy,extracted_bit,node_stack_,using_extracted,using_extract_track);
         } else {
-          get_extract(left,extracted_bit,node_stack_,false); 
-          get_extract(right,extracted_bit,node_stack_,false);        
+          push_to_node_stack(left,ast_copy,extracted_bit,node_stack_,using_extracted,using_extract_track); 
+          push_to_node_stack(right,ast_copy,extracted_bit,node_stack_,using_extracted,using_extract_track);        
         }
       } else if (op.prim_op == smt::PrimOp::And) {
         ARG2(left,right)
         auto cond_left = solver_->get_value(left);
         auto cond_right = solver_->get_value(right);
         assert(cond_left->is_value() && cond_right->is_value());
+        assert(ast->get_sort()->get_width()==1);
+        using_extracted = false;
         if (!( is_all_one(cond_left->to_string(),1) )) {
-          get_extract(left,extracted_bit,node_stack_,false); 
+          push_to_node_stack(left,ast_copy,extracted_bit,node_stack_,using_extracted,using_extract_track); 
           }
         else if (!(is_all_one(cond_right->to_string(), 1))) {
-          get_extract(right,extracted_bit,node_stack_,false); 
+          push_to_node_stack(right,ast_copy,extracted_bit,node_stack_,using_extracted,using_extract_track); 
         } else {
-          get_extract(left,extracted_bit,node_stack_,false);
-          get_extract(right,extracted_bit,node_stack_,false);
+          push_to_node_stack(left,ast_copy,extracted_bit,node_stack_,using_extracted,using_extract_track);
+          push_to_node_stack(right,ast_copy,extracted_bit,node_stack_,using_extracted,using_extract_track);
         }
       } else if (op.prim_op == smt::PrimOp::Or) {
         ARG2(left,right)
         auto cond_left = solver_->get_value(left);
         auto cond_right = solver_->get_value(right);
         assert(cond_left->is_value() && cond_right->is_value());
+        assert(ast->get_sort()->get_width()==1);
+        using_extracted = false;
         if (is_all_one(cond_left->to_string(),1)) {
-          get_extract(left,extracted_bit,node_stack_,false);
+          push_to_node_stack(left,ast_copy,extracted_bit,node_stack_,using_extracted,using_extract_track);
         }
         else if (is_all_one(cond_right->to_string(), 1)) {
-          get_extract(right,extracted_bit,node_stack_,false);
+          push_to_node_stack(right,ast_copy,extracted_bit,node_stack_,using_extracted,using_extract_track);
         } else  { // it is 0, so both matter
-          get_extract(left,extracted_bit,node_stack_,false);
-          get_extract(right,extracted_bit,node_stack_,false);
+          push_to_node_stack(left,ast_copy,extracted_bit,node_stack_,using_extracted,using_extract_track);
+          push_to_node_stack(right,ast_copy,extracted_bit,node_stack_,using_extracted,using_extract_track);
         }
       } else if (op.prim_op == smt::PrimOp::BVAnd || op.prim_op == smt::PrimOp::BVNand) {
         ARG2(left,right)
         auto cond_left = solver_->get_value(left);
         auto cond_right = solver_->get_value(right);
         assert(cond_left->is_value() && cond_right->is_value());
+        cond_left = transferer.transfer_term(cond_left);
+        cond_right = transferer.transfer_term(cond_right);
         std::string left_val = cond_left->to_string();
         std::string right_val = cond_right->to_string();
-
+        using_extracted = true;
         if (is_all_zero(left_val)) // if all zeros
-          get_extract(left,extracted_bit, node_stack_,using_extracted);
+          push_to_node_stack(left,ast_copy,extracted_bit, node_stack_,using_extracted,using_extract_track);
           // node_stack_.push_back(make_pair(left,extracted_bit));
         else if (is_all_zero(right_val)) {
-          get_extract(right,extracted_bit, node_stack_,using_extracted);
-        } else { // it is 0, so both matter
-          get_extract(left,extracted_bit, node_stack_,using_extracted);
-          get_extract(right,extracted_bit, node_stack_,using_extracted);
-          // node_stack_.push_back(make_pair(left,extracted_bit));
-          // node_stack_.push_back(make_pair(right,extracted_bit));
+          push_to_node_stack(right,ast_copy,extracted_bit, node_stack_,using_extracted,using_extract_track);
+        } 
+        else { // it is 0, so both matter
+          std::vector<std::pair<int,int>> extracted_bit_left;
+          std::vector<std::pair<int,int>> extracted_bit_right;
+          detect_partial_zero(left_val,right_val,extracted_bit,extracted_bit_left,extracted_bit_right);
+          push_to_node_stack(left,ast_copy,extracted_bit_left, node_stack_,using_extracted,using_extract_track);
+          push_to_node_stack(right,ast_copy,extracted_bit_right, node_stack_,using_extracted,using_extract_track);
         }
-
       } else if (op.prim_op == smt::PrimOp::BVOr  || op.prim_op == smt::PrimOp::BVNor) {
         ARG2(left,right)
         auto cond_left = solver_->get_value(left);
         auto cond_right = solver_->get_value(right);
         assert(cond_left->is_value() && cond_right->is_value());
+        cond_left = transferer.transfer_term(cond_left);
+        cond_right = transferer.transfer_term(cond_right);
         std::string left_val = cond_left->to_string();
         std::string right_val = cond_right->to_string();
-
+        using_extracted = true;
         if (is_all_one(left_val, left->get_sort()->get_width())) // if all ones
-          get_extract(left,extracted_bit, node_stack_,using_extracted);
+          push_to_node_stack(left,ast_copy,extracted_bit, node_stack_,using_extracted,using_extract_track);
         else if (is_all_one(right_val, right->get_sort()->get_width())) {
-          get_extract(right,extracted_bit, node_stack_,using_extracted);
-        } else { // it is 0, so both matter
-          get_extract(left,extracted_bit, node_stack_,using_extracted);
-          get_extract(right,extracted_bit, node_stack_,using_extracted);
+          push_to_node_stack(right,ast_copy,extracted_bit, node_stack_,using_extracted,using_extract_track);
+        }
+        else { // it is 0, so both matter        
+          std::vector<std::pair<int,int>> extracted_bit_left;
+          std::vector<std::pair<int,int>> extracted_bit_right;
+          detect_partial_one(left_val,right_val,extracted_bit,extracted_bit_left,extracted_bit_right);
+          push_to_node_stack(left,ast_copy,extracted_bit_left, node_stack_,using_extracted,using_extract_track);
+          push_to_node_stack(right,ast_copy,extracted_bit_right, node_stack_,using_extracted,using_extract_track);
         }
       } else if (op.prim_op == smt::PrimOp::BVMul) {
         ARG2(left,right)
         auto cond_left = solver_->get_value(left);
         auto cond_right = solver_->get_value(right);
         assert(cond_left->is_value() && cond_right->is_value());
+        cond_left = transferer.transfer_term(cond_left);
+        cond_right = transferer.transfer_term(cond_right);
         std::string left_val = cond_left->to_string();
         std::string right_val = cond_right->to_string();
-
+        using_extracted = true;
         if (is_all_zero(left_val)) // if all zeros
-        {
-          get_extract(left,extracted_bit,node_stack_,using_extracted);
-        }
+          push_to_node_stack(left,ast_copy,extracted_bit, node_stack_,using_extracted,using_extract_track);
+          // node_stack_.push_back(make_pair(left,extracted_bit));
         else if (is_all_zero(right_val)) {
-          get_extract(right,extracted_bit,node_stack_,using_extracted);
-        } else { // it is not 0, so both matter
-          get_extract(left,extracted_bit,node_stack_,using_extracted);
-          get_extract(right,extracted_bit,node_stack_,using_extracted);
+          push_to_node_stack(right,ast_copy,extracted_bit, node_stack_,using_extracted,using_extract_track);
+        }
+        else { // it is 0, so both matter
+          std::vector<std::pair<int,int>> extracted_bit_left;
+          std::vector<std::pair<int,int>> extracted_bit_right;
+          detect_partial_zero(left_val,right_val,extracted_bit,extracted_bit_left,extracted_bit_right);
+          push_to_node_stack(left,ast_copy,extracted_bit_left, node_stack_,using_extracted,using_extract_track);
+          push_to_node_stack(right,ast_copy,extracted_bit_right, node_stack_,using_extracted,using_extract_track);
         }
       }
       else if((op.prim_op== smt::PrimOp::Extract)){
         auto b = op.idx0;
         auto p = op.idx1;
         for (const auto & arg : *ast){
-            using_extracted = true;
-            get_extract(arg,std::make_pair(b,p),node_stack_,using_extracted);
+          using_extracted = true;
+          std::vector<std::pair<int,int>> new_extracted_bit;
+          get_extract(extracted_bit,new_extracted_bit,b,p);
+          if(!new_extracted_bit.empty())
+            push_to_node_stack(arg,ast_copy,new_extracted_bit,node_stack_,using_extracted,using_extract_track);
         }       
       }
       else if((op.prim_op== smt::PrimOp::Concat)){
@@ -530,15 +623,15 @@ void PartialModelGen::dfs_walk_deep(const smt::Term & input_ast,std::vector <std
         assert((right->get_sort()->to_string())!="Bool");
         auto width_left = left->get_sort()->get_width();
         auto width_right = right->get_sort()->get_width();
-        if(extracted_bit.second> width_right){
-          get_extract(left,std::make_pair(extracted_bit.first - width_left, extracted_bit.second - width_left),node_stack_,using_extracted);
+        // using_extracted = true;
+        std::vector<std::pair<int,int>> new_extracted_left;
+        std::vector<std::pair<int,int>> new_extracted_right;
+        get_concat_extract(extracted_bit,new_extracted_left,new_extracted_right,width_left,width_right);
+        if(!new_extracted_left.empty()){
+          push_to_node_stack(left,ast_copy,new_extracted_left,node_stack_,using_extracted,using_extract_track);
         }
-        else if(extracted_bit.first< width_right){
-          get_extract(right,extracted_bit,node_stack_,using_extracted);
-        }
-        else{
-          get_extract(left,std::make_pair(extracted_bit.first-width_left,0),node_stack_,using_extracted);                
-          get_extract(right,std::make_pair(width_right-1,extracted_bit.second),node_stack_,using_extracted);      
+        if(!new_extracted_right.empty()){
+          push_to_node_stack(right,ast_copy,new_extracted_right,node_stack_,using_extracted,using_extract_track);
         }
       }
       else if((op.prim_op== smt::PrimOp::Zero_Extend)){
@@ -546,48 +639,132 @@ void PartialModelGen::dfs_walk_deep(const smt::Term & input_ast,std::vector <std
         auto width_back = back->get_sort()->get_width();
         // auto count = 0;
         auto width_extend = op.idx0;
-        // for (const auto & arg : *ast){          
-        //   count = count + 1;
-        //   width_extend = arg->get_sort()->get_width();
-        // }
-        // assert(count==1);
-        if(extracted_bit.second> width_back){
-          continue;
-          // get_extract(back,std::make_pair(extracted_bit.first - width_left, extracted_bit.second - width_left),node_stack_,true);
-        }
-        else if(extracted_bit.first< width_extend){
-          get_extract(back,extracted_bit,node_stack_,using_extracted);
-        }
-        else{
-          // get_extract(left,std::make_pair(extracted_bit.first,0),node_stack_,true);                
-          get_extract(back,std::make_pair(width_extend-1,extracted_bit.second),node_stack_,using_extracted);      
+        std::vector<std::pair<int,int>> new_extracted_const;
+        std::vector<std::pair<int,int>> new_extracted_back;
+        // using_extracted = true;
+        get_concat_extract(extracted_bit,new_extracted_const,new_extracted_back,width_extend,width_back);
+        if(!new_extracted_back.empty()){
+          push_to_node_stack(back,ast_copy, new_extracted_back,node_stack_,using_extracted,using_extract_track);
         }
       }
       else {
+        if((op.prim_op== smt::PrimOp::BVComp)||(op.prim_op== smt::PrimOp::Distinct)||((op.prim_op== smt::PrimOp::BVUlt)||(op.prim_op==smt::Equal))){
+          using_extracted = false;
+        }
         for (const auto & arg : *ast){
-          get_extract(arg, extracted_bit,node_stack_,using_extracted);
+          push_to_node_stack(arg, ast_copy, extracted_bit,node_stack_,using_extracted,using_extract_track);
           }
       }
     } // end non-variable case
   } // while ( not empty )
 } // end of PartialModelGen::dfs_walk
 
+void PartialModelGen::get_extract(const std::vector<std::pair<int,int>> old_extracts, std::vector<std::pair<int,int>> & new_extracts,const int left_bit, const int right_bit){
+  for(const auto old_extract: old_extracts){
+    auto left_old = old_extract.first; 
+    auto right_old = old_extract.second;
+    // if((left_old<=left_bit)&&(left_old>=right_bit)){
+    //   if(right_old<=right_bit){
+    //     new_extracts.push_back(std::make_pair(left_old,right_bit));
+    //   }
+    //   else{
+    //     new_extracts.push_back(std::make_pair(left_old,right_old));
+    //   }
+    // }
+    // else if((right_old<=left_bit)&&(left_old>=left_bit)){
+    //   if(right_old<=right_bit){
+    //     new_extracts.push_back(std::make_pair(left_bit,right_bit));
+    //   }
+    //   else{
+    //     new_extracts.push_back(std::make_pair(left_bit,right_old));
+    //   }
+    // }
+    new_extracts.push_back(std::make_pair(right_bit+left_old,right_bit+right_old));
+    assert(right_bit+left_old<=left_bit);
+  }
+}
 
-void PartialModelGen::get_extract(const smt::Term arg, const std::pair<int,int> extract_bit, 
-          std::vector <std::pair<smt::Term,std::pair<int,int>>> & node_stack_,bool using_extracted){
-    auto sort = arg->get_sort();
-    if(sort->to_string()=="Bool"){
-      node_stack_.push_back(std::make_pair(arg,std::make_pair(0,0)));
+std::vector<smt::Term> PartialModelGen::previous_extracted(const smt::Term ast, const smt::Term arg){
+  if(term_leaf_map.find(arg)==term_leaf_map.end()){
+    assert(ast!=nullptr);
+    term_leaf_map[arg]= ast;
+    return {arg};
+  }
+  else if((term_leaf_map[arg]==ast)||(arg->is_value())||(arg->is_symbolic_const())){
+    return {arg};
+  }
+  else{
+    std::vector<smt::Term> traces;
+    traces.push_back(arg);
+    while(!traces.empty()){
+      std::vector<smt::Term> new_traces;
+      for(auto map=term_leaf_map.begin();map!=term_leaf_map.end();++map){
+        for(const auto trace: traces){
+        if(trace->compare(map->second)){
+          new_traces.push_back(map->first);
+        }
+        }
+      }
+      traces.swap(new_traces);
+      if(traces.empty()){
+        return new_traces;
+      }
+    }
+  }
+}
+void PartialModelGen::get_concat_extract(const std::vector<std::pair<int,int>> old_extracts, std::vector<std::pair<int,int>> & new_extracts_left,
+std::vector<std::pair<int,int>> & new_extracts_right,
+const int left_width, const int right_width){
+  for(const auto old_extract: old_extracts){
+    auto left_old = old_extract.first; 
+    auto right_old = old_extract.second;
+    if(right_width-1<right_old){
+        new_extracts_left.push_back(std::make_pair(left_old-right_width,right_old-right_width));
+    }
+    else if(right_width-1>=left_old){
+        new_extracts_right.push_back(std::make_pair(left_old,right_old));
     }
     else{
-      if(using_extracted){
-        node_stack_.push_back(std::make_pair(arg,extract_bit));
+        new_extracts_left.push_back(std::make_pair(left_old-right_width,0));
+        new_extracts_right.push_back(std::make_pair(right_width-1,right_old));
+    }    
+  }
+}
+
+void PartialModelGen::push_to_node_stack(const smt::Term arg,const smt::Term ast, const std::vector<std::pair<int,int>> extract_bit, 
+          std::vector <std::pair<smt::Term,std::vector<std::pair<int,int>>>> & node_stack_,bool using_extracted,std::vector<bool> & using_extract_track){
+    auto previous_result = previous_extracted(ast,arg);
+    std::vector<std::pair<int,int>> new_extract_bit;
+    if((previous_result.size()==1)&&(previous_result.back()==arg)){
+      auto sort = arg->get_sort();
+      if(sort->to_string()=="Bool"){       
+        new_extract_bit.push_back(std::make_pair(0,0));
+        node_stack_.push_back(std::make_pair(arg,new_extract_bit));
+        using_extract_track.push_back(using_extracted);
       }
       else{
-      auto width = sort->get_width();
-      node_stack_.push_back(std::make_pair(arg,std::make_pair(width-1,0)));
+        if(using_extracted){
+          node_stack_.push_back(std::make_pair(arg,extract_bit));
+          using_extract_track.push_back(using_extracted);
+        }
+        else{
+        auto width = sort->get_width();
+        new_extract_bit.push_back(std::make_pair(width-1,0));
+        node_stack_.push_back(std::make_pair(arg,new_extract_bit));
+        using_extract_track.push_back(using_extracted);
+        }
       }
     }
+    else{
+      for(const auto result:previous_result){
+        assert(result->is_symbolic_const()||result->is_value());
+        auto width = result->get_sort()->get_width();
+        new_extract_bit.push_back(std::make_pair(width-1,0));
+        node_stack_.push_back(std::make_pair(result,new_extract_bit));
+        using_extract_track.push_back(false);
+      }
+    }
+
 }
 
 

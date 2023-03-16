@@ -38,19 +38,20 @@ public:
 protected:
   // let's keep a reference to the solver since we need to add terms
   smt::SmtSolver & solver_;
-  void GetVarList_coi_extract(const smt::Term & ast, 
-  std::unordered_set<smt::Term> & out_vars,std::vector<std::pair<std::string,std::string>> & varset_slice);
+  // void GetVarList_coi_extract(const smt::Term & ast, 
+  // std::unordered_set<smt::Term> & out_vars,std::vector<std::pair<std::string,std::string>> & varset_slice);
   // void op_Extract(smt::Term ast,smt::TermVec & node_stack_,std::vector<std::pair<std::string,std::string>> & varset_slice);
   // for the DFS, will not use the stack but use one reference here
   std::unordered_set<smt::Term> dfs_walked_;
   std::unordered_set<smt::Term> dfs_vars_;
   std::unordered_set<smt::Term> dfs_walked_extract;
   std::unordered_set<smt::Term> dfs_vars_extract;
+  smt::UnorderedTermMap term_leaf_map;
   void dfs_walk(const smt::Term & ast);
-  void dfs_walk_deep(const smt::Term & input_ast,std::vector <std::pair<smt::Term,std::pair<int,int>>> & varset_slice);
+  void dfs_walk_deep(const smt::Term & input_ast,std::vector <std::pair<smt::Term,std::vector<std::pair<int,int>>>> & varset_slice);
   // conditon var buffer
   void GetVarList(const smt::Term & ast);
-  
+  std::vector<smt::Term> previous_extracted(const smt::Term ast, const smt::Term arg);
 public:
 
   /** This class computes the variables that need to
@@ -60,7 +61,9 @@ public:
    */
   void GetVarList(const smt::Term & ast, 
     std::unordered_set<smt::Term> & out_vars);
-  void get_extract(const smt::Term arg,const std::pair<int,int> extract_bit,std::vector <std::pair<smt::Term,std::pair<int,int>>> & node_stack_,bool using_extracted);
+  void get_extract(const std::vector<std::pair<int,int>> old_extracts, std::vector<std::pair<int,int>> & new_extracts,const int left_bit, const int right_bit);
+  void get_concat_extract(const std::vector<std::pair<int,int>> old_extracts, std::vector<std::pair<int,int>> & new_extracts_left,std::vector<std::pair<int,int>> & new_extracts_right,const int left_width, const int right_width);
+  void push_to_node_stack(const smt::Term arg,const smt::Term ast, const std::vector<std::pair<int,int>> extract_bit,std::vector <std::pair<smt::Term,std::vector<std::pair<int,int>>>> & node_stack_,bool using_extracted,std::vector<bool> & using_extract_track);
   void GetVarList_coi(const smt::Term & ast, std::unordered_set<smt::Term> & out_vars,std::vector <std::pair<smt::Term,std::pair<int,int>>> & varset_slice);
   /** This class computes the variables that need to
    *  appear in the partial model of asts in the vector
