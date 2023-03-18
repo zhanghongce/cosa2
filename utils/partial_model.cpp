@@ -85,27 +85,29 @@ void PartialModelGen::GetVarList(const smt::Term & ast,
   out_vars.insert(dfs_vars_.begin(), dfs_vars_.end());
 }
 
-
-
 static std::vector<std::pair<int, int>> merge_intervals(const std::vector<std::pair<int, int>> &intervals) {
-    if (intervals.empty())
+    if (intervals.empty()) {
         return {};
+    }
 
     std::vector<std::pair<int, int>> sorted_intervals = intervals;
-    std::sort(sorted_intervals.begin(), sorted_intervals.end());
+    // Sort by the second value (the smaller one) in descending order
+    std::sort(sorted_intervals.begin(), sorted_intervals.end(), [](const auto &a, const auto &b) {
+        return a.second > b.second;
+    });
 
     std::vector<std::pair<int, int>> merged_intervals;
     merged_intervals.push_back(sorted_intervals[0]);
 
     for (size_t i = 1; i < sorted_intervals.size(); ++i) {
         auto &last_merged_interval = merged_intervals.back();
-        if (sorted_intervals[i].first <= last_merged_interval.second + 1) {
-            last_merged_interval.second = std::max(sorted_intervals[i].second, last_merged_interval.second);
+        if (sorted_intervals[i].first >= last_merged_interval.second - 1) {
+            last_merged_interval.second = std::min(sorted_intervals[i].second, last_merged_interval.second);
+            last_merged_interval.first = std::max(sorted_intervals[i].first, last_merged_interval.first);
         } else {
             merged_intervals.push_back(sorted_intervals[i]);
         }
     }
-
     return merged_intervals;
 }
 
