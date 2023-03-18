@@ -458,7 +458,7 @@ void Prover::recursive_dynamic_COI_using_ILA_info(var_in_coi_t & init_state_vari
         // otherwise, update the ranges
         init_state_variables.at(v) = new_range;
       }
-      init_state_variables.emplace(v);
+      init_state_variables.emplace(v, v_range_pair.second);
       auto vname = remove_vertical_bar(v->to_string());
       if (IlaAsmptLoader.IsConstrainedInAssumption(vname)) {
         logger.log(0, "SV {} is in constraints", vname);
