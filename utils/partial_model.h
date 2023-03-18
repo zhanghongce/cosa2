@@ -23,6 +23,25 @@
 namespace pono {
 
 class PartialModelGen {
+
+private:
+  struct hash_pair {
+    template <class T1, class T2>
+    size_t operator()(const std::pair<T1, T2>& p) const
+    {
+        auto hash1 = std::hash<T1>{}(p.first);
+        auto hash2 = std::hash<T2>{}(p.second);
+ 
+        if (hash1 != hash2) {
+            return hash1 ^ hash2;             
+        }
+         
+        // If hash1 == hash2, their XOR is zero.
+          return hash1;
+    }
+  }; // end of hash_pair
+  typedef std::unordered_set<std::pair<int, int>, hash_pair> pair_set;
+
 public:
   /** This class computes the cone of influence on construction
    *  The current implementation does not have internal cache,
@@ -47,6 +66,14 @@ protected:
   // conditon var buffer
   void GetVarList(const smt::Term & ast);
 
+
+  std::unordered_map<smt::Term, pair_set> dfs_walked_extract;
+
+  void dfs_walk(const smt::Term & ast);
+  void dfs_walk_bitlevel(const smt::Term & input_ast, int high, int low, 
+    std::unordered_map<smt::Term, pair_set> & varset_slice);
+  // conditon var buffer
+  void GetVarList(const smt::Term & ast);
 public:
 
   /** This class computes the variables that need to
@@ -56,6 +83,10 @@ public:
    */
   void GetVarList(const smt::Term & ast, 
     std::unordered_set<smt::Term> & out_vars);
+
+  void GetVarListForAsts_in_bitlevel(
+    const std::unordered_map<smt::Term,std::vector<std::pair<int,int>>> & input_asts_slices, 
+    std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> & varset_slice);
 
   /** This class computes the variables that need to
    *  appear in the partial model of asts in the vector
@@ -82,6 +113,7 @@ public:
 
 
   // add an API to use buffers 
+ 
 };
 
 }  // namespace pono

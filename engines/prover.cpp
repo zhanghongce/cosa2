@@ -197,15 +197,20 @@ bool Prover::compute_witness()
 {
   // TODO: make sure the solver state is SAT
   if (options_.compute_dynamic_coi_upon_cex_) {
-    smt::UnorderedTermSet varset;
+    var_in_coi_t varset;
     if (options_.use_ilang_coi_constraint_file_) {
       recursive_dynamic_COI_using_ILA_info(varset);
     } else {
-      compute_dynamic_COI_from_term(bad_, reached_k_+1, varset);
+      compute_dynamic_COI_from_term(bad_, {{0,0}}, reached_k_+1, varset);
     }
     std::ofstream fout("COI.txt");
-    for (const auto & v : varset)
-      fout << v->to_string() << std::endl;
+    for (const auto & v : varset) { // varname size h0 l0 h1 l1 ...
+      fout << v.first->to_string();
+      fout << " " << v.second.size();
+      for (const auto & h_l : v.second)
+        fout <<" " << h_l.first << " " << h_l.second;
+      fout << std::endl;
+    }
 
     if(options_.dynamic_coi_check_) {
       UnorderedTermSet all_inputs = ts_.inputvars();
@@ -310,17 +315,22 @@ bool Prover::check_coi() {
 
 static const bool restrict_RTL_vars_only_in_ILA_RTL_rfcheck = true;
 
-void Prover::record_coi_info(const smt::UnorderedTermSet &sv, const smt::UnorderedTermSet &inp, int bnd) {
+void Prover::record_coi_info(const var_in_coi_t &sv, const smt::UnorderedTermSet &inp, int bnd) {
   // store all values on sv @ 0 , and all inp vars @ 0...k
   for (const auto & v : sv) {
-    auto sv_name = v->to_string();
+    auto sv_name = v.first->to_string();
     if (restrict_RTL_vars_only_in_ILA_RTL_rfcheck && (sv_name.find("ILA.") == 0 || (sv_name.find("__auxvar") == 0 && sv_name.find("recorder") != sv_name.npos) ))  {
       logger.log(0,"[COI check] removing sv {}", sv_name);
       continue;
     }
-    auto timed_v = unroller_.at_time(v, 0);
+    auto timed_v = unroller_.at_time(v.first, 0);
     auto value = solver_->get_value(timed_v);
-    all_coi_values.emplace(timed_v, value);
+    for (const auto & range : v.second) {
+      auto extracted_v   = solver_->make_term(smt::Op(smt::PrimOp::Extract, range.first, range.second), timed_v);
+      auto extracted_val = solver_->make_term(smt::Op(smt::PrimOp::Extract, range.first, range.second), value);
+      all_coi_values.emplace(extracted_v, extracted_val);
+      logger.log(0, "[COI check] sv {} is locked as {}", extracted_v->to_string(), extracted_val->to_string());
+    }
   }
   for (int k = 0; k<=bnd+1; ++k) {
     for (const auto & inpv : inp) {
@@ -332,33 +342,25 @@ void Prover::record_coi_info(const smt::UnorderedTermSet &sv, const smt::Unorder
   }
 } // end of record_coi_info
 
-void Prover::get_var_in_COI(const TermVec & asts, UnorderedTermSet & vars) {
+void Prover::get_var_in_COI(const var_in_coi_t & input_asts, 
+                                  var_in_coi_t & varset_slice) {
   PartialModelGen partial_model_getter(solver_);
-  partial_model_getter.GetVarListForAsts(asts, vars);
-  // std::cout << "BACKTRACK on :";
-  // for (const auto & ast: asts) {
-  //   std::cout << " ---> " << ast->to_string() << std::endl;
-  // }
-  // std::cout << "GET COI: ";
-  // for (const auto & v: vars)
-  //   std::cout<< v->to_string() << ", ";
-  // std::cout << std::endl;
+  partial_model_getter.GetVarListForAsts_in_bitlevel(input_asts, varset_slice);
 }
 
-
-void Prover::compute_dynamic_COI_from_term(const smt::Term & t, int k, smt::UnorderedTermSet & init_state_variables) {
+void Prover::compute_dynamic_COI_from_term(const smt::Term & t, const slice_t &ranges, int k, var_in_coi_t & init_state_variables) {
   // bad_ ,  0...reached_k_+1
   // auto last_bad = unroller_.at_time(bad_, reached_k_+1);
 
-  auto last_bad = unroller_.at_time(t, k);
-  UnorderedTermSet varset;
-  get_var_in_COI({last_bad}, varset); // varset contains variables like : a@n
+  auto t_at_time_k = unroller_.at_time(t, k);
+  var_in_coi_t varset;
+  get_var_in_COI({{t_at_time_k, ranges}}, varset); // varset contains variables like : a@n
 
   for(int i = k-1; i>=0; --i) {
-    UnorderedTermSet newvarset;
-    TermVec update_functions_to_check;
-    for (const auto & var : varset) {
-      auto untimed_var = unroller_.untime(var);  // a@n --> a
+    std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> update_functions_to_check;
+    std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> newvarset_slice;
+    for (const auto & var_ranges_pair : varset) {
+      auto untimed_var = unroller_.untime(var_ranges_pair.first);  // a@n --> a
 
       if (ts_.is_input_var(untimed_var))
         continue;
@@ -375,16 +377,18 @@ void Prover::compute_dynamic_COI_from_term(const smt::Term & t, int k, smt::Unor
       const auto & update_function = pos->second;  // a, b, c ...
       // at_time is used to change the variable set in update_function
       auto timed_update_function = unroller_.at_time(update_function, i); // i ?
-      update_functions_to_check.push_back(timed_update_function);
-    }
-    get_var_in_COI(update_functions_to_check, newvarset);
+      update_functions_to_check.emplace(timed_update_function, var_ranges_pair.second);
+    } // for each variable in varset
+    
+    get_var_in_COI(update_functions_to_check, newvarset_slice);
+    
   
-    varset.swap(newvarset); // the same as "varset = newvarset;" , but this is faster
+    varset.swap(newvarset_slice); // the same as "varset = newvarset;" , but this is faster
   }
 
   // varset at this point: a@0 ,  b@0 , ...
-  for (const auto & timed_var : varset) { 
-    init_state_variables.emplace(unroller_.untime(timed_var));
+  for (const auto & timed_var : varset) {
+    init_state_variables.emplace(unroller_.untime(timed_var.first),timed_var.second);
   }
 } // end of compute_dynamic_COI_from_term
 
@@ -395,26 +399,65 @@ std::string static remove_vertical_bar(const std::string & in) {
   return in;
 }
 
-void Prover::recursive_dynamic_COI_using_ILA_info(smt::UnorderedTermSet & init_state_variables) {
+static std::vector<std::pair<int, int>> merge_intervals(const std::vector<std::pair<int, int>> &intervals) {
+    if (intervals.empty()) {
+        return {};
+    }
+
+    std::vector<std::pair<int, int>> sorted_intervals = intervals;
+    // Sort by the second value (the smaller one) in descending order
+    std::sort(sorted_intervals.begin(), sorted_intervals.end(), [](const auto &a, const auto &b) {
+        return a.second > b.second;
+    });
+
+    std::vector<std::pair<int, int>> merged_intervals;
+    merged_intervals.push_back(sorted_intervals[0]);
+
+    for (size_t i = 1; i < sorted_intervals.size(); ++i) {
+        auto &last_merged_interval = merged_intervals.back();
+        if (sorted_intervals[i].first >= last_merged_interval.second - 1) {
+            last_merged_interval.second = std::min(sorted_intervals[i].second, last_merged_interval.second);
+            last_merged_interval.first = std::max(sorted_intervals[i].first, last_merged_interval.first);
+        } else {
+            merged_intervals.push_back(sorted_intervals[i]);
+        }
+    }
+    return merged_intervals;
+}
+
+
+void Prover::recursive_dynamic_COI_using_ILA_info(var_in_coi_t & init_state_variables) {
 
   AssumptionRelationReader IlaAsmptLoader("asmpt-ila.smt2", ts_);
   logger.log(3,"{} loaded from asmpt-ila.smt2.", IlaAsmptLoader.ReportStatus());
 
-  UnorderedTermSet init_sv;
+  var_in_coi_t init_sv;
   
   // initially, we extract bad
-  set<std::pair<smt::Term, int>> next_round_to_track = { {bad_, reached_k_+1} };
+  vector<std::tuple<smt::Term, int, slice_t>> next_round_to_track = { {bad_, reached_k_+1, {{0,0}} } };
 
   while(!next_round_to_track.empty()) {
-    for (const auto & term_k_pair : next_round_to_track) {
-      compute_dynamic_COI_from_term(term_k_pair.first, term_k_pair.second, init_sv);
+    for (const auto & term_k_range : next_round_to_track) {
+      compute_dynamic_COI_from_term(std::get<0>(term_k_range), std::get<2>(term_k_range), std::get<1>(term_k_range), init_sv);
     } // compute all sub var in 
     next_round_to_track.clear();
 
     // then let's go through all variables
-    for (const auto & v : init_sv) {
-      if (init_state_variables.find(v) != init_state_variables.end())
-        continue; // to avoid repitition like v : v == another variable
+    for (const auto & v_range_pair : init_sv) {
+      const auto v = v_range_pair.first;
+      if (init_state_variables.find(v) != init_state_variables.end()) {
+        const auto & old_slices = init_state_variables.at(v);
+        auto new_range = v_range_pair.second;
+        new_range.insert(new_range.begin(), old_slices.begin(), old_slices.end() );
+        new_range = merge_intervals(new_range);
+
+        // merge the ranges, and get the same range? then done
+        // else retrack using wider ranges?
+        if (new_range == old_slices)
+          continue; // to avoid repitition like v : v == another variable
+        // otherwise, update the ranges
+        init_state_variables.at(v) = new_range;
+      }
       init_state_variables.emplace(v);
       auto vname = remove_vertical_bar(v->to_string());
       if (IlaAsmptLoader.IsConstrainedInAssumption(vname)) {
@@ -429,7 +472,7 @@ void Prover::recursive_dynamic_COI_using_ILA_info(smt::UnorderedTermSet & init_s
           if(is_cond_true_at_k) {
             
             logger.log(0, "SV {} is triggered at Cycle #{}", vname, k);
-            next_round_to_track.emplace(std::make_pair(val, k));
+            next_round_to_track.push_back({val, k, v_range_pair.second});
             logger.log(0,"added {} in next round.", val->to_string());
             triggered = true;
             break;

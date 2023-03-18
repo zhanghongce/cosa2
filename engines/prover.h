@@ -38,6 +38,9 @@ enum RefineResult
 class Prover
 {
  public:
+  typedef std::vector<std::pair<int,int>> slice_t;
+  typedef std::unordered_map <smt::Term,slice_t> var_in_coi_t;
+
   Prover(const Property & p, const TransitionSystem & ts,
          const smt::SmtSolver & s,
          PonoOptions opt = PonoOptions());
@@ -52,11 +55,12 @@ class Prover
 
   virtual bool witness(std::vector<smt::UnorderedTermMap> & out);
 
-  void recursive_dynamic_COI_using_ILA_info(smt::UnorderedTermSet & init_state_variables);
-  void compute_dynamic_COI_from_term(const smt::Term & t, int k, smt::UnorderedTermSet & init_state_variables);
-  void get_var_in_COI(const smt::TermVec & asts, smt::UnorderedTermSet & vars);
+  void recursive_dynamic_COI_using_ILA_info(var_in_coi_t & varset_slice);
+  void compute_dynamic_COI_from_term(const smt::Term & t, const slice_t &ranges, int k, var_in_coi_t & init_state_variables);
+  void get_var_in_COI(const var_in_coi_t & input_asts,
+                            var_in_coi_t & varset_slice);
 
-  void record_coi_info(const smt::UnorderedTermSet &sv, const smt::UnorderedTermSet &inp, int k);
+  void record_coi_info(const var_in_coi_t &sv, const smt::UnorderedTermSet &inp, int k);
   smt::UnorderedTermMap all_coi_values;
   bool check_coi();
   std::vector<smt::UnorderedTermMap> coi_failure_witness_; 
