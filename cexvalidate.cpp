@@ -349,7 +349,7 @@ int main(int argc, char ** argv)
   FilterConcat filter;
   unsigned max_width = 32;
   filter.filters.push_back(std::make_shared<NameFilter>(cexinfo.auxvar_removal_, fts, false));
-  filter.filters.push_back(std::make_shared<SliceFilter>(cexinfo.COI_to_consider_, fts, true));
+  filter.filters.push_back(std::make_shared<SliceFilter>(cexinfo.COI_to_consider_, fts));
   auto COI_filter = filter.filters.back(); // mark this down and we should not remove it, so later we will check this
   filter.filters.push_back(std::make_shared<NameFilter>(cexinfo.datapath_elements_, fts, false));
   filter.filters.push_back(std::make_shared<MaxWidthFilter>(max_width, fts));
