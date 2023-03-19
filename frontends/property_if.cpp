@@ -84,6 +84,17 @@ smt::Term PropertyInterface::AddAssertions(const smt::Term &in) const{
   return ret;
 }
 
+smt::Term PropertyInterface::Transfer_assump_to_assert(const smt::Term &in) const{
+  smt::Term ret = in;
+  for(const auto & t : assumptions_) {
+    if (ret == nullptr)
+      ret = t;
+    else
+      ret = ts_.make_term(smt::And, ret, t);
+  }
+  return ret;
+}
+
 void PropertyInterface::AddAssumptionsToTS() {
   for(const auto & t : assumptions_)
     ts_.add_constraint(t);
@@ -477,17 +488,15 @@ JsonCexParser::JsonCexParser(PonoOptions & pono_options,TransitionSystem & ts):
       nlohmann::json data = nlohmann::json::parse(f);
       data.at("name").get_to(name_terms); 
       data.at("value").get_to(value_terms); 
-      having_extract = data.find("name_to_extract")!=data.end();
-      // std::vector<std::vector<std::pair<int,int>>> extract_val_middle;
-      if(having_extract){
-        data.at("name_to_extract").get_to(name_extract);
-        // auto extract_val_middle =  data.at("extract_width").get<std::array>();
-        auto extracted_size = name_extract.size();
-        // std::vector<std::array<int,10>> extract_val_middle; 
-        
-        data.at("extract_width").get_to(extract_val);
+      auto using_coi = false;
+      if(using_coi){
+        having_extract = data.find("name_to_extract")!=data.end();
+        // std::vector<std::vector<std::pair<int,int>>> extract_val_middle;
+        if(having_extract){
+          data.at("name_to_extract").get_to(name_extract);
+          data.at("extract_width").get_to(extract_val);
+        }
       }
-
       auto count = 0;
       for(const auto var: name_terms) {
       std::cout<<"The COI variable is: "<<var<<endl;
@@ -503,34 +512,6 @@ JsonCexParser::JsonCexParser(PonoOptions & pono_options,TransitionSystem & ts):
         count = count + 1;
         continue;
       }
-      // auto pos = var_copy.rfind('[');
-      // if (pos != std::string::npos) {
-      //   auto rpos = var_copy.find(']',pos);//If we cannot find, the find function will return the std::string::npos
-      //   // ILA_ERROR_IF(rpos == std::string::npos) 
-      //   //   << "Cex variable name:" << check_name << " has unmatched [] pair";
-      //   if (rpos == std::string::npos)
-      //     throw PonoException("has unmatched [] pair");
-      //   auto colon_pos = var_copy.find(':', pos);
-      //   if (colon_pos != std::string::npos && colon_pos < rpos){
-      //     auto new_name = var_copy.substr(0, pos); 
-      //     new_name_terms.push_back(new_name);
-      //   }
-
-      // }
-      // else{    
-      // auto origin_val  = value_terms.at(count);
-      // if (origin_val.length() > 2 &&  origin_val.back() == ')'&&
-      //   origin_val.front() == '(') // remove extra | pair
-      //   origin_val = origin_val.substr(1,origin_val.length()-2);
-      // auto pos = origin_val.rfind(" ");
-      // if(pos!=std::string::npos){
-      //   origin_val = origin_val.substr(0,pos);
-      // }
-      // auto pos_2 = origin_val.find("_");
-      // if(pos_2!=std::string::npos){
-      //   origin_val = origin_val.substr(pos_2+4);
-      // }
-      
       auto origin_val  = value_terms.at(count);
       origin_val = origin_val.substr(2);
       new_name_terms.push_back(var_copy);
@@ -559,16 +540,6 @@ bool JsonCexParser::is_extracted(const std::string & var_name, std::vector<std::
 }
 
 void JsonCexParser::get_info(const std::pair<int,int> & out, int & idx0, int & idx1){
-  // auto pos_extract = out.find("extract");
-  // std::string middle_extract;
-  // if(pos_extract!=std::string::npos){
-  //   middle_extract = out.substr(pos_extract+8);
-  // }
-  // auto pos_space = middle_extract.find(" ");
-  // auto idx_first = middle_extract.substr(0,pos_space);
-  // auto idx_second = middle_extract.substr(pos_space+1);
-  // idx0 = stoi(idx_first);
-  // idx1 = stoi(idx_second);
   idx0 = out.first;
   idx1 = out.second;
 }

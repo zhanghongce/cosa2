@@ -829,21 +829,23 @@ ProverResult get_prop_inv(PonoOptions pono_options,
       std::string filename_origin = pono_options.smt_path_ + "/" + "inv_origin.smt2";
       // filter.filters.push_back(std::make_shared<MaxWidthFilter>(pono_options.sygus_initial_term_width_,fts));
       // bool inductiveness;
+        
       if ((pono_options.add_assuption_in_origin_ == true)&&(step>0))
       {       
         PropertyInterface add_to_frame(filename_origin, fts);
-        add_to_frame.AddAssumptionsToTS();
+        // add_to_frame.AddAssumptionsToTS();
       }      
       bool repeat_first = true;
       bool re;
-      
       
       
       if(step>0){       
           RepeatFilter filter_re(filename_origin,fts,step);
           // To begin with, we try to use the coi-repeat,coi-width filter
           // prop_filter = prop_cex.cex_parse_to_pono_property_coi(filter_re);
+          // PropertyInterface add_to_frame(filename_origin, fts);
           prop_filter = prop_cex.json_cex_parse_to_pono_property(filter_re);
+          // prop_filter = add_to_frame.Transfer_assump_to_assert(prop_filter);
           if(prop_filter!=nullptr){
             std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
           }
@@ -854,6 +856,7 @@ ProverResult get_prop_inv(PonoOptions pono_options,
           }
           MaxWidthFilter filter_wid(pono_options.sygus_initial_term_width_,fts);
           prop_filter = prop_cex.json_cex_parse_to_pono_property(filter_wid);
+          // prop_filter = add_to_frame.Transfer_assump_to_assert(prop_filter);
           std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
           if((prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step)) != FALSE)&&((re = check_previous(prop_filter,prop_check)) == false)&&(prop_filter!=nullptr)){
             prop_queue.push(make_pair(prop_filter,"coi filter and average width filter"));
@@ -861,6 +864,7 @@ ProverResult get_prop_inv(PonoOptions pono_options,
             prop_check.insert(prop_filter);
           }
           prop_filter = prop_cex.json_cex_parse_to_pono_property();
+          // prop_filter = add_to_frame.Transfer_assump_to_assert(prop_filter);
           std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
           if((prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step)) != FALSE)&&((re = check_previous(prop_filter,prop_check)) == false)&&(prop_filter!=nullptr)){
             prop_queue.push(make_pair(prop_filter,"coi filter "));

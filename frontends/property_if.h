@@ -35,7 +35,7 @@ class PropertyInterface : public smt::SmtLibReader
   typedef SmtLibReader super;
 
   smt::Term AddAssertions(const smt::Term &in) const;
-
+  smt::Term Transfer_assump_to_assert(const smt::Term &in) const;
   void AddAssumptionsToTS();
   smt::TermVec con_assumption;
   smt::Term assumption;
