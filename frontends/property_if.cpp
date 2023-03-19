@@ -281,7 +281,7 @@ ts_(ts), is_reg([this](const std::string & check_name) -> bool{
     parse_from(vcd_file_name, filter, is_reg, true);
   }
 
-void QedCexParser::get_remaining_var(filter_t filter,std::vector<std::string> & out) const {
+void QedCexParser::get_remaining_var(filter_t & filter,std::vector<std::string> & out) const {
   for (const auto & var_val_pair : GetCex() ) {
     const auto & var_name = var_val_pair.first;
     if(!filter(var_name))
@@ -291,7 +291,7 @@ void QedCexParser::get_remaining_var(filter_t filter,std::vector<std::string> & 
 }
 
 smt::Term QedCexParser::cex2property(
-  filter_t filter) const
+  filter_t & filter) const
 {
   // NOT (var1 == val1 && var2 == val2 && ...)
   smt::Term prop;
@@ -305,7 +305,24 @@ smt::Term QedCexParser::cex2property(
 
     auto sort = var->get_sort();
     auto val = ts_.make_term(var_val_pair.second, sort, 2);
-    auto eq = ts_.make_term(Equal, var, val);
+
+    auto range = filter.range(var_name);
+    Term eq;
+    if (range.empty()) 
+      eq = ts_.make_term(Equal, var, val);
+    else {
+      for (const auto & slice : range) {
+        auto extract_op = smt::Op(smt::PrimOp::Extract, slice.first, slice.second);
+        auto slice_eq = 
+          ts_.make_term(Equal, ts_.make_term(extract_op, var), ts_.make_term(extract_op, val));
+
+        if (eq == nullptr)
+          eq = slice_eq;
+        else
+          eq = ts_.make_term(And, eq, slice_eq);
+      }
+    }
+    
     if (prop == nullptr)
       prop = eq;
     else

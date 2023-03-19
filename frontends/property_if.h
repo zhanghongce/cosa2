@@ -24,7 +24,10 @@
 #include "smt-switch/smt.h"
 #include "smt-switch/smtlib_reader.h"
 #include "utils/exceptions.h"
+#include "utils/filter.h"
 #include "cexreader/cex_extract.h"
+
+
 namespace pono {
 class PropertyInterface : public smt::SmtLibReader
 {
@@ -103,15 +106,15 @@ class PropertyInterfacecex : public CexExtractor
 class QedCexParser : public SelectiveExtractor 
 {
   public:
-    typedef std::function<bool(const std::string &n)> filter_t;
+    typedef Filter filter_t;
   ////Build the Constructor//////
     QedCexParser(const std::string& vcd_file_name,
                  const std::string& filter,
                  const std::string& name_removal,
                  TransitionSystem & ts);
-    smt::Term cex2property(filter_t filter) const;
+    smt::Term cex2property(filter_t & filter) const;
 
-    void get_remaining_var(filter_t filter, std::vector<std::string> & out) const;
+    void get_remaining_var(filter_t & filter, std::vector<std::string> & out) const;
   protected:
     TransitionSystem & ts_;
 

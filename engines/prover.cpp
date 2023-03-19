@@ -33,6 +33,43 @@ using namespace std;
 
 namespace pono {
 
+
+static std::vector<std::pair<int, int>> merge_intervals(const std::vector<std::pair<int, int>> &intervals) {
+    if (intervals.empty())
+        return {};
+
+    std::vector<std::pair<int, int>> sorted_intervals = intervals;
+    // Sort by the second value (the smaller one) in descending order
+    std::sort(sorted_intervals.begin(), sorted_intervals.end(), [](const auto &a, const auto &b) {
+        return a.second > b.second;
+    });
+
+    std::vector<std::pair<int, int>> merged_intervals;
+    merged_intervals.push_back(sorted_intervals[0]);
+
+    for (size_t i = 1; i < sorted_intervals.size(); ++i) {
+        auto &last_merged_interval = merged_intervals.back();
+        if (sorted_intervals[i].first >= last_merged_interval.second - 1) {
+            last_merged_interval.second = std::min(sorted_intervals[i].second, last_merged_interval.second);
+            last_merged_interval.first = std::max(sorted_intervals[i].first, last_merged_interval.first);
+        } else
+            merged_intervals.push_back(sorted_intervals[i]);
+    }
+    return merged_intervals;
+}
+
+
+void static Print(const Prover::var_in_coi_t & vars) {
+  for (const auto & v : vars) {
+    std::cout << v.first->to_string() << " : ";
+    for (const auto & range : v.second)
+      std::cout <<"[" <<range.first << ":"<<range.second << "],";
+    std::cout << "\n";
+  }
+} // end of to_string
+
+// ---------------------------------------------------------------------------------
+
 Prover::Prover(const Property & p,
                const TransitionSystem & ts,
                const smt::SmtSolver & s,
@@ -253,6 +290,8 @@ bool Prover::compute_witness()
 }
 
 
+static const bool restrict_RTL_vars_only_in_ILA_RTL_rfcheck = true;
+
 bool Prover::check_coi() {
   if(!options_.compute_dynamic_coi_upon_cex_) {
     std::cout << "NO COI computed." << std::endl;
@@ -308,12 +347,13 @@ bool Prover::check_coi() {
         map[elem.second] = get_model(ti);
       }
     }
+    if(!restrict_RTL_vars_only_in_ILA_RTL_rfcheck)
+      throw PonoException("COI check failed!");
     return false;
   } 
   return true;
 }
 
-static const bool restrict_RTL_vars_only_in_ILA_RTL_rfcheck = true;
 
 void Prover::record_coi_info(const var_in_coi_t &sv, const smt::UnorderedTermSet &inp, int bnd) {
   // store all values on sv @ 0 , and all inp vars @ 0...k
@@ -346,6 +386,10 @@ void Prover::get_var_in_COI(const var_in_coi_t & input_asts,
                                   var_in_coi_t & varset_slice) {
   PartialModelGen partial_model_getter(solver_);
   partial_model_getter.GetVarListForAsts_in_bitlevel(input_asts, varset_slice);
+  std::cout << "[get var in COI] in:\n";
+  Print(input_asts);
+  std::cout << "[get var in COI] out:\n";
+  Print(varset_slice);
 }
 
 void Prover::compute_dynamic_COI_from_term(const smt::Term & t, const slice_t &ranges, int k, var_in_coi_t & init_state_variables) {
@@ -388,7 +432,16 @@ void Prover::compute_dynamic_COI_from_term(const smt::Term & t, const slice_t &r
 
   // varset at this point: a@0 ,  b@0 , ...
   for (const auto & timed_var : varset) {
-    init_state_variables.emplace(unroller_.untime(timed_var.first),timed_var.second);
+    auto untimed_var = unroller_.untime(timed_var.first);
+    auto result = init_state_variables.emplace(untimed_var,timed_var.second);
+    if (!result.second) {
+      // was not able to insert, then we need to merge list
+      const auto & old_ranges = init_state_variables.at(untimed_var);
+      auto new_range = timed_var.second;
+      new_range.insert(new_range.begin(), old_ranges.begin(), old_ranges.end());
+      new_range = merge_intervals(new_range);
+      init_state_variables.at(untimed_var) = new_range;
+    }
   }
 } // end of compute_dynamic_COI_from_term
 
@@ -397,32 +450,6 @@ std::string static remove_vertical_bar(const std::string & in) {
   if (in.length() > 2 && in.front() == '|' && in.back() == '|')
     return in.substr(1,in.length()-2);
   return in;
-}
-
-static std::vector<std::pair<int, int>> merge_intervals(const std::vector<std::pair<int, int>> &intervals) {
-    if (intervals.empty()) {
-        return {};
-    }
-
-    std::vector<std::pair<int, int>> sorted_intervals = intervals;
-    // Sort by the second value (the smaller one) in descending order
-    std::sort(sorted_intervals.begin(), sorted_intervals.end(), [](const auto &a, const auto &b) {
-        return a.second > b.second;
-    });
-
-    std::vector<std::pair<int, int>> merged_intervals;
-    merged_intervals.push_back(sorted_intervals[0]);
-
-    for (size_t i = 1; i < sorted_intervals.size(); ++i) {
-        auto &last_merged_interval = merged_intervals.back();
-        if (sorted_intervals[i].first >= last_merged_interval.second - 1) {
-            last_merged_interval.second = std::min(sorted_intervals[i].second, last_merged_interval.second);
-            last_merged_interval.first = std::max(sorted_intervals[i].first, last_merged_interval.first);
-        } else {
-            merged_intervals.push_back(sorted_intervals[i]);
-        }
-    }
-    return merged_intervals;
 }
 
 
@@ -457,8 +484,8 @@ void Prover::recursive_dynamic_COI_using_ILA_info(var_in_coi_t & init_state_vari
           continue; // to avoid repitition like v : v == another variable
         // otherwise, update the ranges
         init_state_variables.at(v) = new_range;
-      }
-      init_state_variables.emplace(v, v_range_pair.second);
+      } else
+        init_state_variables.emplace(v, v_range_pair.second);
       auto vname = remove_vertical_bar(v->to_string());
       if (IlaAsmptLoader.IsConstrainedInAssumption(vname)) {
         logger.log(0, "SV {} is in constraints", vname);
@@ -472,7 +499,8 @@ void Prover::recursive_dynamic_COI_using_ILA_info(var_in_coi_t & init_state_vari
           if(is_cond_true_at_k) {
             
             logger.log(0, "SV {} is triggered at Cycle #{}", vname, k);
-            next_round_to_track.push_back({val, k, v_range_pair.second});
+            // this is a bug in the ilang side
+            next_round_to_track.push_back({val, k, {{0,0}}});
             logger.log(0,"added {} in next round.", val->to_string());
             triggered = true;
             break;
@@ -484,6 +512,7 @@ void Prover::recursive_dynamic_COI_using_ILA_info(var_in_coi_t & init_state_vari
         logger.log(0, "SV {} is NOT in constraints", vname);
       }
     } // end for each init_sv
+    init_sv.clear();
     
     logger.log(0, "----------------END of a round ----------------");
   } // end of while next_round_to_track is not empty

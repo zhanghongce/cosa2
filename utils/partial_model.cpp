@@ -579,6 +579,10 @@ void PartialModelGen::dfs_walk_bitlevel(const smt::Term & input_ast, int high, i
           // node_stack_.push_back(make_pair(left,extracted_bit));
         else if (is_all_zero(right_val)) 
           node_stack_.push_back({right, {right_w-1,0}});
+        else {
+          node_stack_.push_back({left, {left_w-1,0}});
+          node_stack_.push_back({right, {right_w-1,0}});
+        }
       } else if (op.prim_op == smt::PrimOp::BVAdd) {
         ARG2(left,right)
         node_stack_.push_back({left, extracted_bit}); // []
@@ -624,8 +628,8 @@ void PartialModelGen::dfs_walk_bitlevel(const smt::Term & input_ast, int high, i
       else {
         // if((op.prim_op== smt::PrimOp::BVComp)||(op.prim_op== smt::PrimOp::Distinct)||((op.prim_op== smt::PrimOp::BVUlt)||(op.prim_op==smt::Equal)))
         for (const auto & arg : *ast) {
-          auto ast_width = (arg->get_sort()->get_sort_kind() == smt::SortKind::BOOL) ? 1 : arg->get_sort()->get_width();
-          node_stack_.push_back({ast,{ast_width-1,0}});
+          auto arg_width = (arg->get_sort()->get_sort_kind() == smt::SortKind::BOOL) ? 1 : arg->get_sort()->get_width();
+          node_stack_.push_back({arg,{arg_width-1,0}});
         }
       }
     } // end non-variable case

@@ -22,12 +22,14 @@
 namespace pono {
 
 struct CexInfoForEnvInvSyn {
+
   std::string cex_path_;
   std::string module_name_filter_;
   std::string module_name_removal_;
   std::vector<std::string> auxvar_removal_;
   std::vector<std::string> datapath_elements_;
-  std::vector<std::string> COI_to_consider_;
+  // name to ranges
+  std::unordered_map<std::string, std::vector<std::pair<int,int>>> COI_to_consider_;
   
   CexInfoForEnvInvSyn(const std::string & json_fname, const std::string & COI_fname) {
     std::ifstream f(json_fname);
@@ -51,7 +53,18 @@ struct CexInfoForEnvInvSyn {
       // either module_name_filter_ is empty or varname start with module_name_filter_
       if(varname.find(module_name_removal_) == 0)
         varname = varname.substr(module_name_removal_.length());
-      COI_to_consider_.push_back(varname);
+      COI_to_consider_.emplace(varname,std::vector<std::pair<int,int>>());
+      auto & vec_slices = COI_to_consider_.at(varname);
+
+      int num_range;
+      fCOI >> num_range;
+      assert(num_range > 0);
+      for (int idx = 0; idx < num_range; ++ idx) {
+        int msb,lsb;
+        fCOI>>msb>>lsb;
+        vec_slices.push_back({msb,lsb});
+      }
+      
     } // end of File
 
     fCOI.close();
