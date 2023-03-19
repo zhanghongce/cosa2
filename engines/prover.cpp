@@ -354,93 +354,32 @@ bool Prover::compute_witness()
 }
 
 
-// void Prover::get_var_in_COI(const TermVec & asts, UnorderedTermSet & vars) {
-//   PartialModelGen partial_model_getter(solver_);
-//   partial_model_getter.GetVarListForAsts(asts, vars);
-// }
 
 
-void Prover::get_var_in_COI(const TermVec & asts, UnorderedTermSet & vars,std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> & varset_slice) {
-  for (const auto & t: asts) {
-    UnorderedTermSet tmp;
-    std::vector <std::pair<smt::Term,std::pair<int,int>>> temp_slice;
-    PartialModelGen partial_model_getter(solver_);
-    partial_model_getter.GetVarList_coi(t, tmp,temp_slice);
-    std::cout << "Term "<< t->to_string() << " COI:";
-    // std::unordered_map <smt::Term,std::unordered_set<pair<int,int>>> max_width;
-    for (const auto & v: tmp){
-      std::cout << v->to_string() <<",";
-      for(const auto & slice: temp_slice){
-        auto width = slice.first->get_sort()->get_width();
-        if(v==slice.first){
-          if(varset_slice.find(v) == varset_slice.end()){
-            varset_slice[v].push_back(slice.second);
-          }
-          else if(width==(slice.second.first-slice.second.second+1)){
-            varset_slice[v].clear();
-            varset_slice[v].push_back(slice.second);
-          }
-          else{
-            auto width_pairs = varset_slice[v];
-            for(const auto width_pair: width_pairs){
-              if(((width_pair.first-width_pair.second)<(slice.second.first-slice.second.second))
-              &&((slice.second.first>=width_pair.first)&&(slice.second.second<=width_pair.second))){
-                auto iter = std::remove(std::begin(varset_slice[v]), std::end(varset_slice[v]), width_pair);
-                varset_slice[v].push_back(slice.second);
-              }          
-              else if(((width_pair.first-width_pair.second)>=(slice.second.first-slice.second.second))
-              &&((slice.second.first<=width_pair.first)&&(slice.second.second>=width_pair.second))){
-                continue;
-              }
-              else{
-                varset_slice[v].push_back(slice.second);
-              }   
-
-            }
-          }
-        }
-      }  
-    }
-
-    std::cout << std::endl;
-    vars.insert(tmp.begin(),tmp.end());
-    // for(const auto slice:max_width){
-    //     auto width = slice.first->get_sort()->get_width();
-    //     for(const auto extracted:slice.second){
-    //       if(width>(extracted.first-extracted.second))
-    //         varset_slice[slice.first].insert(extracted);
-    //     }
-    // }   
-  }
+void Prover::get_var_in_COI(const std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> & input_asts, 
+                                  std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> & varset_slice) {
+  PartialModelGen partial_model_getter(solver_);
+  partial_model_getter.GetVarListForAsts_in_bitlevel(input_asts, varset_slice);
 }
 
-// void Prover::get_input_var_in_COI(const TermVec & asts, UnorderedTermSet & varset_input){
-//   for (const auto &v : ts_.inputvars()){
-//     if(varset_input.find(v)!=varset_input.end()){
-//       varset_input.insert(v);
-//     }
-//   }
-// }
-void Prover::compute_dynamic_COI(UnorderedTermMap & init_state_variables, std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> & varset_slice) {
+
+void Prover::compute_dynamic_COI(UnorderedTermMap & init_state_variables, std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> & varset) {
   // bad_ ,  0...reached_k_+1
   // unroller_.change_solver(new_solver,new_ts_);
   // auto transferer = smt::TermTranslator(new_solver);
   // auto new_bad = transferer.transfer_term(bad_);
   auto last_bad = unroller_.at_time(bad_, reached_k_+1);
-  UnorderedTermSet varset;
-  UnorderedTermSet varset_input;
-  std::cout<<"property:"<<std::endl;
-  get_var_in_COI({last_bad}, varset, varset_slice); // varset contains variables like : a@n
+  // std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> varset;
+
+  get_var_in_COI({{last_bad,{{0,0}}}}, varset); // varset contains variables like : a@n
   // for(auto var:ts_.inputvars()){
   //   std::cout<<"The input var is: "<<var->to_string()<<std::endl;
   // }
   for(int i = reached_k_; i>=0; --i) {
-    UnorderedTermSet newvarset;
-    TermVec update_functions_to_check;
-    TermVec vars_remained;
+    std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> update_functions_to_check;
     std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> newvarset_slice;
-    for (const auto & var : varset) {
-      auto untimed_var = unroller_.untime_var(var);  // a@n --> a
+    for (const auto & var_ranges_pair : varset) { // for each variable in varset, trace back to the update functions
+      auto untimed_var = unroller_.untime_var(var_ranges_pair.first);  // a@n --> a
 
       if (ts_.is_input_var(untimed_var))
         continue;
@@ -449,10 +388,7 @@ void Prover::compute_dynamic_COI(UnorderedTermMap & init_state_variables, std::u
         
       auto pos = ts_.state_updates().find(untimed_var);
       if (pos == ts_.state_updates().end()) // this is likely
-      {        
-        std::cout<<"The variable "<<untimed_var->to_string()<< " is not in the state update."<<std::endl;
         continue; // because ts_ may promote input variables
-        }
       // therefore, there could be state vars without next function
 
       // assert(pos != ts_.state_updates().end());
@@ -460,23 +396,18 @@ void Prover::compute_dynamic_COI(UnorderedTermMap & init_state_variables, std::u
       // at_time is used to change the variable set in update_function
       // get_input_var_in_COI(update_functions_to_check,varset_input);
       auto timed_update_function = unroller_.at_time(update_function, i); // i ?
-      update_functions_to_check.push_back(timed_update_function);
-      vars_remained.push_back(untimed_var);
-    }
+      update_functions_to_check.emplace(timed_update_function, var_ranges_pair.second);
+    } // for each variable in varset
     
-    for(const auto &v : vars_remained)
-      std::cout << v->to_string() <<"@"<<i<<" , ";
-    std::cout << std::endl;
-    get_var_in_COI(update_functions_to_check, newvarset, newvarset_slice);
+    get_var_in_COI(update_functions_to_check, newvarset_slice);
     
   
-    varset.swap(newvarset); // the same as "varset = newvarset;" , but this is faster
-    varset_slice.swap(newvarset_slice);
+    varset.swap(newvarset_slice); // the same as "varset = newvarset;" , but this is faster
   }
 
   // varset at this point: a@0 ,  b@0 , ...
   for (const auto & timed_var : varset) { 
-    init_state_variables[unroller_.untime_var(timed_var)] = solver_->get_value(timed_var);
+    init_state_variables[unroller_.untime_var(timed_var.first)] = solver_->get_value(timed_var.first);
   }
 }
 

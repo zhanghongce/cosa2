@@ -167,7 +167,36 @@ void add1(std::vector<char> &  v) {
     v.push_back(carry);
 }
 
+static std::vector<char> divide_by_two(const std::vector<char> &v, int &remainder) {
+    std::vector<char> dividend;
+    int temp;
 
+    for (const char &c : v) {
+        temp = (remainder * 10) + (c - '0');
+        dividend.push_back((temp / 2) + '0');
+        remainder = temp % 2;
+    }
+
+    if (!dividend.empty() && dividend.front() == '0') {
+        dividend.erase(dividend.begin());
+    }
+
+    return dividend;
+}
+
+std::string decimal_to_binary(const std::string &decimal) {
+    std::vector<char> decimal_vector(decimal.begin(), decimal.end());
+    std::string binary;
+
+    while (!decimal_vector.empty()) {
+        int remainder = 0;
+        decimal_vector = divide_by_two(decimal_vector, remainder);
+        binary.push_back(remainder + '0');
+    }
+
+    std::reverse(binary.begin(), binary.end());
+    return binary;
+}
 
 } // namespace syntax_analysis
 

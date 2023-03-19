@@ -23,6 +23,25 @@
 namespace pono {
 
 class PartialModelGen {
+
+private:
+  struct hash_pair {
+    template <class T1, class T2>
+    size_t operator()(const std::pair<T1, T2>& p) const
+    {
+        auto hash1 = std::hash<T1>{}(p.first);
+        auto hash2 = std::hash<T2>{}(p.second);
+ 
+        if (hash1 != hash2) {
+            return hash1 ^ hash2;             
+        }
+         
+        // If hash1 == hash2, their XOR is zero.
+          return hash1;
+    }
+  }; // end of hash_pair
+  typedef std::unordered_set<std::pair<int, int>, hash_pair> pair_set;
+
 public:
   /** This class computes the cone of influence on construction
    *  The current implementation does not have internal cache,
@@ -44,14 +63,14 @@ protected:
   // for the DFS, will not use the stack but use one reference here
   std::unordered_set<smt::Term> dfs_walked_;
   std::unordered_set<smt::Term> dfs_vars_;
-  std::unordered_set<smt::Term> dfs_walked_extract;
-  std::unordered_set<smt::Term> dfs_vars_extract;
-  smt::UnorderedTermMap term_leaf_map;
+
+  std::unordered_map<smt::Term, pair_set> dfs_walked_extract;
+
   void dfs_walk(const smt::Term & ast);
-  void dfs_walk_deep(const smt::Term & input_ast,std::vector <std::pair<smt::Term,std::vector<std::pair<int,int>>>> & varset_slice);
+  void dfs_walk_bitlevel(const smt::Term & input_ast, int high, int low, 
+    std::unordered_map<smt::Term, pair_set> & varset_slice);
   // conditon var buffer
   void GetVarList(const smt::Term & ast);
-  std::vector<smt::Term> previous_extracted(const smt::Term ast, const smt::Term arg);
 public:
 
   /** This class computes the variables that need to
@@ -61,10 +80,11 @@ public:
    */
   void GetVarList(const smt::Term & ast, 
     std::unordered_set<smt::Term> & out_vars);
-  void get_extract(const std::vector<std::pair<int,int>> old_extracts, std::vector<std::pair<int,int>> & new_extracts,const int left_bit, const int right_bit);
-  void get_concat_extract(const std::vector<std::pair<int,int>> old_extracts, std::vector<std::pair<int,int>> & new_extracts_left,std::vector<std::pair<int,int>> & new_extracts_right,const int left_width, const int right_width);
-  void push_to_node_stack(const smt::Term arg,const smt::Term ast, const std::vector<std::pair<int,int>> extract_bit,std::vector <std::pair<smt::Term,std::vector<std::pair<int,int>>>> & node_stack_,bool using_extracted,std::vector<bool> & using_extract_track);
-  void GetVarList_coi(const smt::Term & ast, std::unordered_set<smt::Term> & out_vars,std::vector <std::pair<smt::Term,std::pair<int,int>>> & varset_slice);
+
+  void GetVarListForAsts_in_bitlevel(
+    const std::unordered_map<smt::Term,std::vector<std::pair<int,int>>> & input_asts_slices, 
+    std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> & varset_slice);
+
   /** This class computes the variables that need to
    *  appear in the partial model of asts in the vector
    *  @param the vector of ast to walk
@@ -90,6 +110,7 @@ public:
 
 
   // add an API to use buffers 
+ 
 };
 
 }  // namespace pono
