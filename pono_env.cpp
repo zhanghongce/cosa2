@@ -49,7 +49,7 @@
 #include <fstream>
 #include <filesystem>
 #include <queue>
-
+#include "utils/filter.h"
 using namespace pono;
 using namespace smt;
 using namespace std;
@@ -78,72 +78,13 @@ void profiling_sig_handler(int sig)
   signal(sig, SIG_DFL);
   raise(sig);
 }
-class Filter {
-public:
-  virtual bool operator()(const std::string & n) const = 0;
-  virtual std::string to_string() const = 0;
-  virtual ~Filter() {}
-};
 
-class MaxWidthFilter : public Filter {
-protected:
-  unsigned width_;
-  const TransitionSystem & ts_;
-public:
-  MaxWidthFilter(unsigned w, const TransitionSystem & ts) : width_(w), ts_(ts) { }
-  bool operator()(const std::string & n) const override {
-    auto pos = ts_.named_terms().find(n);
-    assert(pos != ts_.named_terms().end());
-    auto var = pos->second;
-    if ( var->get_sort()->get_sort_kind() != SortKind::BV )
-      return true;
-    if (var->get_sort()->get_width() <= width_ )
-      return true;
-    return false;
-  }
-  std::string to_string() const override {
-    return "[W<" + std::to_string(width_) +"]";
-  }
-};
 
-class NameFilter : public Filter{
-protected:
-  unordered_set<string> varset;
-  const TransitionSystem & ts_;
-  bool must_in_;
-public:
-  NameFilter(const vector<string> & v, const TransitionSystem & ts, bool must_in) : ts_(ts), must_in_(must_in)
-     { varset.insert(v.begin(), v.end()); }
-  bool operator()(const std::string & n) const {
-    auto pos1 = varset.find(n);
-    auto pos2 = ts_.named_terms().find(n);
-    assert(pos2 != ts_.named_terms().end());
-    auto var = pos2->second;
-
-    std::string varname_from_smt2 = var->to_raw_string();
-    if(varname_from_smt2.length() > 2 && varname_from_smt2.front() == '|' 
-      && varname_from_smt2.back() == '|' )
-      varname_from_smt2 = varname_from_smt2.substr(1, varname_from_smt2.length() -2 );
-    auto pos3 = varset.find(varname_from_smt2);
-
-    bool in_vars  = pos1 != varset.end() || pos3 != varset.end();
-    if(must_in_ && !in_vars)
-      return false;
-    if (!must_in_ && in_vars)
-      return false;
-    return true;
-  }
-  std::string to_string() const override {
-    if(must_in_)
-      return "[Keep " + std::to_string(varset.size()) +" V]";
-    return "[rm " + std::to_string(varset.size()) +"V]";
-  }
-};
 
 class RepeatFilter{
   public:  
-    UnorderedTermSet out;
-    std::vector<UnorderedTermSet> out_vec;
+    smt::UnorderedTermSet out;
+    std::vector<smt::UnorderedTermSet> out_vec;
     // RepeatFilter(const std::string filename, TransitionSystem &ts, int step, int num_consider) : filename_(filename),ts_(ts), step_(step),num_consider_(num_consider){
     //     PropertyInterface prop_inv(filename_,ts_,step,num_consider);
     //     auto assumption = prop_inv.con_assumption;
@@ -164,10 +105,10 @@ class RepeatFilter{
           
     };
     ~RepeatFilter() {}
-  bool operator()(const Term &n) const{
+  bool operator()(const smt::Term &n) const{
       // UnorderedTermSet::const_iterator got = out.find(n);
    
-        for (Term it: out){
+        for (smt::Term it: out){
           if (it->to_string() == n->to_string()){            
             std::cout<<" The repeat Term is: " << it->to_string()<<std::endl;
             return true;
@@ -201,22 +142,7 @@ class RepeatFilter{
     int num_consider_;
 };
 
-struct FilterConcat : public Filter{
-  list<shared_ptr<Filter>> filters;
-  bool operator()(const std::string & n) const override {
-    for (const auto & f : filters) {
-      if (!(*f)(n))
-        return false;
-    }
-    return true;
-  }
-  std::string to_string() const override {
-    std::string ret;
-    for (const auto & f : filters) 
-      ret += f->to_string();
-    return ret;
-  }
-};
+
 
 
 bool check_for_inductiveness(const Term & prop, const TransitionSystem & ts) {

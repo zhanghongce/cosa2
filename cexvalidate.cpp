@@ -46,6 +46,7 @@
 #include "utils/make_provers.h"
 #include "utils/ts_analysis.h"
 #include "utils/term_analysis.h"
+#include "utils/filter.h"
 #include <fstream>
 using namespace pono;
 using namespace smt;
@@ -258,86 +259,6 @@ bool check_for_inductiveness(const Term & prop, const TransitionSystem & ts) {
 }
 
 
-
-class Filter {
-public:
-  virtual bool operator()(const std::string & n) const = 0;
-  virtual std::string to_string() const = 0;
-  virtual ~Filter() {}
-};
-
-class MaxWidthFilter : public Filter {
-protected:
-  unsigned width_;
-  const TransitionSystem & ts_;
-public:
-  MaxWidthFilter(unsigned w, const TransitionSystem & ts) : width_(w), ts_(ts) { }
-  bool operator()(const std::string & n) const override {
-    auto pos = ts_.named_terms().find(n);
-    assert(pos != ts_.named_terms().end());
-    auto var = pos->second;
-    if ( var->get_sort()->get_sort_kind() != SortKind::BV )
-      return true;
-    if (var->get_sort()->get_width() <= width_ )
-      return true;
-    return false;
-  }
-  std::string to_string() const override {
-    return "[W<" + std::to_string(width_) +"]";
-  }
-};
-
-class NameFilter : public Filter{
-protected:
-  unordered_set<string> varset;
-  const TransitionSystem & ts_;
-  bool must_in_;
-public:
-  NameFilter(const vector<string> & v, const TransitionSystem & ts, bool must_in) : ts_(ts), must_in_(must_in)
-     { varset.insert(v.begin(), v.end()); }
-  bool operator()(const std::string & n) const {
-    auto pos1 = varset.find(n);
-    auto pos2 = ts_.named_terms().find(n);
-    assert(pos2 != ts_.named_terms().end());
-    auto var = pos2->second;
-
-    std::string varname_from_smt2 = var->to_raw_string();
-    if(varname_from_smt2.length() > 2 && varname_from_smt2.front() == '|' 
-      && varname_from_smt2.back() == '|' )
-      varname_from_smt2 = varname_from_smt2.substr(1, varname_from_smt2.length() -2 );
-    auto pos3 = varset.find(varname_from_smt2);
-
-    bool in_vars  = pos1 != varset.end() || pos3 != varset.end();
-    if(must_in_ && !in_vars)
-      return false;
-    if (!must_in_ && in_vars)
-      return false;
-    return true;
-  }
-  std::string to_string() const override {
-    if(must_in_)
-      return "[Keep " + std::to_string(varset.size()) +" V]";
-    return "[rm " + std::to_string(varset.size()) +"V]";
-  }
-};
-
-struct FilterConcat : public Filter{
-  list<shared_ptr<Filter>> filters;
-  bool operator()(const std::string & n) const override {
-    for (const auto & f : filters) {
-      if (!(*f)(n))
-        return false;
-    }
-    return true;
-  }
-  std::string to_string() const override {
-    std::string ret;
-    for (const auto & f : filters) 
-      ret += f->to_string();
-    return ret;
-  }
-};
-
 int main(int argc, char ** argv)
 {
 
@@ -403,8 +324,11 @@ int main(int argc, char ** argv)
   FunctionalTransitionSystem fts(s);
   BTOR2Encoder btor_enc(pono_options.filename_, fts);
   Term prop;
-  CexInfoForEnvInvSyn cexinfo("invsyn-config.json");
-  logger.log(0, "Datapath reg: {} , aux var removal: {}", cexinfo.datapath_elements_.size(), cexinfo.auxvar_removal_.size());
+  CexInfoForEnvInvSyn cexinfo("invsyn-config.json", "COI.txt");
+  logger.log(0, "Datapath reg: {} , aux var removal: {}, COI in range: {}", 
+    cexinfo.datapath_elements_.size(), 
+    cexinfo.auxvar_removal_.size(),
+    cexinfo.COI_to_consider_.size());
   
   // HERE we load the assumptions from environment invariant synthesis
   if(!pono_options.property_file_.empty()) {
@@ -418,15 +342,18 @@ int main(int argc, char ** argv)
 
   QedCexParser cexreader(
     cexinfo.cex_path_, 
-    cexinfo.module_name_filter_,
-    cexinfo.module_name_removal_,
+    cexinfo.module_name_filter_,  // will only keep var with this as the prefix
+    cexinfo.module_name_removal_, // will remove this prefix
     fts);
   
   FilterConcat filter;
   unsigned max_width = 32;
   filter.filters.push_back(std::make_shared<NameFilter>(cexinfo.auxvar_removal_, fts, false));
+  filter.filters.push_back(std::make_shared<SliceFilter>(cexinfo.COI_to_consider_, fts, true));
+  auto COI_filter = filter.filters.back(); // mark this down and we should not remove it, so later we will check this
   filter.filters.push_back(std::make_shared<NameFilter>(cexinfo.datapath_elements_, fts, false));
   filter.filters.push_back(std::make_shared<MaxWidthFilter>(max_width, fts));
+
   prop = cexreader.cex2property(filter);
   bool inductiveness;
   while( (inductiveness = check_for_inductiveness(prop, fts)) == true && max_width > 1 ) {
@@ -455,6 +382,8 @@ int main(int argc, char ** argv)
   while (  (res = check_prop(pono_options, prop, fts, s, cex, 
       pono_options.smt_solver_, pono_options.engine_, pono_options.step_, cexinfo.module_name_removal_)) == FALSE 
    && !filter.filters.empty()) {
+    if (filter.filters.back() == COI_filter)
+      throw PonoException("Removing COI filter! Something is wrong here!");
     filter.filters.pop_back();
     cout << "Reachable, removing filter, after: " << filter.to_string() << endl;
     prop = cexreader.cex2property(filter);

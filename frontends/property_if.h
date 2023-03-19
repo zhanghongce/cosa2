@@ -25,7 +25,10 @@
 #include "smt-switch/smtlib_reader.h"
 #include "utils/exceptions.h"
 #include "options/options.h"
+#include "utils/filter.h"
 #include "cexreader/cex_extract.h"
+
+
 namespace pono {
 class PropertyInterface : public smt::SmtLibReader
 {
@@ -53,6 +56,31 @@ class PropertyInterface : public smt::SmtLibReader
   smt::TermVec assumptions_;
 
 };
+
+class AssumptionRelationReader : public smt::SmtLibReader {
+  
+public:
+  AssumptionRelationReader(std::string filename, TransitionSystem & ts);
+  typedef SmtLibReader super;
+
+  // the input value t should be the term for state variable
+  bool IsConstrainedInAssumption(const std::string& t) const { return sv_value_.find(t) != sv_value_.end();}
+  smt::Term GetConditionInAssumption(const std::string & t) const;
+  smt::Term GetValueTermInAssumption(const std::string & t) const { return sv_value_.at(t); }
+
+  std::string ReportStatus() const { return "SV:"+std::to_string(sv_value_.size()); }
+protected:
+  // overloaded function, used when arg list of function is parsed
+  // NOTE: | |  pipe quotes are removed.
+  virtual smt::Term register_arg(const std::string & name, const smt::Sort & sort) override;
+
+  std::string filename_;
+  TransitionSystem & ts_;
+
+  std::unordered_map<std::string, smt::Term> sv_cond_;
+  std::unordered_map<std::string, smt::Term> sv_value_;
+
+}; // end of class AssumptionRelationReader
 
 class PropertyInterfacecex : public CexExtractor 
 {
@@ -86,15 +114,15 @@ class PropertyInterfacecex : public CexExtractor
 class QedCexParser : public SelectiveExtractor 
 {
   public:
-    typedef std::function<bool(const std::string &n)> filter_t;
+    typedef Filter filter_t;
   ////Build the Constructor//////
     QedCexParser(const std::string& vcd_file_name,
                  const std::string& filter,
                  const std::string& name_removal,
                  TransitionSystem & ts);
-    smt::Term cex2property(filter_t filter) const;
+    smt::Term cex2property(filter_t & filter) const;
 
-    void get_remaining_var(filter_t filter, std::vector<std::string> & out) const;
+    void get_remaining_var(filter_t & filter, std::vector<std::string> & out) const;
   protected:
     TransitionSystem & ts_;
 

@@ -102,7 +102,49 @@ void PropertyInterface::AddAssumptionsToTS() {
 
 // --------------------------------------------------------------------------
 
-PropertyInterfacecex::PropertyInterfacecex(const PonoOptions pono_options,                           
+std::string static remove_vertical_bar(const std::string & in) {
+  if (in.length() > 2 && in.front() == '|' && in.back() == '|')
+    return in.substr(1,in.length()-2);
+  return in;
+}
+
+AssumptionRelationReader::AssumptionRelationReader(std::string filename, TransitionSystem & ts)
+    : super(ts.get_solver()), filename_(filename), ts_(ts)
+{
+  set_logic_all();
+  int res = parse(filename_);
+  assert(!res);  // 0 means success
+
+  for(const auto & n_prop : defs_) {
+    auto fun_name = remove_vertical_bar(n_prop.first);
+    if ( fun_name.find("cond.") == 0 ) {
+      //                01234
+      auto sv_name = fun_name.substr(5);
+      sv_cond_.emplace(sv_name, n_prop.second);
+    } else if (fun_name.find("value.") == 0) {
+      //                      012345
+      auto sv_name = fun_name.substr(6);
+      sv_value_.emplace(sv_name, n_prop.second);
+    }     
+  }
+} // end of AssumptionRelationReader::AssumptionRelationReader
+
+
+smt::Term AssumptionRelationReader::register_arg(const std::string & name, const smt::Sort & sort) {
+  auto tmpvar = ts_.lookup(name);
+  arg_param_map_.add_mapping(name, tmpvar);
+  return tmpvar; // we expect to get the term in the transition system.
+}
+
+smt::Term AssumptionRelationReader::GetConditionInAssumption(const std::string & t) const {
+  if(sv_cond_.find(t) == sv_cond_.end())
+    return ts_.get_solver()->make_term(true); // return true;
+  return sv_cond_.at(t);
+}
+
+// --------------------------------------------------------------------------
+
+PropertyInterfacecex::PropertyInterfacecex(const PonoOptions pono_options,
                            const std::string& scope,
                            bool reg_only, TransitionSystem & ts):
 pono_options_(pono_options),ts_(ts), is_reg([this](const std::string & check_name) -> bool{ 
@@ -443,7 +485,7 @@ ts_(ts), is_reg([this](const std::string & check_name) -> bool{
     parse_from(vcd_file_name, filter, is_reg, true);
   }
 
-void QedCexParser::get_remaining_var(filter_t filter,std::vector<std::string> & out) const {
+void QedCexParser::get_remaining_var(filter_t & filter,std::vector<std::string> & out) const {
   for (const auto & var_val_pair : GetCex() ) {
     const auto & var_name = var_val_pair.first;
     if(!filter(var_name))
@@ -453,7 +495,7 @@ void QedCexParser::get_remaining_var(filter_t filter,std::vector<std::string> & 
 }
 
 smt::Term QedCexParser::cex2property(
-  filter_t filter) const
+  filter_t & filter) const
 {
   // NOT (var1 == val1 && var2 == val2 && ...)
   smt::Term prop;
@@ -467,7 +509,24 @@ smt::Term QedCexParser::cex2property(
 
     auto sort = var->get_sort();
     auto val = ts_.make_term(var_val_pair.second, sort, 2);
-    auto eq = ts_.make_term(Equal, var, val);
+
+    auto range = filter.range(var_name);
+    Term eq;
+    if (range.empty()) 
+      eq = ts_.make_term(Equal, var, val);
+    else {
+      for (const auto & slice : range) {
+        auto extract_op = smt::Op(smt::PrimOp::Extract, slice.first, slice.second);
+        auto slice_eq = 
+          ts_.make_term(Equal, ts_.make_term(extract_op, var), ts_.make_term(extract_op, val));
+
+        if (eq == nullptr)
+          eq = slice_eq;
+        else
+          eq = ts_.make_term(And, eq, slice_eq);
+      }
+    }
+    
     if (prop == nullptr)
       prop = eq;
     else

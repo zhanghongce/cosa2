@@ -63,7 +63,6 @@ protected:
   // for the DFS, will not use the stack but use one reference here
   std::unordered_set<smt::Term> dfs_walked_;
   std::unordered_set<smt::Term> dfs_vars_;
-
   std::unordered_map<smt::Term, pair_set> dfs_walked_extract;
 
   void dfs_walk(const smt::Term & ast);

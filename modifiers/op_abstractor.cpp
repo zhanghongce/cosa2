@@ -292,6 +292,7 @@ TransitionSystem & OpUfAbstractor::abstract_ts(
   } // end for each found op term
 
   out_ts.replace_terms(replacement);
+  return out_ts;
 } // end of OpUfAbstractor::abstract_ts
 
 
