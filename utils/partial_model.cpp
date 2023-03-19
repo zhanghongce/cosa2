@@ -585,8 +585,16 @@ void PartialModelGen::dfs_walk_bitlevel(const smt::Term & input_ast, int high, i
         }
       } else if (op.prim_op == smt::PrimOp::BVAdd) {
         ARG2(left,right)
+        auto msb = extracted_bit.first;
+        node_stack_.push_back({left, {msb,0}}); // []
+        node_stack_.push_back({right, {msb,0}});
+      } else if (op.prim_op == smt::PrimOp::BVNot) {
+        ARG1(back)
+        node_stack_.push_back({back, extracted_bit}); // []
+      } else if (op.prim_op == smt::PrimOp::BVXor || op.prim_op == smt::PrimOp::BVXnor) {
+        ARG2(left, right)
         node_stack_.push_back({left, extracted_bit}); // []
-        node_stack_.push_back({right, extracted_bit});
+        node_stack_.push_back({right, extracted_bit}); // []
       } else if((op.prim_op== smt::PrimOp::Extract)) { // WIP
         auto b = op.idx0;
         auto p = op.idx1;
