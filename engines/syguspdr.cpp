@@ -849,7 +849,7 @@ void SygusPdr::predecessor_generalization(size_t i, const Term & cterm, IC3Formu
   // extract the model based on var list
   // NOTE: i may be incorrect, it is given as F/\T->(here is i)
 
-  // no need to pop (pop in rel_ind_check)
+  // no need to pop (pop is in rel_ind_check)
   // return the model and build IC3FormulaModel
   auto partial_full_model = ExtractPartialModel(cterm);
   pred = partial_full_model.first;
@@ -867,7 +867,7 @@ bool SygusPdr::keep_var_in_partial_model(const Term & v) const {
   if (has_assumptions) { // must keep input vars
     return (ts_.is_curr_var(v));
   }
-
+  // otherwise, just keep those that are really state variables
   return ts_.is_curr_var(v) && !IN(v, no_next_vars_);
 } // keep_var_in_partial_model
 
