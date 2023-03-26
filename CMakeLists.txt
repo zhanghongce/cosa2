@@ -19,6 +19,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+#set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++")
+#set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
 
 add_definitions(-DPONO_SRC_DIR=${PROJECT_SOURCE_DIR})
 
@@ -263,7 +265,7 @@ target_link_libraries(pono-lib PUBLIC "${PROJECT_SOURCE_DIR}/deps/btor2tools/bui
 target_link_libraries(pono-lib PUBLIC "${GMPXX_LIBRARIES}")
 target_link_libraries(pono-lib PUBLIC "${GMP_LIBRARIES}")
 target_link_libraries(pono-lib PUBLIC pthread)
-target_link_libraries(pono-lib PUBLIC y)
+#target_link_libraries(pono-lib PUBLIC y)
 
 if (LIBRT)
   target_link_libraries(pono-lib PUBLIC ${LIBRT})
@@ -293,7 +295,7 @@ target_include_directories(pono-bin PUBLIC
 target_link_libraries(pono-bin PUBLIC pono-lib)
 
 if ("${PONO_STATIC_EXEC}" STREQUAL "YES")
-  target_link_libraries(pono-bin PUBLIC -static)
+  target_link_libraries(pono-bin PUBLIC -static -static-libgcc -static-libstdc++)
 endif()
 
 # install smt-switch

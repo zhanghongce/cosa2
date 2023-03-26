@@ -73,6 +73,10 @@ void mul2(std::vector<char> &  v);
 /// multi-precision number : add by 1
 void add1(std::vector<char> &  v);
 
+/// decimal to binary conversion
+std::string decimal_to_binary(const std::string &decimal);
+
+
 } // namespace syntax_analysis
 
 } // namespace pono
