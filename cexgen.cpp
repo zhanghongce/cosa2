@@ -45,6 +45,7 @@
 #include "utils/make_provers.h"
 #include "utils/ts_analysis.h"
 #include "utils/term_analysis.h"
+#include "utils/str_util.h"
 #include <fstream>
 using namespace pono;
 using namespace smt;
@@ -162,6 +163,7 @@ ProverResult check_prop(PonoOptions pono_options,
         prover->coi_failure_witness(coi_cex);
         VCDWitnessPrinter vcdprinter(ts, coi_cex);
         vcdprinter.dump_trace_to_file("COI_failure.vcd");
+        throw PonoException("COI check failed!");
     } else
       logger.log(0, "COI check passed");
   }
@@ -192,6 +194,62 @@ ProverResult check_prop(PonoOptions pono_options,
     }
   }
   return r;
+}
+
+int extract_num(const std::string &n) {
+  // __auxvar?
+  // 012345678
+  size_t idx;
+  for(idx=8;idx<n.length();++idx) {
+    if(!( n.at(idx) >= '0' && n.at(idx)<='9'))
+      break;
+  }
+  return syntax_analysis::StrToULongLong( n.substr(8,idx), 10 );
+}
+
+void IF_ILA_CHECK_LOAD_ADDITIONAL_ASSUMPTIONS(FunctionalTransitionSystem & fts) {
+  auto iend_pos = fts.named_terms().find("__IEND__");
+  bool find_iend = iend_pos != fts.named_terms().end();
+  auto iend_term = iend_pos->second;
+  const static std::string aux_var_ends_type1 = "__recorder_sn_cond";
+  const static std::string aux_var_ends_type2 = "__recorder_sn_condmet";
+  unordered_map<int, vector<Term>> sn_cond_condmet_pair;
+
+  if(!find_iend)
+    return;
+  for (const auto & n_term_pair : fts.named_terms()) {
+    const auto & n = n_term_pair.first;
+    if(n.find("__auxvar") == 0 && n.length() >= aux_var_ends_type1.length() && 
+        n.compare(n.length() - aux_var_ends_type1.length(), aux_var_ends_type1.length(), aux_var_ends_type1) == 0) {
+      auto auxvarnum =  extract_num(n);
+      sn_cond_condmet_pair[auxvarnum].push_back(n_term_pair.second);
+    }
+    else if(n.find("__auxvar") == 0 && n.length() >= aux_var_ends_type2.length() && 
+        n.compare(n.length() - aux_var_ends_type2.length(), aux_var_ends_type2.length(), aux_var_ends_type2) == 0) {
+      auto auxvarnum =  extract_num(n);
+      sn_cond_condmet_pair[auxvarnum].push_back(n_term_pair.second);
+    }
+  }
+  if (sn_cond_condmet_pair.empty())
+    return;
+
+  Term consq;
+  auto & slv = fts.get_solver();
+  for (const auto & idx_termvec_pair : sn_cond_condmet_pair) {
+    const auto & termv = idx_termvec_pair.second;
+    assert(termv.size() == 2);
+    auto consq_sub = slv->make_term(Or, termv.at(0), termv.at(1));
+
+    if(consq == nullptr)
+      consq = consq_sub;
+    else
+      consq = slv->make_term(And, consq, consq_sub);
+  }
+  Term assumption =  slv->make_term(Implies,  iend_term, consq);
+  logger.log(0, "ILA wrapper detected!");
+  // logger.log(3,"Add assumption to ila fts: {}", assumption->to_string());
+
+  fts.add_constraint(assumption);
 }
 
 
@@ -268,6 +326,9 @@ int main(int argc, char ** argv)
   FunctionalTransitionSystem fts(s);
   BTOR2Encoder btor_enc(pono_options.filename_, fts);
   Term prop;
+
+  IF_ILA_CHECK_LOAD_ADDITIONAL_ASSUMPTIONS(fts);
+
   // HERE we extra the property
   if(btor_enc.propvec().size() != 1)
     throw PonoException("Expecting only one `bad` in btor2 input");
@@ -297,8 +358,9 @@ int main(int argc, char ** argv)
       // we don't have the input on every cycle
       // access will be out of range, so let's
       // disable it
-      if(!pono_options.witness_first_state_only_)
-        print_witness_btor(btor_enc, cex, fts);
+      if(!pono_options.witness_first_state_only_) {
+        // print_witness_btor(btor_enc, cex, fts);
+      }
       if (!pono_options.vcd_name_.empty()) {
         VCDWitnessPrinter vcdprinter(fts, cex);
         vcdprinter.dump_trace_to_file(pono_options.vcd_name_);
