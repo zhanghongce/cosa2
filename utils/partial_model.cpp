@@ -482,7 +482,7 @@ void PartialModelGen::dfs_walk_bitlevel(const smt::Term & input_ast, int high, i
         auto cond_left = solver_->get_value(left);
         auto cond_right = solver_->get_value(right);
         assert(cond_left->is_value() && cond_right->is_value());
-        assert(ast->get_sort()->get_width()==1);
+        assert(ast->get_sort()->get_sort_kind() == smt::SortKind::BOOL || ast->get_sort()->get_width()==1);
         if (!( is_all_one(cond_left->to_string(),1) )) {       
           node_stack_.push_back({left, {0,0}});
         }
@@ -497,7 +497,7 @@ void PartialModelGen::dfs_walk_bitlevel(const smt::Term & input_ast, int high, i
         auto cond_left = solver_->get_value(left);
         auto cond_right = solver_->get_value(right);
         assert(cond_left->is_value() && cond_right->is_value());
-        assert(ast->get_sort()->get_width()==1);
+        assert(ast->get_sort()->get_sort_kind() == smt::SortKind::BOOL || ast->get_sort()->get_width()==1);
         if (!( is_all_one(cond_left->to_string(),1) )) {  
           node_stack_.push_back({left, {0,0}});
         } else if (!(is_all_one(cond_right->to_string(), 1))) {
@@ -511,7 +511,7 @@ void PartialModelGen::dfs_walk_bitlevel(const smt::Term & input_ast, int high, i
         auto cond_left = solver_->get_value(left);
         auto cond_right = solver_->get_value(right);
         assert(cond_left->is_value() && cond_right->is_value());
-        assert(ast->get_sort()->get_width()==1);
+        assert(ast->get_sort()->get_sort_kind() == smt::SortKind::BOOL || ast->get_sort()->get_width()==1);
         if (is_all_one(cond_left->to_string(),1)) {
           node_stack_.push_back({left, {0,0}});
         }

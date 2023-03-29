@@ -354,14 +354,46 @@ bool Prover::check_coi() {
   return true;
 }
 
+bool static keep_this_name(const std::string & n) {
+  const static std::unordered_set<std::string> keep = {
+    "__START__","__STARTED__","__ENDED__","__2ndENDED__","__RESETED__","__CYCLE_CNT__"
+  };
+  const static std::unordered_set<std::string> partial_keep = {
+    "__delay_d", "__recorder_sn_condmet"
+  };
+  const static std::string aux_var_ends = "__recorder";
+
+  if (keep.find(n)!=keep.end())
+    return true;
+  if (n.find("ILA.") == 0)
+    return false;
+  if (n.find("RTL.") == 0)
+    return true;
+  for (const auto & sub : partial_keep)
+    if (n.find(sub) != n.npos)
+      return true;
+    
+  if(n.find("__auxvar") == 0 && n.length() >= aux_var_ends.length() && 
+      n.compare(n.length() - aux_var_ends.length(), aux_var_ends.length(), aux_var_ends) == 0)
+    return false;
+  if (n.find("__VLG_I_") == 0 || n.find("__ILA_I_") == 0 || n == "dummy_reset" || n == "reset" || n == "rst")
+    return false;
+  if (n.find("ppl_stage_") == 0 )
+    return true;
+  throw PonoException("Unknown how to handle: "+n);
+  return false;
+  // 
+}
 
 void Prover::record_coi_info(const var_in_coi_t &sv, const smt::UnorderedTermSet &inp, int bnd) {
   // store all values on sv @ 0 , and all inp vars @ 0...k
   for (const auto & v : sv) {
     auto sv_name = v.first->to_string();
-    if (restrict_RTL_vars_only_in_ILA_RTL_rfcheck && (sv_name.find("ILA.") == 0 || (sv_name.find("__auxvar") == 0 && sv_name.find("recorder") != sv_name.npos) ))  {
-      logger.log(0,"[COI check] removing sv {}", sv_name);
-      continue;
+    if (restrict_RTL_vars_only_in_ILA_RTL_rfcheck )  {
+      if (!keep_this_name(sv_name)) {
+        logger.log(0,"[COI check] removing sv {}", sv_name);
+        continue;
+      }
     }
     auto timed_v = unroller_.at_time(v.first, 0);
     auto value = solver_->get_value(timed_v);
@@ -387,7 +419,8 @@ void Prover::get_var_in_COI(const var_in_coi_t & input_asts,
   PartialModelGen partial_model_getter(solver_);
   partial_model_getter.GetVarListForAsts_in_bitlevel(input_asts, varset_slice);
   std::cout << "[get var in COI] in:\n";
-  Print(input_asts);
+  std::cout << " (Omitted). \n";
+  // Print(input_asts);
   std::cout << "[get var in COI] out:\n";
   Print(varset_slice);
 }
@@ -409,7 +442,7 @@ void Prover::compute_dynamic_COI_from_term(const smt::Term & t, const slice_t &r
       if (ts_.is_input_var(untimed_var))
         continue;
       if (!ts_.is_curr_var(untimed_var)) // is_curr_var check if it is input var
-        continue;
+        continue;      
         
       auto pos = ts_.state_updates().find(untimed_var);
 
@@ -433,6 +466,17 @@ void Prover::compute_dynamic_COI_from_term(const smt::Term & t, const slice_t &r
   // varset at this point: a@0 ,  b@0 , ...
   for (const auto & timed_var : varset) {
     auto untimed_var = unroller_.untime(timed_var.first);
+    
+    if (ts_.is_input_var(untimed_var))
+      continue;
+    if (!ts_.is_curr_var(untimed_var)) // is_curr_var check if it is input var
+      continue;      
+      
+    auto pos = ts_.state_updates().find(untimed_var);
+
+    if (pos == ts_.state_updates().end()) // this is likely
+      continue;
+
     auto result = init_state_variables.emplace(untimed_var,timed_var.second);
     if (!result.second) {
       // was not able to insert, then we need to merge list
@@ -491,6 +535,8 @@ void Prover::recursive_dynamic_COI_using_ILA_info(var_in_coi_t & init_state_vari
         logger.log(0, "SV {} is in constraints", vname);
         auto cond = IlaAsmptLoader.GetConditionInAssumption(vname);
         auto val = IlaAsmptLoader.GetValueTermInAssumption(vname);
+        auto val_sort = val->get_sort();
+        auto actual_width = val_sort->get_sort_kind() == smt::SortKind::BOOL ? 1 : val_sort->get_width();
 
         bool triggered = false;
         for(int k = 0; k <= reached_k_+1; k++) {
@@ -500,14 +546,23 @@ void Prover::recursive_dynamic_COI_using_ILA_info(var_in_coi_t & init_state_vari
             
             logger.log(0, "SV {} is triggered at Cycle #{}", vname, k);
             // this is a bug in the ilang side
-            next_round_to_track.push_back({val, k, {{0,0}}});
+            
+            if (actual_width == 1)
+              next_round_to_track.push_back({val, k, {{0,0}}});
+            else
+              next_round_to_track.push_back({val, k, v_range_pair.second});
+
+            next_round_to_track.push_back({cond, k, {{0,0}} });
+
             logger.log(0,"added {} in next round.", val->to_string());
             triggered = true;
             break;
           }
         }
-        if(!triggered)
+        if(!triggered) {
           logger.log(0, "WARNING: [COI] condition for {} was NOT triggered!", vname);
+          throw PonoException("WARNING: [COI] condition for "+ vname +" has NOT been triggered!");
+        }
       } else {
         logger.log(0, "SV {} is NOT in constraints", vname);
       }
