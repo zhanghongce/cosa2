@@ -54,11 +54,11 @@ static bool term_width_gt(const smt::Term & t0, const smt::Term & t1)
 {
   unsigned w0 = 0, w1 = 0;
   for(auto pos = t0->begin(); pos != t0->end(); ++pos)
-    if ((*pos)->get_sort()->to_string()!="Bool")
+    if ((*pos)->get_sort()->get_sort_kind() == smt::SortKind::BV)
       w0 += (*pos)->get_sort()->get_width();
   
   for(auto pos = t1->begin(); pos != t1->end(); ++pos)
-    if ((*pos)->get_sort()->to_string()!="Bool")  
+    if ((*pos)->get_sort()->get_sort_kind() == smt::SortKind::BV)  
       w1 += (*pos)->get_sort()->get_width();
   
   return w0>w1;
