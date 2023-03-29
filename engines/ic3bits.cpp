@@ -119,6 +119,15 @@ void IC3Bits::build_ts_related_info() {
   }
 }
 
+bool IC3Bits::keep_var_in_partial_model(const Term & v) const {
+  if (has_assumptions) { // must keep input vars
+    return (ts_.is_curr_var(v));
+  }
+
+  return ts_.is_curr_var(v) && !IN(v, no_next_vars_);
+} // keep_var_in_partial_model
+
+
 IC3Formula IC3Bits::get_model_ic3formula() const
 {
   // expecting all solving in IC3 to be done at context level > 0
@@ -217,7 +226,7 @@ IC3Formula IC3Bits::ExtractPartialModel(const Term & p) {
 
       if (!keep_var_in_partial_model(v))
           continue;
-      for (unsigned idx = h_l_pair.first; idx >= h_l_pair.second; --idx) {
+      for (int idx = h_l_pair.first; idx >= h_l_pair.second; --idx) {
         auto eq = solver_->make_term(Op(PrimOp::Equal), 
           solver_->make_term(Op(PrimOp::Extract, idx, idx), v),
           solver_->make_term(Op(PrimOp::Extract, idx, idx), val)
@@ -236,8 +245,9 @@ void IC3Bits::predecessor_generalization(size_t i, const Term & cterm, IC3Formul
 
   // no need to pop (pop in rel_ind_check)
   // return the model and build IC3FormulaModel
-  auto partial_full_model = ExtractPartialModel(cterm);
-  pred = partial_full_model;
+  if (options_.ic3bits_coi_pregen) {
+    pred = ExtractPartialModel(cterm);
+  }
 } // generalize_predecessor
 
 }  // namespace pono
