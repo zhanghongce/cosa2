@@ -54,16 +54,15 @@ static bool term_width_gt(const smt::Term & t0, const smt::Term & t1)
 {
   unsigned w0 = 0, w1 = 0;
   for(auto pos = t0->begin(); pos != t0->end(); ++pos)
-    if ((*pos)->get_sort()->to_string()!="Bool")
+    if ((*pos)->get_sort()->get_sort_kind()==smt::SortKind::BV)
       w0 += (*pos)->get_sort()->get_width();
   
   for(auto pos = t1->begin(); pos != t1->end(); ++pos)
-    if ((*pos)->get_sort()->to_string()!="Bool")  
+    if ((*pos)->get_sort()->get_sort_kind()==smt::SortKind::BV)
       w1 += (*pos)->get_sort()->get_width();
   
   return w0>w1;
 }
-
 
 /** Syntactic subsumption check for clauses: ? a subsumes b ?
  *  @param IC3Formula a
@@ -298,14 +297,14 @@ IC3Formula IC3Base::inductive_generalization(size_t i, const IC3Formula & c)
   UnorderedTermSet necessary;  // populated with children we
                                // can't drop
 
-  IC3Formula gen = c;  
+  IC3Formula gen = c;
   // HZ: let's sort gen.children based on the width of the variable
-  std::sort(gen.children.begin(), gen.children.end(), term_width_gt);
+  if(options_.ic3base_sort_lemma)
+    std::sort(gen.children.begin(), gen.children.end(), term_width_gt);
 
   IC3Formula out;
   Term dropped;
-  size_t j = 0;  
-
+  size_t j = 0;
   while (j < gen.children.size() && gen.children.size() > 1) {
     // TODO use random_seed_ if set for shuffling
     //      order of drop attempts
