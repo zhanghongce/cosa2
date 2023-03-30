@@ -292,7 +292,7 @@ bool Prover::compute_witness()
 
 static const bool restrict_RTL_vars_only_in_ILA_RTL_rfcheck = true;
 
-bool Prover::check_coi() {
+bool Prover::check_coi(const smt::Term & original_trans) {
   if(!options_.compute_dynamic_coi_upon_cex_) {
     std::cout << "NO COI computed." << std::endl;
     return true;
@@ -313,7 +313,8 @@ bool Prover::check_coi() {
   
   // add_formula(unroller_.at_time(ts_.init(), 0));
   for (int k = 0; k<=reached_k_+1; ++k) {
-    add_formula(unroller_.at_time(ts_.trans(), k));
+    // add_formula(unroller_.at_time(ts_.trans(), k));
+    add_formula(unroller_.at_time(original_trans, k));
   }
 
   // this includes initial svs and input variables along the way
@@ -466,7 +467,7 @@ void Prover::compute_dynamic_COI_from_term(const smt::Term & t, const slice_t &r
   // varset at this point: a@0 ,  b@0 , ...
   for (const auto & timed_var : varset) {
     auto untimed_var = unroller_.untime(timed_var.first);
-    
+
     if (ts_.is_input_var(untimed_var))
       continue;
     if (!ts_.is_curr_var(untimed_var)) // is_curr_var check if it is input var

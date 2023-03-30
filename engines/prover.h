@@ -62,7 +62,7 @@ class Prover
 
   void record_coi_info(const var_in_coi_t &sv, const smt::UnorderedTermSet &inp, int k);
   smt::UnorderedTermMap all_coi_values;
-  bool check_coi();
+  bool check_coi(const smt::Term & original_trans);
   std::vector<smt::UnorderedTermMap> coi_failure_witness_; 
   virtual bool coi_failure_witness(std::vector<smt::UnorderedTermMap> & out);
 
