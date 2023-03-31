@@ -40,26 +40,6 @@ static bool term_hash_lt(const smt::Term & t0, const smt::Term & t1)
   return (t0->hash() < t1->hash());
 }
 
-/** Less than comparison of the width of two extract terms
- *  for use in sorting
- *  @param t0 the first term
- *  @param t1 the second term
- *  @return true iff t0's hash is less than t1's hash
- */
-static bool term_width_gt(const smt::Term & t0, const smt::Term & t1)
-{
-  unsigned w0 = 0, w1 = 0;
-  for(auto pos = t0->begin(); pos != t0->end(); ++pos)
-    if ((*pos)->get_sort()->get_sort_kind()==smt::SortKind::BV)
-      w0 += (*pos)->get_sort()->get_width();
-  
-  for(auto pos = t1->begin(); pos != t1->end(); ++pos)
-    if ((*pos)->get_sort()->get_sort_kind()==smt::SortKind::BV)
-      w1 += (*pos)->get_sort()->get_width();
-  
-  return w0>w1;
-}
-
 /** Syntactic subsumption check for clauses: ? a subsumes b ?
  *  @param IC3Formula a
  *  @param IC3Formula b
@@ -273,6 +253,35 @@ IC3Formula IC3Base::ic3formula_negate(const IC3Formula & u) const
   return IC3Formula(term, neg_children, !is_clause);
 }
 
+
+static size_t TermScore(const smt::Term & t) {
+  unsigned w = 0;
+  for(auto pos = t->begin(); pos != t->end(); ++pos)
+    if ((*pos)->get_sort()->get_sort_kind()==smt::SortKind::BV)
+      w += (*pos)->get_sort()->get_width();
+  return w;
+}
+
+static void SortLemma(smt::TermVec & inout) {
+  // we don't want to sort the term themselves
+  // we don't want to invoke TermScore function more than once for a term
+  std::vector<std::pair<size_t,size_t>> complexity_index_pair;
+  size_t idx = 0;
+  for (const auto & t : inout) {
+    complexity_index_pair.push_back({ TermScore(t) ,idx});
+    ++ idx;
+  }
+  // sort in descending order (the `first` is compared first), so term-index with 
+  // the highest score will rank first
+  std::sort(complexity_index_pair.begin(), complexity_index_pair.end(), std::greater<>());
+  // now map back to termvec
+  smt::TermVec sorted_term;
+  for (const auto & cpl_idx_pair : complexity_index_pair) {
+    sorted_term.push_back(inout.at(cpl_idx_pair.second));
+  }
+  inout.swap(sorted_term); // this is the same as inout = sorted_term, but faster
+} // end of SortLemma
+
 IC3Formula IC3Base::inductive_generalization(size_t i, const IC3Formula & c)
 {
   assert(!solver_context_);
@@ -294,7 +303,8 @@ IC3Formula IC3Base::inductive_generalization(size_t i, const IC3Formula & c)
 
   IC3Formula gen = c;
   // HZ: let's sort gen.children based on the width of the variable
-  std::sort(gen.children.begin(), gen.children.end(), term_width_gt);
+  if(options_.ic3base_sort_lemma)
+    SortLemma(gen.children);
 
   IC3Formula out;
   Term dropped;
