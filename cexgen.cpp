@@ -55,7 +55,8 @@ ProverResult check_prop(PonoOptions pono_options,
                         Term & prop,
                         TransitionSystem & ts,
                         const SmtSolver & s,
-                        std::vector<UnorderedTermMap> & cex)
+                        std::vector<UnorderedTermMap> & cex,
+                        const Term & original_trans)
 {
   // get property name before it is rewritten
   const string prop_name = ts.get_name(prop);
@@ -157,7 +158,7 @@ ProverResult check_prop(PonoOptions pono_options,
           0,
           "Only got a partial witness from engine. Not suitable for printing.");
     }
-    bool res_COI = prover->check_coi();
+    bool res_COI = prover->check_coi(original_trans);
     if(!res_COI) {
         std::vector<smt::UnorderedTermMap> coi_cex;
         prover->coi_failure_witness(coi_cex);
@@ -207,13 +208,27 @@ int extract_num(const std::string &n) {
   return syntax_analysis::StrToULongLong( n.substr(8,idx), 10 );
 }
 
-void IF_ILA_CHECK_LOAD_ADDITIONAL_ASSUMPTIONS(FunctionalTransitionSystem & fts) {
+void IF_ILA_CHECK_LOAD_ADDITIONAL_ASSUMPTIONS(FunctionalTransitionSystem & fts, Term & original_trans) {
   auto iend_pos = fts.named_terms().find("__IEND__");
   bool find_iend = iend_pos != fts.named_terms().end();
   auto iend_term = iend_pos->second;
   const static std::string aux_var_ends_type1 = "__recorder_sn_cond";
   const static std::string aux_var_ends_type2 = "__recorder_sn_condmet";
   unordered_map<int, vector<Term>> sn_cond_condmet_pair;
+
+  auto & slv = fts.get_solver();
+  auto term_true = slv->make_term(true);
+  original_trans = fts.trans();
+  { // replace existing constraints to true in fts.trans
+    UnorderedTermMap subst;
+    for(const auto & c_next_pair : fts.constraints()) {
+      subst.emplace(c_next_pair.first, term_true);
+      // if (c_next_pair.second)
+      //  subst.emplace(fts.next(c_next_pair.first), term_true);
+    }
+    original_trans = slv->AbsSmtSolver::substitute(original_trans, subst);
+  }
+
 
   if(!find_iend)
     return;
@@ -234,7 +249,6 @@ void IF_ILA_CHECK_LOAD_ADDITIONAL_ASSUMPTIONS(FunctionalTransitionSystem & fts) 
     return;
 
   Term consq;
-  auto & slv = fts.get_solver();
   for (const auto & idx_termvec_pair : sn_cond_condmet_pair) {
     const auto & termv = idx_termvec_pair.second;
     assert(termv.size() == 2);
@@ -325,9 +339,9 @@ int main(int argc, char ** argv)
   logger.log(2, "Parsing BTOR2 file: {}", pono_options.filename_);
   FunctionalTransitionSystem fts(s);
   BTOR2Encoder btor_enc(pono_options.filename_, fts);
-  Term prop;
+  Term prop, original_trans;
 
-  IF_ILA_CHECK_LOAD_ADDITIONAL_ASSUMPTIONS(fts);
+  IF_ILA_CHECK_LOAD_ADDITIONAL_ASSUMPTIONS(fts, original_trans); /* This will store the original trans of fts in `original_trans`*/
 
   // HERE we extra the property
   if(btor_enc.propvec().size() != 1)
@@ -342,7 +356,7 @@ int main(int argc, char ** argv)
   } 
 
   vector<UnorderedTermMap> cex;
-  res = check_prop(pono_options, prop, fts, s, cex);
+  res = check_prop(pono_options, prop, fts, s, cex, original_trans);
   // we assume that a prover never returns 'ERROR'
   assert(res != ERROR);
 
