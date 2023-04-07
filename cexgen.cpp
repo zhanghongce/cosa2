@@ -211,27 +211,30 @@ int extract_num(const std::string &n) {
 void IF_ILA_CHECK_LOAD_ADDITIONAL_ASSUMPTIONS(FunctionalTransitionSystem & fts, Term & original_trans) {
   auto iend_pos = fts.named_terms().find("__IEND__");
   bool find_iend = iend_pos != fts.named_terms().end();
+  original_trans = fts.trans();
+  
+  if(!find_iend)
+    return;
+
   auto iend_term = iend_pos->second;
   const static std::string aux_var_ends_type1 = "__recorder_sn_cond";
   const static std::string aux_var_ends_type2 = "__recorder_sn_condmet";
   unordered_map<int, vector<Term>> sn_cond_condmet_pair;
 
   auto & slv = fts.get_solver();
-  auto term_true = slv->make_term(true);
-  original_trans = fts.trans();
-  { // replace existing constraints to true in fts.trans
-    UnorderedTermMap subst;
-    for(const auto & c_next_pair : fts.constraints()) {
-      subst.emplace(c_next_pair.first, term_true);
-      // if (c_next_pair.second)
-      //  subst.emplace(fts.next(c_next_pair.first), term_true);
-    }
-    original_trans = slv->AbsSmtSolver::substitute(original_trans, subst);
-  }
+  // HZ note: replacing back to true seems to be not okay?
+  // auto term_true = slv->make_term(true);
+  // { // replace existing constraints to true in fts.trans
+  //   UnorderedTermMap subst;
+  //   for(const auto & c_next_pair : fts.constraints()) {
+  //     subst.emplace(c_next_pair.first, term_true);
+  //     // if (c_next_pair.second)
+  //     //  subst.emplace(fts.next(c_next_pair.first), term_true);
+  //   }
+  //   original_trans = slv->AbsSmtSolver::substitute(original_trans, subst);
+  // }
 
 
-  if(!find_iend)
-    return;
   for (const auto & n_term_pair : fts.named_terms()) {
     const auto & n = n_term_pair.first;
     if(n.find("__auxvar") == 0 && n.length() >= aux_var_ends_type1.length() && 
@@ -260,6 +263,7 @@ void IF_ILA_CHECK_LOAD_ADDITIONAL_ASSUMPTIONS(FunctionalTransitionSystem & fts, 
       consq = slv->make_term(And, consq, consq_sub);
   }
   Term assumption =  slv->make_term(Implies,  iend_term, consq);
+  // this is adding `IEND => ( __auxvarXXX__recorder_sn_cond || __auxvarXXX__recorder_sn_condmet)`
   logger.log(0, "ILA wrapper detected!");
   // logger.log(3,"Add assumption to ila fts: {}", assumption->to_string());
 
@@ -276,9 +280,9 @@ int main(int argc, char ** argv)
     pono_options.vcd_name_ = "cex.vcd";
   // in this case, we are only interested in the first state
   pono_options.witness_ = true;
-  pono_options.witness_first_state_only_ = false;
+  pono_options.witness_first_state_only_ = true;
   pono_options.compute_dynamic_coi_upon_cex_ = true;
-  pono_options.dynamic_coi_check_ = true;
+  pono_options.dynamic_coi_check_ = false;
   { // dynamically check if asmpt-ila.smt2 is available or not
     std::ifstream fin("asmpt-ila.smt2");
     pono_options.use_ilang_coi_constraint_file_ = fin.is_open();

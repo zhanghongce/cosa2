@@ -27,7 +27,7 @@
 using namespace smt;
 using namespace std;
 
-// #define _IC3_DEBUG_ 1
+#define _IC3_DEBUG_ 1
 
 namespace pono {
 
