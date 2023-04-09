@@ -443,7 +443,7 @@ void Prover::compute_dynamic_COI_from_term(const smt::Term & t, const slice_t &r
       if (ts_.is_input_var(untimed_var))
         continue;
       if (!ts_.is_curr_var(untimed_var)) // is_curr_var check if it is input var
-        continue;      
+        continue;
         
       auto pos = ts_.state_updates().find(untimed_var);
 
