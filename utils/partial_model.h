@@ -108,6 +108,21 @@ public:
     GetPartialModelInCube(const smt::Term & ast);
 
 
+  /** This class computes the variables that need to
+   *  appear in the partial model of asts in the vector
+   *  @param the ast to walk
+   *  @return the partial model in ic3formula
+   */
+  IC3Formula GetPartialModel_bitlevel(const smt::Term & ast);
+
+  /** This class computes the variables that need to
+   *  appear in the partial model of asts in the vector
+   *  @param the ast to walk
+   *  @return the partial model and the var/val cube
+   */
+  std::pair<IC3Formula,syntax_analysis::IC3FormulaModel> 
+    GetPartialModelInCube_bitlevel(const smt::Term & ast);
+
   // add an API to use buffers 
  
 };
