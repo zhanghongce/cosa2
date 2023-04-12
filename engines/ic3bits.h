@@ -49,13 +49,13 @@ class IC3Bits : public IC3
 
   void check_ts() const override;
 
-#if 0
+// #if 0
   virtual void predecessor_generalization(size_t i,
                                           const smt::Term & c,
                                           IC3Formula & pred) override;
 
   IC3Formula ExtractPartialModel(const smt::Term & p);
-#endif
+// #endif
 
 };
 

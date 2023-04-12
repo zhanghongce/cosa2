@@ -32,12 +32,12 @@ if __name__ == '__main__':
      parser.add_argument('--log-dir', type=str, default='log', help='log folder dir')
      opts = parser.parse_args(args=[
           '--path_cex','cex_2.vcd',
-          '--engine','sygus-pdr',
+          '--engine','ic3bits',
           '--path_design','/data/zhiyuany/EnvSynSample/ILAng/PICO/envinvsyn/design.btor',
           '--ILA_model' , '/data/zhiyuany/EnvSynSamples/QED/PICO/verification/pico.btor2',
-          '--inv_path','inductive_invariant',
-          '--continue_from',
-          '--continue-file','/data/zhiyuany/cosa2/inductive_invariant/inv.smt2'
+          '--inv_path','inductive_invariant'
+          # '--continue_from',
+          # '--continue-file','/data/zhiyuany/cosa2/inductive_invariant/inv.smt2'
           ])
      exp_name = 'initial_term_width:{:d}_engine:{}_design{}'.format(opts.init_term_width,opts.engine,opts.path_design)
      log_dir = os.path.join(opts.log_dir,exp_name + '.log')
@@ -63,7 +63,7 @@ if __name__ == '__main__':
                     try_rm(path_cex)
                     try_rm(inv_file)
                     try_rm(inv_origin)
-                    subprocess.run(["./build/pono","--vcd", "{:s}" .format(path_cex),"-e","{:s}" .format("ind"),"--coi_filter" ,"--smt-solver","btor","--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(opts.ILA_model)])
+                    subprocess.run(["./build/pono","--vcd", "{:s}" .format(path_cex),"-e","{:s}" .format("ind"),"--bound","{:s}" .format("15"),"--coi_filter" ,"--smt-solver","btor","--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(opts.ILA_model)])
                     if os.path.exists(path_cex) == False:
                          # print("The enviroment invariant is found")
                          logger.info("The enviroment invariant is found")
