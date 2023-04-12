@@ -344,12 +344,25 @@ bool Prover::compute_witness()
     output<<j<<std::endl;
   //   for (const auto & v : varset)
   //     std::cout << v->to_string() << std::endl;
+  // options_.dynamic_coi_check_ = true;
+  //   if(options_.dynamic_coi_check_) {
+  //     UnorderedTermSet all_inputs = ts_.inputvars();
+  //     for (const auto & inpv : ts_.statevars()) {
+  //       if (ts_.state_updates().find(inpv) == ts_.state_updates().end())
+  //         all_inputs.insert(inpv);
+  //     }
+  //     record_coi_info(varset_slice, all_inputs,  reached_k_ + 1 );
+  //   }
+
   }
+
+
   for (int i = 0; i <= reached_k_ + 1; ++i) {
     witness_.push_back(UnorderedTermMap());
     UnorderedTermMap & map = witness_.back();
     auto new_solver = create_solver_for(BTOR, options_.engine_, false,false);
     auto transferer = smt::TermTranslator(new_solver);
+
     
     for (const auto &v : ts_.statevars()) {
       Term vi = unroller_.at_time(v, i);
@@ -398,7 +411,10 @@ bool Prover::compute_witness()
 static const bool restrict_RTL_vars_only_in_ILA_RTL_rfcheck = true;
 
 bool Prover::check_coi() {
+  options_.compute_dynamic_coi_upon_cex_ = true;
+  options_.dynamic_coi_check_ = true;
   if(!options_.compute_dynamic_coi_upon_cex_) {
+    
     std::cout << "NO COI computed." << std::endl;
     return true;
   }
