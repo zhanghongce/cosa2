@@ -171,6 +171,8 @@ void TransitionSystem::constrain_init(const Term & constraint)
   init_ = solver_->make_term(And, init_, constraint);
 }
 
+
+
 void TransitionSystem::assign_next(const Term & state, const Term & val)
 {
   // TODO: only do this check in debug mode

@@ -295,8 +295,15 @@ void VCDWitnessPrinter::check_insert_scope(std::string full_name,
     }
   } // at the end of this loop, we are at the scope to insert our variable
   const auto & short_name = scopes.back();
+  // if(full_name=="RTL.sqed"){
+  //   std::cout<< " check !"<<std::endl;
+  // }
   uint64_t width = ast->get_sort()->get_width();
-
+  // uint64_t width;
+  // if(ast->get_sort()->get_sort_kind()==smt::BOOL)
+  //   width = 0;
+  // else
+  //   uint64_t width = ast->get_sort()->get_width();
   std::map<std::string, VCDSignal> & signal_set = is_reg ? root->regs : root->wires;
 
   if (signal_set.find(short_name) != signal_set.end()) {
@@ -306,6 +313,7 @@ void VCDWitnessPrinter::check_insert_scope(std::string full_name,
     return;
   }
   auto hashid = new_hash_id();
+  
   signal_set.emplace(short_name,
     VCDSignal(
       short_name + width2range(width), 
@@ -409,13 +417,22 @@ void VCDWitnessPrinter::dump_all(const smt::UnorderedTermMap & valmap,
   uint64_t t, std::ostream & fout) const {
   for (auto && sig_bv_ptr : allsig_bv_) {
     auto pos = valmap.find(sig_bv_ptr->ast);
+    std::string val;
     if (pos == valmap.end()) {
       logger.log(1, "missing value in provided trace @{}: {}" ,
         t,
         sig_bv_ptr->full_name);
       continue;
     }
-    auto val = as_bits(pos->second->to_string());
+    // if(pos->second->to_string()=="false"){
+    //   val = as_bits("#b0");
+    // }
+
+    //   val = as_bits("#b1");
+
+
+    val = as_bits(pos->second->to_string());
+
     valbuf.emplace(
       sig_bv_ptr->hash,
       val

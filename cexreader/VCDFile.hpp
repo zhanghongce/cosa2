@@ -122,7 +122,7 @@ class VCDFile {
         @brief Return a flattened vector of all signals in the file.
         */
         std::vector<VCDSignal*>* get_signals();
-
+        std::vector<VCDTime>    times;
 
     protected:
         
@@ -133,7 +133,7 @@ class VCDFile {
         std::vector<VCDScope*>  scopes;
 
         //! Vector of time values present in the VCD file - sorted, asc
-        std::vector<VCDTime>    times;
+        
 
         //! Map of hashes onto vectors of times and signal values.
         std::map<VCDSignalHash, VCDSignalValues*> val_map;

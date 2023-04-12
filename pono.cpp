@@ -310,7 +310,13 @@ ProverResult check_prop(PonoOptions pono_options,
           "Only got a partial witness from engine. Not suitable for printing.");
     }
   }
-
+  // bool res_COI = prover->check_coi();
+  // if(!res_COI){
+  //   throw PonoException("COI check fail!");
+  // }
+  // else{
+  //   std::cout<<"COI check is pass"<<std::endl;
+  // }
   Term invar;
   if (r == TRUE && (pono_options.show_invar_ || pono_options.check_invar_)) {
     try {
@@ -613,6 +619,13 @@ int main(int argc, char ** argv)
       logger.log(2, "Parsing BTOR2 file: {}", pono_options.filename_);
       FunctionalTransitionSystem fts(s);
       BTOR2Encoder btor_enc(pono_options.filename_, fts);
+    //  auto name_terms = fts.named_terms();
+    //  auto sqed = name_terms.find("RTL.sqed");
+    //  if(sqed==name_terms.end())
+    //   std::cout<< "Not find. "<<std::endl;
+    //  else
+    //   std::cout<< sqed->first << " is "<< sqed->second <<std::endl;
+
     Term prop;
     if (pono_options.find_environment_invariant_){
       assert(!pono_options.cex_reader_.empty());
@@ -650,8 +663,6 @@ int main(int argc, char ** argv)
         cout << "unknown" << endl;
         cout << "b" << pono_options.prop_idx_ << endl;
     }
-   
-    
     }
     else{
     if ((pono_options.cex_reader_.empty())&(pono_options.property_file_.empty())){

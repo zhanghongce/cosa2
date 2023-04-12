@@ -92,10 +92,14 @@ class PropertyInterfacecex : public CexExtractor
     PropertyInterfacecex(const PonoOptions pono_options,
                            const std::string& scope,
                            bool reg_only, TransitionSystem & ts);
+    PropertyInterfacecex(const PonoOptions pono_options,
+                           const std::string& scope,
+                           bool reg_only, TransitionSystem & ts,bool is_parse_concat);                       
     void get_COI_variable(PonoOptions pono_options_);
     smt::Term cex_parse_to_pono_property(filter_t filter,bool add_coi);
     smt::Term cex_parse_to_pono_property(filter_r filter_re,bool add_coi);
     smt::Term cex_parse_to_pono_property(filter_t filter,filter_r filter_re,bool add_coi);
+    smt::Term cex_parse_to_pono_property(bool is_concat);
     smt::Term cex_parse_to_pono_property();
     smt::Term cex_parse_to_pono_property_coi(filter_r filter_re);
     smt::Term cex_parse_to_pono_property_coi(filter_t filter);
@@ -108,6 +112,7 @@ class PropertyInterfacecex : public CexExtractor
     std::vector<std::string> new_name_terms;
     PonoOptions pono_options_;
     is_reg_t is_reg;
+    bool is_parse_concat_;
 };
 
 
@@ -129,16 +134,19 @@ class QedCexParser : public SelectiveExtractor
     is_reg_t is_reg;
 };
 
-class JsonCexParser
+class JsonCexParser: public CexExtractor 
 {
   public:
     typedef std::function<bool(const std::string &n)> filter_t;
     typedef std::function<bool(const smt::Term &n)> filter_r;
   ////Build the Constructor//////
-    JsonCexParser(PonoOptions & pono_options,TransitionSystem & ts);
+    JsonCexParser(PonoOptions & pono_options,const std::string& scope,TransitionSystem & ts);
     smt::Term json_cex_parse_to_pono_property(filter_r filter_re);
     smt::Term json_cex_parse_to_pono_property(filter_t filter);
     smt::Term json_cex_parse_to_pono_property();
+    smt::Term json_cex_vcd_parse_to_pono_property(filter_r filter_re);
+    smt::Term json_cex_vcd_parse_to_pono_property(filter_t filter);
+    smt::Term json_cex_vcd_parse_to_pono_property();
     int get_reg_width();
     int get_reg_min_width();
     std::vector<int> get_width;
@@ -147,6 +155,7 @@ class JsonCexParser
     void get_info(const std::pair<int,int> & out, int & idx0, int & idx1);
     TransitionSystem & ts_;
     std::vector<std::string> name_terms;
+    std::vector<std::string> qed_name_terms;
     std::vector<std::string> value_terms;
     std::vector<std::string> new_name_terms;
     std::vector<std::string> new_value_terms;
@@ -156,7 +165,7 @@ class JsonCexParser
     // std::array<int> extract_val_arr;
     PonoOptions pono_options_;
     bool having_extract;
-    // is_reg_t is_reg;
+    is_reg_t is_reg;
 };
 
 }  // namespace pono

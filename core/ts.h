@@ -106,6 +106,13 @@ class TransitionSystem
    * assignment)
    *  3) state has already been assigned a next state update
    */
+
+
+  void transfer_init(const smt::Term & new_init);
+  /*
+  When we need to replace the term in the init, we can use this function
+  
+  */
   void assign_next(const smt::Term & state, const smt::Term & val);
 
   /* Add an invariant constraint to the system

@@ -161,6 +161,22 @@ pono_options_(pono_options),ts_(ts), is_reg([this](const std::string & check_nam
     get_COI_variable(pono_options_);
   }
 
+PropertyInterfacecex::PropertyInterfacecex(const PonoOptions pono_options,
+                           const std::string& scope,
+                           bool reg_only, TransitionSystem & ts,bool is_parse_concat):
+pono_options_(pono_options),ts_(ts), is_reg([this](const std::string & check_name) -> bool{ 
+  auto pos = ts_.named_terms().find(check_name);
+  // std::cout<< check_name<<std::endl;
+  if(pos == ts_.named_terms().end())
+    return false;
+  return ts_.is_curr_var(pos->second);
+ } ) , is_parse_concat_(is_parse_concat)
+  {
+    const std::string& vcd_file_name = pono_options.cex_reader_;
+    if(is_parse_concat_)
+      parse_from_final_value(vcd_file_name, scope, is_reg, reg_only);
+  }
+
 void PropertyInterfacecex::get_COI_variable(PonoOptions pono_options_){
     const std::string json_name = pono_options_.smt_path_ + "/" + "COI_variable.json";
     std::ifstream f(json_name);
@@ -177,6 +193,10 @@ void PropertyInterfacecex::get_COI_variable(PonoOptions pono_options_){
       auto pos_1 = var_copy.rfind("RTL.");
       if(pos_1!=std::string::npos){
         var_copy = var_copy.substr(pos_1+4);
+      }
+      auto pos_qed = var_copy.rfind("qed0.");
+      if(pos_qed!=std::string::npos){
+        continue;
       }
       // auto pos = var_copy.rfind('[');
       // if (pos != std::string::npos) {
@@ -351,6 +371,34 @@ smt::Term PropertyInterfacecex::cex_parse_to_pono_property(filter_t filter,bool 
   // std::cout<<prop->to_string()<<std::endl;
   return ts_.make_term(Not, prop);
 }
+smt::Term PropertyInterfacecex::cex_parse_to_pono_property(bool is_concat)
+{
+  assert(is_concat);
+  // NOT (var1 == val1 && var2 == val2 && ...)
+  std::string filename =  "init.txt"; 
+  ofstream change_init(filename.c_str());
+  smt::Term prop;
+  if(is_concat){
+    for (const auto & var_val_pair : GetCex() ) {
+      const auto & var_name = var_val_pair.first;
+      
+      auto pos = ts_.named_terms().find(var_name);
+      assert(pos != ts_.named_terms().end());
+      auto var = pos->second;
+      auto sort = var->get_sort();
+      auto width = sort->get_width();
+      change_init<<var_name<<" "<<std::to_string(width)<<"'b"<<var_val_pair.second<<std::endl;
+      auto val = ts_.make_term(var_val_pair.second, sort, 2);
+      auto eq = ts_.make_term(Equal, var, val);
+      if (prop == nullptr)
+        prop = eq;
+      else
+        prop = ts_.make_term(And, prop, eq);
+    }
+  }
+  // std::cout<<prop->to_string()<<std::endl;
+  return prop;
+}
 smt::Term PropertyInterfacecex::cex_parse_to_pono_property()
 {
   // NOT (var1 == val1 && var2 == val2 && ...)
@@ -372,6 +420,7 @@ smt::Term PropertyInterfacecex::cex_parse_to_pono_property()
     else
       prop = ts_.make_term(And, prop, eq);
   }
+  
   // std::cout<<prop->to_string()<<std::endl;
   return ts_.make_term(Not, prop);
 }
@@ -538,16 +587,32 @@ smt::Term QedCexParser::cex2property(
 
 
 
-JsonCexParser::JsonCexParser(PonoOptions & pono_options,TransitionSystem & ts):
-  pono_options_(pono_options),ts_(ts){
+JsonCexParser::JsonCexParser(PonoOptions & pono_options,const std::string& scope,TransitionSystem & ts):
+  pono_options_(pono_options),ts_(ts),is_reg([this](const std::string & check_name) -> bool{ 
+  auto pos = ts_.named_terms().find(check_name);
+  // std::cout<< check_name<<std::endl;
+  if(pos == ts_.named_terms().end())
+    return false;
+  return ts_.is_curr_var(pos->second);
+ })
+ {
+      const std::string& vcd_file_name = pono_options.cex_reader_;
+      // parse_from(vcd_file_name, scope, is_reg, true);
       const std::string json_name = pono_options_.smt_path_ + "/" + "COI_variable.json";
+      const std::string qed_name = pono_options_.smt_path_ + "/" + "qed_signal.json";
       std::ifstream f(json_name);
+      std::ifstream f1(qed_name);
       if(!f.is_open() )
           return ;
       nlohmann::json data = nlohmann::json::parse(f);
+      if(f.is_open()){
+        nlohmann::json data_qed = nlohmann::json::parse(f1);
+        data_qed.at("name").get_to(qed_name_terms);
+      }
+       
       data.at("name").get_to(name_terms); 
       data.at("value").get_to(value_terms); 
-      auto using_coi = false;
+      auto using_coi = true;
       if(using_coi){
         having_extract = data.find("name_to_extract")!=data.end();
         // std::vector<std::vector<std::pair<int,int>>> extract_val_middle;
@@ -559,6 +624,17 @@ JsonCexParser::JsonCexParser(PonoOptions & pono_options,TransitionSystem & ts):
       auto count = 0;
       for(const auto var: name_terms) {
       std::cout<<"The COI variable is: "<<var<<endl;
+      auto pos_qed = var.rfind("qed");
+      if(pos_qed!=std::string::npos){
+        std::cout<<"The COI variable is in the QED module. "<<var<<endl;
+        count = count + 1;
+        continue;
+      }
+      if(!qed_name_terms.empty()&&(std::find(qed_name_terms.begin(), qed_name_terms.end(), var) != qed_name_terms.end())){
+        std::cout<<"The COI variable is for the SQED test. "<<var<<endl;
+        count = count + 1;
+        continue;
+      }
       auto var_copy = var;
       if (var_copy.length() > 2 && var_copy.front() == var_copy.back() &&
         var_copy.front() == '|') // remove extra | pair
@@ -742,6 +818,172 @@ smt::Term JsonCexParser::json_cex_parse_to_pono_property(){
     else{
     eq = ts_.make_term(Equal, var, val);    
     } 
+    if(prop!=nullptr){
+      prop = ts_.make_term(And, prop, eq);
+    }
+    else{
+      prop = eq;
+    }
+  } 
+  if (prop==nullptr)
+    {
+      return prop;
+    }
+  return ts_.make_term(Not, prop);
+}
+
+smt::Term JsonCexParser::json_cex_vcd_parse_to_pono_property(filter_r filter_re){
+  auto count = 0;
+  smt::Term prop;
+  smt::Term eq;
+  bool is_extract;
+  for(const auto & var_val_pair : GetCex() ){
+    const auto & var_name = var_val_pair.first;
+    vector<string>::iterator result = find( new_name_terms.begin( ), new_name_terms.end( ), var_name );
+    if(result==new_name_terms.end()){
+      continue;
+    }
+    std::vector<pair<int,int>> extracted_out;
+    auto pos = ts_.named_terms().find(var_name);
+    assert(pos != ts_.named_terms().end());    
+    auto var = pos->second;
+    auto sort = var->get_sort();
+    auto val = ts_.make_term(new_value_terms.at(count), sort, 2);
+    count = count + 1;
+    if(having_extract)
+      is_extract = is_extracted(var_name,extracted_out);
+    if(is_extract==true){
+      for(const auto out:extracted_out){
+        int idx0;
+        int idx1;
+        get_info(out,idx0,idx1);
+        auto val_extract = ts_.make_term(smt::Op(smt::PrimOp::Extract, idx0, idx1), val);
+        auto var_extract = ts_.make_term(smt::Op(smt::PrimOp::Extract, idx0, idx1), var);
+        auto eq_extract = ts_.make_term(Equal,var_extract,val_extract);
+        if(eq==nullptr){
+          eq = eq_extract;
+        }
+        else{
+          eq=ts_.make_term(And,eq,eq_extract);
+        }
+      }
+    }
+    else{
+    eq = ts_.make_term(Equal, var, val);    
+    }
+    if ((!filter_re(eq))){
+      continue;
+      }
+    if(prop!=nullptr){
+      prop = ts_.make_term(And, prop, eq);
+    }
+    else{
+      prop = eq;
+    }
+  } 
+  if (prop==nullptr)
+    {
+      return prop;
+    }
+  return ts_.make_term(Not, prop);
+}
+
+smt::Term JsonCexParser::json_cex_vcd_parse_to_pono_property(filter_t filter){
+  auto count = 0;
+  smt::Term prop;
+  smt::Term eq;
+  bool is_extract;
+  for(const auto & var_val_pair : GetCex() ){
+    const auto & var_name = var_val_pair.first;
+    vector<string>::iterator result = find( new_name_terms.begin( ), new_name_terms.end( ), var_name );
+    if(result==new_name_terms.end()){
+      continue;
+    }
+    if(!filter(var_name)){
+      count = count + 1;
+      continue;      
+    }
+    std::vector<pair<int,int>> extracted_out;
+    auto pos = ts_.named_terms().find(var_name);
+    assert(pos != ts_.named_terms().end());    
+    auto var = pos->second;
+    auto sort = var->get_sort();
+    auto val = ts_.make_term(new_value_terms.at(count), sort, 2);
+    count = count + 1;
+    if(having_extract)
+      is_extract = is_extracted(var_name,extracted_out);
+    if(is_extract==true){
+      for(const auto out:extracted_out){
+        int idx0;
+        int idx1;
+        get_info(out,idx0,idx1);
+        auto val_extract = ts_.make_term(smt::Op(smt::PrimOp::Extract, idx0, idx1), val);
+        auto var_extract = ts_.make_term(smt::Op(smt::PrimOp::Extract, idx0, idx1), var);
+        auto eq_extract = ts_.make_term(Equal,var_extract,val_extract);
+        if(eq==nullptr){
+          eq = eq_extract;
+        }
+        else{
+          eq=ts_.make_term(And,eq,eq_extract);
+        }
+      }
+    }
+    else{
+    eq = ts_.make_term(Equal, var, val);    
+    }
+    if(prop!=nullptr){
+      prop = ts_.make_term(And, prop, eq);
+    }
+    else{
+      prop = eq;
+    }
+  } 
+  if (prop==nullptr)
+    {
+      return prop;
+    }
+  return ts_.make_term(Not, prop);
+}
+
+smt::Term JsonCexParser::json_cex_vcd_parse_to_pono_property(){
+  auto count = 0;
+  smt::Term prop;
+  smt::Term eq;
+  bool is_extract;
+  for(const auto & var_val_pair : GetCex() ){
+    const auto & var_name = var_val_pair.first;
+    vector<string>::iterator result = find( new_name_terms.begin( ), new_name_terms.end( ), var_name );
+    if(result==new_name_terms.end()){
+      continue;
+    }
+    std::vector<pair<int,int>> extracted_out;
+    auto pos = ts_.named_terms().find(var_name);
+    assert(pos != ts_.named_terms().end());    
+    auto var = pos->second;
+    auto sort = var->get_sort();
+    auto val = ts_.make_term(new_value_terms.at(count), sort, 2);
+    count = count + 1;
+    if(having_extract)
+      is_extract = is_extracted(var_name,extracted_out);
+    if(is_extract==true){
+      for(const auto out:extracted_out){
+        int idx0;
+        int idx1;
+        get_info(out,idx0,idx1);
+        auto val_extract = ts_.make_term(smt::Op(smt::PrimOp::Extract, idx0, idx1), val);
+        auto var_extract = ts_.make_term(smt::Op(smt::PrimOp::Extract, idx0, idx1), var);
+        auto eq_extract = ts_.make_term(Equal,var_extract,val_extract);
+        if(eq==nullptr){
+          eq = eq_extract;
+        }
+        else{
+          eq=ts_.make_term(And,eq,eq_extract);
+        }
+      }
+    }
+    else{
+    eq = ts_.make_term(Equal, var, val);    
+    }
     if(prop!=nullptr){
       prop = ts_.make_term(And, prop, eq);
     }

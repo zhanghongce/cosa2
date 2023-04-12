@@ -614,7 +614,9 @@ ProverResult check_for_inductiveness_bmc(PonoOptions pono_options,
                         const SmtSolver & solver_old,
                         std::vector<UnorderedTermMap> & cex,
                         SolverEnum se,
-                        unsigned step)
+                        unsigned step,
+                        bool need_cex,
+                        BTOR2Encoder btor_enc)
 {
   // create a solver for this
   auto new_solver = create_solver_for(se, KIND, true,false);
@@ -623,11 +625,6 @@ ProverResult check_for_inductiveness_bmc(PonoOptions pono_options,
   FunctionalTransitionSystem new_fts(original_ts,to_new_solver);
   std::vector<UnorderedTermMap> local_cex;
   std::string filename_origin = pono_options.smt_path_ + "/" + "inv_origin.smt2";
-  if ((pono_options.add_assuption_in_origin_ == true)&&(step>0))
-      {       
-        PropertyInterface add_to_frame(filename_origin, new_fts);
-        add_to_frame.AddAssumptionsToTS();
-      }
   Term prop = to_new_solver.transfer_term(prop_old);
 
   // get property name before it is rewritten
@@ -723,6 +720,22 @@ ProverResult check_for_inductiveness_bmc(PonoOptions pono_options,
     r = prover->check_until(pono_options.bound_);
   }
 
+    
+  //   if (r == FALSE) {
+    
+
+  //   // if (!success) {
+  //   //   logger.log(
+  //   //       0,
+  //   //       "Only got a partial witness from engine. Not suitable for printing.");
+  //   // }
+  // }
+  if((r == FALSE)&&(need_cex == true)){
+    bool success = prover->witness(local_cex);
+  print_witness_btor(btor_enc, local_cex, new_fts);
+  VCDWitnessPrinter vcdprinter(new_fts, local_cex);
+  vcdprinter.dump_trace_to_file("env_failure.vcd");
+  }
   return r;
 }
 
@@ -738,13 +751,14 @@ ProverResult get_prop_inv(PonoOptions pono_options,
                   TransitionSystem fts, 
                   int step, 
                   SmtSolver s,
-                  vector<UnorderedTermMap> &cex)
+                  vector<UnorderedTermMap> &cex,
+                  BTOR2Encoder btor_enc)
 {
       ProverResult res;
       ProverResult res_bmc;
       // TODO: Transfer the PropertyInterfacecex to JsonCexParser
       // PropertyInterfacecex prop_cex(pono_options, std::string("RTL"), true, fts);
-      JsonCexParser prop_cex(pono_options,fts);
+      JsonCexParser prop_cex(pono_options, std::string("RTL"),fts);
       UnorderedTermSet prop_check;
       pono_options.sygus_initial_term_width_= prop_cex.get_reg_width();
       int max_width = prop_cex.get_reg_min_width();
@@ -775,7 +789,7 @@ ProverResult get_prop_inv(PonoOptions pono_options,
           if(prop_filter!=nullptr){
             std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
           }
-          if((prop_filter!=nullptr)&&(prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step)) != FALSE)&&((re = check_previous(prop_filter,prop_check)) == false)){
+          if((prop_filter!=nullptr)&&(prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step,false,btor_enc)) != FALSE)&&((re = check_previous(prop_filter,prop_check)) == false)){
             prop_queue.push(make_pair(prop_filter,"coi and repeat filter "));
             std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use COI and repeat Filter. "<<std::endl;
             prop_check.insert(prop_filter);
@@ -784,7 +798,7 @@ ProverResult get_prop_inv(PonoOptions pono_options,
           prop_filter = prop_cex.json_cex_parse_to_pono_property(filter_wid);
           // prop_filter = add_to_frame.Transfer_assump_to_assert(prop_filter);
           std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
-          if((prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step)) != FALSE)&&((re = check_previous(prop_filter,prop_check)) == false)&&(prop_filter!=nullptr)){
+          if((prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step,false,btor_enc)) != FALSE)&&((re = check_previous(prop_filter,prop_check)) == false)&&(prop_filter!=nullptr)){
             prop_queue.push(make_pair(prop_filter,"coi filter and average width filter"));
             std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use COI and average width Filter. "<<std::endl;
             prop_check.insert(prop_filter);
@@ -792,10 +806,14 @@ ProverResult get_prop_inv(PonoOptions pono_options,
           prop_filter = prop_cex.json_cex_parse_to_pono_property();
           // prop_filter = add_to_frame.Transfer_assump_to_assert(prop_filter);
           std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
-          if((prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step)) != FALSE)&&((re = check_previous(prop_filter,prop_check)) == false)&&(prop_filter!=nullptr)){
+          if((prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step,true,btor_enc)) != FALSE)&&((re = check_previous(prop_filter,prop_check)) == false)&&(prop_filter!=nullptr)){
             prop_queue.push(make_pair(prop_filter,"coi filter "));
             std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use COI Filter. "<<std::endl;
             prop_check.insert(prop_filter);
+          }
+          if((prop_check.empty())){
+            res = FALSE;
+            return res;
           }
             // prop_filter = prop_cex.cex_parse_to_pono_property(filter_re,false);
             // if((prop_filter!=nullptr)&&(prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step)) == TRUE)&&((re = check_previous(prop_filter,prop_check)) == false))
@@ -930,7 +948,7 @@ ProverResult get_prop_inv(PonoOptions pono_options,
           if(prop_filter!=nullptr){
             std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
           }
-          if((prop_check.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step)) != FALSE)&&((re = check_previous(prop_filter,prop_check)) == false)&&(prop_filter!=nullptr)){
+          if((prop_check.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step,false,btor_enc)) != FALSE)&&((re = check_previous(prop_filter,prop_check)) == false)&&(prop_filter!=nullptr)){
             prop_queue.push(make_pair(prop_filter,"coi and average width filter "));
             std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use COI and average width Filter. "<<std::endl;
             prop_check.insert(prop_filter);
@@ -940,10 +958,14 @@ ProverResult get_prop_inv(PonoOptions pono_options,
           if(prop_filter!=nullptr){
             std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
           }
-          if((prop_check.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step)) != FALSE)&&((re = check_previous(prop_filter,prop_check)) == false)&&(prop_filter!=nullptr)){
+          if((prop_check.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step,true,btor_enc)) != FALSE)&&((re = check_previous(prop_filter,prop_check)) == false)&&(prop_filter!=nullptr)){
             prop_queue.push(make_pair(prop_filter,"coi filter "));
             std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use COI Filter. "<<std::endl;
             prop_check.insert(prop_filter);
+          }
+          if((prop_check.empty())){
+            res = FALSE;
+            return res;
           }
           // auto max_width_1 = max_width;
           // while(max_width_1 < pono_options.sygus_initial_term_width_){            
@@ -1007,6 +1029,7 @@ int main(int argc, char ** argv)
 
   PonoOptions pono_options;
   ProverResult res = pono_options.parse_and_set_options(argc, argv);
+  // pono_options.witness_ = true;
   if (res == ERROR) return res;
   // expected result returned by option parsing and setting is
   // 'pono::UNKNOWN', indicating that options were correctly set and
@@ -1016,7 +1039,9 @@ int main(int argc, char ** argv)
 
   // set logger verbosity -- can only be set once
   logger.set_verbosity(pono_options.verbosity_);
-
+  std::ifstream fin("assmpt-ila.smt2");
+  if(fin.is_open())
+    pono_options.use_ilang_coi_constraint_file_ = true;
   // For profiling: set signal handlers for common signals to abort
   // program.  This is necessary to gracefully stop profiling when,
   // e.g., an external time limit is enforced to stop the program.
@@ -1046,7 +1071,7 @@ int main(int argc, char ** argv)
     
 
     // new AbsSmtSolver s = BoolectorSolverFactory::create();
-    s->set_opt("incremental","true");
+    // s->set_opt("incremental","true");
     if (pono_options.logging_smt_solver_) {
       s = make_shared<LoggingSolver>(s);
       // TODO consider setting base-context-1 for BTOR here
@@ -1080,6 +1105,8 @@ int main(int argc, char ** argv)
       logger.log(2, "Parsing BTOR2 file: {}", pono_options.filename_);
       FunctionalTransitionSystem fts(s);
       BTOR2Encoder btor_enc(pono_options.filename_, fts);
+
+
     Term prop_filter;
     if (pono_options.find_environment_invariant_){
       // assert(!pono_options.cex_reader_.empty());
@@ -1090,7 +1117,8 @@ int main(int argc, char ** argv)
                   fts, 
                   step, 
                   s,
-                  cex);
+                  cex,
+                  btor_enc);
       // we assume that a prover never returns 'ERROR'
       assert(res != ERROR);
       // ofstream res_collect;

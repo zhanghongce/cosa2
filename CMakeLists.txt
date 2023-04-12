@@ -288,8 +288,10 @@ add_subdirectory(tests)
 
 add_executable(pono-bin "${PROJECT_SOURCE_DIR}/pono.cpp")
 add_executable(pono-bin-env "${PROJECT_SOURCE_DIR}/pono_env.cpp")
+add_executable(pono-bin-concatcex "${PROJECT_SOURCE_DIR}/pono_concatcex.cpp")
 set_target_properties(pono-bin PROPERTIES OUTPUT_NAME pono)
 set_target_properties(pono-bin-env PROPERTIES OUTPUT_NAME pono-env)##the name of the output
+set_target_properties(pono-bin-concatcex PROPERTIES OUTPUT_NAME pono-concatcex)##the name of the output
 target_include_directories(pono-bin PUBLIC
   "${PROJECT_SOURCE_DIR}/utils"
   "${PROJECT_SOURCE_DIR}/core"
@@ -308,8 +310,19 @@ target_include_directories(pono-bin-env PUBLIC
   "${PROJECT_SOURCE_DIR}/deps/btor2tools/src"
   "${SMT_SWITCH_DIR}/local/include")
 
+  target_include_directories(pono-bin-concatcex PUBLIC
+  "${PROJECT_SOURCE_DIR}/utils"
+  "${PROJECT_SOURCE_DIR}/core"
+  "${PROJECT_SOURCE_DIR}/cexreader"
+  "${PROJECT_SOURCE_DIR}/contrib/"
+  "${PROJECT_SOURCE_DIR}/contrib/optionparser-1.7/src"
+  "${PROJECT_SOURCE_DIR}/deps/btor2tools/src"
+  "${SMT_SWITCH_DIR}/local/include")
+
+
 target_link_libraries(pono-bin PUBLIC pono-lib)
 target_link_libraries(pono-bin-env PUBLIC pono-lib)
+target_link_libraries(pono-bin-concatcex PUBLIC pono-lib)
 
 if ("${PONO_STATIC_EXEC}" STREQUAL "YES")
   target_link_libraries(pono-bin PUBLIC -static)
@@ -319,55 +332,63 @@ if ("${PONO_STATIC_EXEC}" STREQUAL "YES")
   target_link_libraries(pono-bin-env PUBLIC -static)
 endif()
 
+if ("${PONO_STATIC_EXEC}" STREQUAL "YES")
+  target_link_libraries(pono-bin-concatcex PUBLIC -static)
+endif()
+
+
 # install smt-switch
 install(TARGETS pono-lib DESTINATION lib)
 install(TARGETS pono-bin DESTINATION bin)
 install(TARGETS pono-bin-env DESTINATION bin)
+install(TARGETS pono-bin-concatcex DESTINATION bin)
 
-add_executable(cexgen-bin "${PROJECT_SOURCE_DIR}/cexgen.cpp")
-set_target_properties(cexgen-bin PROPERTIES OUTPUT_NAME cexgen)
+# add_executable(cexgen-bin "${PROJECT_SOURCE_DIR}/cexgen.cpp")
+# set_target_properties(cexgen-bin PROPERTIES OUTPUT_NAME cexgen)
 
-target_include_directories(cexgen-bin PUBLIC
-  "${PROJECT_SOURCE_DIR}/utils"
-  "${PROJECT_SOURCE_DIR}/core"
-  "${PROJECT_SOURCE_DIR}/cexreader"
-  "${PROJECT_SOURCE_DIR}/contrib/"
-  "${PROJECT_SOURCE_DIR}/contrib/optionparser-1.7/src"
-  "${PROJECT_SOURCE_DIR}/deps/btor2tools/src"
-  "${SMT_SWITCH_DIR}/local/include")
+# target_include_directories(cexgen-bin PUBLIC
+#   "${PROJECT_SOURCE_DIR}/utils"
+#   "${PROJECT_SOURCE_DIR}/core"
+#   "${PROJECT_SOURCE_DIR}/cexreader"
+#   "${PROJECT_SOURCE_DIR}/contrib/"
+#   "${PROJECT_SOURCE_DIR}/contrib/optionparser-1.7/src"
+#   "${PROJECT_SOURCE_DIR}/deps/btor2tools/src"
+#   "${SMT_SWITCH_DIR}/local/include")
 
-target_link_libraries(cexgen-bin PUBLIC pono-lib)
+# target_link_libraries(cexgen-bin PUBLIC pono-lib)
 
-if ("${PONO_STATIC_EXEC}" STREQUAL "YES")
-  target_link_libraries(cexgen-bin PUBLIC -static)
-endif()
+# if ("${PONO_STATIC_EXEC}" STREQUAL "YES")
+#   target_link_libraries(cexgen-bin PUBLIC -static)
+# endif()
 
 
 
-add_executable(cexvalidate-bin "${PROJECT_SOURCE_DIR}/cexvalidate.cpp")
-set_target_properties(cexvalidate-bin PROPERTIES OUTPUT_NAME cexvalidate)
+# add_executable(cexvalidate-bin "${PROJECT_SOURCE_DIR}/cexvalidate.cpp")
+# set_target_properties(cexvalidate-bin PROPERTIES OUTPUT_NAME cexvalidate)
 
-target_include_directories(cexvalidate-bin PUBLIC
-  "${PROJECT_SOURCE_DIR}/utils"
-  "${PROJECT_SOURCE_DIR}/core"
-  "${PROJECT_SOURCE_DIR}/cexreader"
-  "${PROJECT_SOURCE_DIR}/contrib/"
-  "${PROJECT_SOURCE_DIR}/contrib/optionparser-1.7/src"
-  "${PROJECT_SOURCE_DIR}/deps/btor2tools/src"
-  "${SMT_SWITCH_DIR}/local/include")
+# target_include_directories(cexvalidate-bin PUBLIC
+#   "${PROJECT_SOURCE_DIR}/utils"
+#   "${PROJECT_SOURCE_DIR}/core"
+#   "${PROJECT_SOURCE_DIR}/cexreader"
+#   "${PROJECT_SOURCE_DIR}/contrib/"
+#   "${PROJECT_SOURCE_DIR}/contrib/optionparser-1.7/src"
+#   "${PROJECT_SOURCE_DIR}/deps/btor2tools/src"
+#   "${SMT_SWITCH_DIR}/local/include")
 
-target_link_libraries(cexvalidate-bin PUBLIC pono-lib)
+# target_link_libraries(cexvalidate-bin PUBLIC pono-lib)
 
-if ("${PONO_STATIC_EXEC}" STREQUAL "YES")
-  target_link_libraries(cexvalidate-bin PUBLIC -static)
-endif()
+# if ("${PONO_STATIC_EXEC}" STREQUAL "YES")
+#   target_link_libraries(cexvalidate-bin PUBLIC -static)
+# endif()
 
 
 # install smt-switch
 install(TARGETS pono-lib DESTINATION lib)
 install(TARGETS pono-bin DESTINATION bin)
-install(TARGETS cexgen-bin DESTINATION bin)
-install(TARGETS cexvalidate-bin DESTINATION bin)
+install(TARGETS pono-bin-env DESTINATION bin)
+install(TARGETS pono-bin-concatcex DESTINATION bin)
+# install(TARGETS cexgen-bin DESTINATION bin)
+# install(TARGETS cexvalidate-bin DESTINATION bin)
 
 # install public headers
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/core/"
