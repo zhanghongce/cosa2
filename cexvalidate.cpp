@@ -198,13 +198,28 @@ ProverResult check_prop(PonoOptions pono_options,
     try {
       invar = prover->invar();
 
-      write_inv_to_file(invar, outf, step, varname_prefix);
     }
     catch (PonoException & e) {
       std::cout << "Engine " << pono_options.engine_
                 << " does not support getting the invariant." << std::endl;
       outf << "(noinvar)" << endl;      
     }
+
+
+    if (pono_options.check_invar_ && invar) {
+      bool invar_passes = check_invar(new_fts, p.prop(), invar);
+      std::cout << "Invariant Check " << (invar_passes ? "PASSED" : "FAILED")
+                << std::endl;
+      if (!invar_passes) {
+        // shouldn't return true if invariant is incorrect
+        throw PonoException("Invariant Check FAILED");
+      }
+    }
+
+    if ( invar) {
+      write_inv_to_file(invar, outf, step, varname_prefix);
+    }
+
   }
     
 
@@ -212,15 +227,6 @@ ProverResult check_prop(PonoOptions pono_options,
     logger.log(0, "INVAR: {}", invar);
   }
 
-  if (r == TRUE && pono_options.check_invar_ && invar) {
-    bool invar_passes = check_invar(new_fts, p.prop(), invar);
-    std::cout << "Invariant Check " << (invar_passes ? "PASSED" : "FAILED")
-              << std::endl;
-    if (!invar_passes) {
-      // shouldn't return true if invariant is incorrect
-      throw PonoException("Invariant Check FAILED");
-    }
-  }
 
   // now translate cex back to original 
   for (const auto & frame: local_cex) {
@@ -270,7 +276,7 @@ int main(int argc, char ** argv)
   pono_options.engine_ = IC3_BITS;
   pono_options.verbosity_ = 1;
   pono_options.show_invar_ = true;
-  pono_options.check_invar_ = false;
+  pono_options.check_invar_ = true;
 
   if (res == ERROR) return res;
   // expected result returned by option parsing and setting is
