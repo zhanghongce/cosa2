@@ -99,12 +99,15 @@ class PonoOptions
         logging_smt_solver_(default_logging_smt_solver_),
         compute_dynamic_coi_upon_cex_(default_compute_dynamic_coi_upon_cex_),
         dynamic_coi_check_(default_dynamic_coi_check_),
+        env_qed_(default_env_qed_),
         use_ilang_coi_constraint_file_(default_use_ilang_coi_constraint_file_),
         static_coi_(default_static_coi_),
         show_invar_(default_show_invar_),
         check_invar_(default_check_invar_),
         ic3_pregen_(default_ic3_pregen_),
         ic3_indgen_(default_ic3_indgen_),
+        ic3bits_coi_pregen(default_ic3bits_coi_pregen),
+        ic3base_sort_lemma(default_ic3base_sort_lemma),
         ic3_gen_max_iter_(default_ic3_gen_max_iter_),
         mbic3_indgen_mode(default_mbic3_indgen_mode),
         ic3_functional_preimage_(default_ic3_functional_preimage_),
@@ -199,6 +202,7 @@ class PonoOptions
   bool logging_smt_solver_;
   bool compute_dynamic_coi_upon_cex_;  ///< will generate a COI.txt along with cex.vcd
   bool dynamic_coi_check_; ///< will check the COI generated
+  bool env_qed_;
   bool use_ilang_coi_constraint_file_; ///< will read asmpt-ila.smt2 when generate COI.txt
   bool static_coi_;
   bool show_invar_;   ///< display invariant when running from command line
@@ -206,6 +210,8 @@ class PonoOptions
   // ic3 options
   bool ic3_pregen_;  ///< generalize counterexamples in IC3
   bool ic3_indgen_;  ///< inductive generalization in IC3
+  bool ic3bits_coi_pregen;   ///< inductive generalization in IC3
+  bool ic3base_sort_lemma;  ///< sort lemma based on their width or not
   unsigned int ic3_gen_max_iter_; ///< max iterations in ic3 generalization. 0
                                   ///means unbounded
   unsigned int mbic3_indgen_mode;  ///< inductive generalization mode [0,2]
@@ -320,6 +326,7 @@ private:
   static const bool default_witness_ = false;
   static const bool default_compute_dynamic_coi_upon_cex_ = false;
   static const bool default_dynamic_coi_check_ = false;
+  static const bool default_env_qed_ = false;
   static const bool default_use_ilang_coi_constraint_file_ = false;
   static const bool default_static_coi_ = false;
   static const bool default_show_invar_ = false;
@@ -331,6 +338,8 @@ private:
   static const bool default_logging_smt_solver_ = false;
   static const bool default_ic3_pregen_ = true;
   static const bool default_ic3_indgen_ = true;
+  static const bool default_ic3bits_coi_pregen = true;
+  static const bool default_ic3base_sort_lemma = true;
   static const unsigned int default_ic3_gen_max_iter_ = 2;
   static const unsigned int default_mbic3_indgen_mode = 0;
   static const bool default_ic3_functional_preimage_ = false;

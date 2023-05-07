@@ -36,6 +36,9 @@ protected:
   void virtual parse_from(const std::string& vcd_file_name,
                           const std::string& scope, is_reg_t is_reg,
                           bool reg_only);
+  void parse_from_qed(const std::string& vcd_file_name,
+                              const std::string& scope, is_reg_t is_reg,
+                              bool reg_only);
   void parse_from_final_value(const std::string& vcd_file_name,
                               const std::string& scope, is_reg_t is_reg,
                               bool reg_only);

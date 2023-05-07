@@ -309,14 +309,18 @@ ProverResult check_prop(PonoOptions pono_options,
           0,
           "Only got a partial witness from engine. Not suitable for printing.");
     }
+    if(pono_options.dynamic_coi_check_){
+      bool res_COI = prover->check_coi();
+      if(!res_COI){
+        throw PonoException("COI check fail!");
+      }
+      else{
+        std::cout<<"COI check is pass"<<std::endl;
+      }
+    }
   }
-  // bool res_COI = prover->check_coi();
-  // if(!res_COI){
-  //   throw PonoException("COI check fail!");
-  // }
-  // else{
-  //   std::cout<<"COI check is pass"<<std::endl;
-  // }
+
+
   Term invar;
   if (r == TRUE && (pono_options.show_invar_ || pono_options.check_invar_)) {
     try {
@@ -553,7 +557,9 @@ int main(int argc, char ** argv)
   // 'ERROR' otherwise, e.g. wrong command line options or
   // incompatible options were passed
   assert(res == pono::UNKNOWN);
-
+  std::ifstream fin("/data/zhiyuany/cosa2/asmpt-ila.smt2");
+  if(fin.is_open())
+    pono_options.use_ilang_coi_constraint_file_ = true;
   // set logger verbosity -- can only be set once
   logger.set_verbosity(pono_options.verbosity_);
 
@@ -633,7 +639,7 @@ int main(int argc, char ** argv)
       res = TRUE;
 
 
-      PropertyInterfacecex prop_cex(pono_options, std::string("RTL"), true, fts);
+      PropertyInterfacecex prop_cex(pono_options, std::string("RTL"), true, pono_options.env_qed_ , fts);
       prop = prop_cex.cex_parse_to_pono_property();
       std::cout << prop->to_raw_string() << std::endl;
       vector<UnorderedTermMap> cex;
@@ -690,7 +696,7 @@ int main(int argc, char ** argv)
       }
       //////TODO: Add the transformation of the vcd at here!!!!//////////
       if(!pono_options.cex_reader_.empty()){
-        PropertyInterfacecex prop_cex(pono_options, std::string("RTL"), true, fts);
+        PropertyInterfacecex prop_cex(pono_options, std::string("RTL"), true, pono_options.env_qed_,fts);
         prop = prop_cex.cex_parse_to_pono_property();
         std::cout << prop->to_raw_string() << std::endl;
 

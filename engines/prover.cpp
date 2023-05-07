@@ -345,14 +345,14 @@ bool Prover::compute_witness()
   //   for (const auto & v : varset)
   //     std::cout << v->to_string() << std::endl;
   // options_.dynamic_coi_check_ = true;
-  //   if(options_.dynamic_coi_check_) {
-  //     UnorderedTermSet all_inputs = ts_.inputvars();
-  //     for (const auto & inpv : ts_.statevars()) {
-  //       if (ts_.state_updates().find(inpv) == ts_.state_updates().end())
-  //         all_inputs.insert(inpv);
-  //     }
-  //     record_coi_info(varset_slice, all_inputs,  reached_k_ + 1 );
-  //   }
+    if(options_.dynamic_coi_check_) {
+      UnorderedTermSet all_inputs = ts_.inputvars();
+      for (const auto & inpv : ts_.statevars()) {
+        if (ts_.state_updates().find(inpv) == ts_.state_updates().end())
+          all_inputs.insert(inpv);
+      }
+      record_coi_info(varset_slice, all_inputs,  reached_k_ + 1 );
+    }
 
   }
 
@@ -412,7 +412,7 @@ static const bool restrict_RTL_vars_only_in_ILA_RTL_rfcheck = true;
 
 bool Prover::check_coi() {
   options_.compute_dynamic_coi_upon_cex_ = true;
-  options_.dynamic_coi_check_ = true;
+  // options_.dynamic_coi_check_ = true;
   if(!options_.compute_dynamic_coi_upon_cex_) {
     
     std::cout << "NO COI computed." << std::endl;
@@ -507,10 +507,10 @@ void Prover::get_var_in_COI(const var_in_coi_t & input_asts,
                                   var_in_coi_t & varset_slice) {
   PartialModelGen partial_model_getter(solver_);
   partial_model_getter.GetVarListForAsts_in_bitlevel(input_asts, varset_slice);
-  std::cout << "[get var in COI] in:\n";
-  Print(input_asts);
-  std::cout << "[get var in COI] out:\n";
-  Print(varset_slice);
+  // std::cout << "[get var in COI] in:\n";
+  // Print(input_asts);
+  // std::cout << "[get var in COI] out:\n";
+  // Print(varset_slice);
 }
 
 void Prover::compute_dynamic_COI_from_term(const smt::Term & t, const slice_t &ranges, int k, var_in_coi_t & init_state_variables) {
@@ -576,7 +576,7 @@ std::string static remove_vertical_bar(const std::string & in) {
 
 void Prover::recursive_dynamic_COI_using_ILA_info(var_in_coi_t & init_state_variables) {
 
-  AssumptionRelationReader IlaAsmptLoader("asmpt-ila.smt2", ts_);
+  AssumptionRelationReader IlaAsmptLoader("/data/zhiyuany/cosa2/asmpt-ila.smt2", ts_);
   logger.log(3,"{} loaded from asmpt-ila.smt2.", IlaAsmptLoader.ReportStatus());
 
   var_in_coi_t init_sv;

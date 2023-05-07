@@ -83,7 +83,8 @@ public:
   void GetVarListForAsts_in_bitlevel(
     const std::unordered_map<smt::Term,std::vector<std::pair<int,int>>> & input_asts_slices, 
     std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> & varset_slice);
-
+  void dfs_walk_bitlevel_counterexample(const smt::Term & input_ast, int high, int low, 
+    std::unordered_map<smt::Term, pair_set> & varset_slice);
   /** This class computes the variables that need to
    *  appear in the partial model of asts in the vector
    *  @param the vector of ast to walk

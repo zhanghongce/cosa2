@@ -204,7 +204,7 @@ int main(int argc, char ** argv){
   assert(res == pono::UNKNOWN);
   SmtSolver s = create_solver_for(pono_options.smt_solver_,
                                     pono_options.engine_,
-                                    false,
+                                    true,
                                     pono_options.ceg_prophecy_arrays_);
     string file_ext = pono_options.filename_.substr(
         pono_options.filename_.find_last_of(".") + 1);
@@ -227,7 +227,30 @@ int main(int argc, char ** argv){
      if(!pono_options.cex_reader_.empty()){
         PropertyInterfacecex prop_cex(pono_options, std::string("RTL"), true, fts,true);
         new_init = prop_cex.cex_parse_to_pono_property(true);
-        std::cout << new_init->to_raw_string() << std::endl;  
+        
+        auto origin_init = fts.init();  
+        auto orgin_init_symbols = get_free_symbols(origin_init);
+        auto new_init_symbols = get_free_symbols(new_init);
+        // UnorderedTermSet out_predicate;
+        // get_predicates(s,origin_init,out_predicate,true,false,false);
+        std::cout << new_init->to_raw_string() << std::endl;
+        new_init = fts.make_term(And,new_init,origin_init);
+        // for (const auto &origin:orgin_init_symbols){
+        //   if(new_init_symbols.find(origin)!=new_init_symbols.end())
+        //       continue;
+        //   else{
+        //     auto sort = origin->get_sort();
+        //     auto width = sort->get_width();
+        //     std::string value;
+        //     for(auto i = 0;i<width;i++){
+        //       value.append("0");
+        //     }
+        //     auto val = fts.make_term(value,sort,2);
+        //     auto eq = fts.make_term(Equal,val,origin);
+        //     new_init = fts.make_term(And,new_init,eq);
+        //   }
+        // }
+        std::cout << new_init->to_raw_string() << std::endl;
         fts.set_init(new_init);   
       }
         auto propvec = btor_enc.propvec();

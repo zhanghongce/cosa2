@@ -774,10 +774,12 @@ void PartialModelGen::dfs_walk_bitlevel(const smt::Term & input_ast, int high, i
         auto width_extend = op.idx0;
         auto msb = extracted_bit.first;
         auto lsb = extracted_bit.second;
-        if (msb >= width_back)
-          node_stack_.push_back({back, {width_back-1, lsb}});
-        else 
-          node_stack_.push_back({back, {msb, lsb}});
+        if (lsb < width_back) {
+          if (msb >= width_back)
+            node_stack_.push_back({back, {width_back-1, lsb}});
+          else 
+            node_stack_.push_back({back, {msb, lsb}});
+        } // else lsb >= width_back : do nothing
       }
       else if (op.prim_op==smt::PrimOp::Equal || op.prim_op == smt::PrimOp::Distinct || op.prim_op == smt::PrimOp::BVComp) {
         // let's first see if they are equal or not
@@ -831,7 +833,6 @@ void PartialModelGen::dfs_walk_bitlevel(const smt::Term & input_ast, int high, i
     } // end non-variable case
   } // while ( not empty )
 } // end of PartialModelGen::dfs_walk
-
 
 
 } // namespace pono

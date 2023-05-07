@@ -91,7 +91,7 @@ class PropertyInterfacecex : public CexExtractor
   typedef std::function<bool(const smt::Term &n)> filter_r;
     PropertyInterfacecex(const PonoOptions pono_options,
                            const std::string& scope,
-                           bool reg_only, TransitionSystem & ts);
+                           bool reg_only, bool is_qed,TransitionSystem & ts);
     PropertyInterfacecex(const PonoOptions pono_options,
                            const std::string& scope,
                            bool reg_only, TransitionSystem & ts,bool is_parse_concat);                       
@@ -106,11 +106,20 @@ class PropertyInterfacecex : public CexExtractor
     smt::Term cex_parse_to_pono_property_coi();
     int get_reg_width();
     int get_reg_min_width();
+    smt::Term get_extract_from_coi(const smt::Term val, const smt::Term var, std::string var_name);
+    bool is_extracted(const std::string & var_name, std::vector<std::pair<int,int>> & extract_info);
+    void get_info(const std::pair<int,int> & out, int & idx0, int & idx1);
   protected:
     TransitionSystem & ts_;
     std::vector<std::string> name_terms;
+    std::vector<std::string> qed_name_terms;
+    std::vector<std::string> value_terms;
     std::vector<std::string> new_name_terms;
+    std::vector<std::string> new_value_terms;
+    std::vector<std::string> name_extract;
+    std::vector<std::pair<int,int>> extract_val;
     PonoOptions pono_options_;
+    bool having_extract;
     is_reg_t is_reg;
     bool is_parse_concat_;
 };

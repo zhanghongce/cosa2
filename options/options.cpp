@@ -47,6 +47,8 @@ enum optionIndex
   LOGGING_SMT_SOLVER,
   NO_IC3_PREGEN,
   NO_IC3_INDGEN,
+  NO_IC3BITS_COI_PREGEN,
+  NO_IC3_SORT_LEMMA,
   IC3_GEN_MAX_ITER,
   IC3_FUNCTIONAL_PREIMAGE,
   NO_IC3_UNSATCORE_GEN,
@@ -97,7 +99,9 @@ enum optionIndex
   NUM_OF_ITR,
   SMTLIB_PATH,
   ADD_ASSUMP_IN_ORIGIN,
-  COI_Filter
+  COI_Filter,
+  COI_CHECK,
+  ENV_QED
 
 };
 
@@ -263,6 +267,18 @@ const option::Descriptor usage[] = {
     "ic3-no-indgen",
     Arg::None,
     "  --ic3-no-indgen \tDisable inductive generalization in ic3." },
+  { NO_IC3BITS_COI_PREGEN,
+    0,
+    "",
+    "ic3bits-no-coi",
+    Arg::None,
+    "  --ic3bits-no-coi \tDisable COI-based predecessor generalization in ic3bits." },
+  { NO_IC3_SORT_LEMMA,
+    0,
+    "",
+    "ic3-no-sort-lemma",
+    Arg::None,
+    "  --ic3-no-sort-lemma \tDisable Lemma sorting in IC3 base." },
   { IC3_GEN_MAX_ITER,
     0,
     "",
@@ -652,6 +668,20 @@ const option::Descriptor usage[] = {
     Arg::None,
     "  --coi_filter, \tWe can use the cone of influence to remove some variable"
     },    
+  { COI_CHECK,
+    0,
+    "",
+    "coi_check",
+    Arg::None,
+    "  --coi_check, \tWe can check whether the COI we get it right "
+    },
+  { ENV_QED,
+    0,
+    "",
+    "env_qed",
+    Arg::None,
+    "  --env_qed, \tWe find the environment invariant for qed model "
+    },
   { 0, 0, 0, 0, 0, 0 }
 };
 /*********************************** end Option Handling setup
@@ -759,6 +789,8 @@ ProverResult PonoOptions::parse_and_set_options(int argc,
         case CLK: clock_name_ = opt.arg; break;
         case NO_IC3_PREGEN: ic3_pregen_ = false; break;
         case NO_IC3_INDGEN: ic3_indgen_ = false; break;
+        case NO_IC3BITS_COI_PREGEN: ic3bits_coi_pregen = false; break;
+        case NO_IC3_SORT_LEMMA: ic3base_sort_lemma = false; break;
         case IC3_GEN_MAX_ITER: ic3_gen_max_iter_ = atoi(opt.arg); break;
         case MBIC3_INDGEN_MODE:
           mbic3_indgen_mode = atoi(opt.arg);
@@ -849,6 +881,8 @@ ProverResult PonoOptions::parse_and_set_options(int argc,
         case SMTLIB_PATH: smt_path_ = opt.arg; break;
         case ADD_ASSUMP_IN_ORIGIN: add_assuption_in_origin_ = true; break;
         case COI_Filter: coi_filter_ = true; break;
+        case COI_CHECK: dynamic_coi_check_ = true; break;
+        case ENV_QED: env_qed_ = true; break;
         case UNKNOWN_OPTION:
         
           // not possible because Arg::Unknown returns ARG_ILLEGAL
