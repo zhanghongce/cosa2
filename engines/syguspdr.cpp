@@ -183,12 +183,12 @@ void SygusPdr::initialize()
     has_assumptions = true;
     assert(ts_.no_next(c_initnext.first));
     // if (no_next) {
-    constraints_curr_var_.push_back(c_initnext.first);
+    constraints_curr_var_.emplace(c_initnext.first,std::vector<std::pair<int,int>>({{0,0}}));
     // translate input_var to next input_var
     // but the state var ...
     // we will get to next anyway
-    constraints_curr_var_.push_back(
-      next_curr_replace(ts_.next(c_initnext.first)));
+    constraints_curr_var_.emplace(
+      next_curr_replace(ts_.next(c_initnext.first)),std::vector<std::pair<int,int>>({{0,0}}));
     // } // else skip
   }
   // initialize the caches  
@@ -607,7 +607,7 @@ syntax_analysis::PerCexInfo & SygusPdr::setup_cex_info (syntax_analysis::IC3Form
   auto cex_term_map_pos = cex_term_map_.find(post_model);
   if (cex_term_map_pos == cex_term_map_.end()) { // set up per cex candidates
     bool nouse;
-    sygus_term_manager_.get_COI_repeat_list(options_.smt_path_);
+    // sygus_term_manager_.get_COI_repeat_list(options_.smt_path_);
     std::tie(cex_term_map_pos ,  nouse) =
       cex_term_map_.emplace(post_model, 
           syntax_analysis::PerCexInfo( 
@@ -870,12 +870,11 @@ bool InstructionCheckCOI(Term v, smt::SmtSolver s){
 // }
 
 
-std::pair<IC3Formula, syntax_analysis::IC3FormulaModel *>
-    SygusPdr::ExtractPartialModel(const Term & p) {
+  std::pair<IC3Formula, syntax_analysis::IC3FormulaModel *> SygusPdr::ExtractPartialModel(const Term & p) {
   // extract using keep_var_in_partial_model  
   assert(ts_.no_next(p));
 
-  UnorderedTermSet varlist;
+  std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> varlist;
   Term bad_state_no_nxt = next_curr_replace(ts_.next(p));
 
   // we need to make sure input vars are mapped to next input vars
@@ -886,11 +885,15 @@ std::pair<IC3Formula, syntax_analysis::IC3FormulaModel *>
     unsigned idx = 0;
     for (const auto & c : constraints_curr_var_)
       D(4, "[PartialModel] assumption #{} : {}", idx ++, c->to_string());
-    constraints_curr_var_.push_back(bad_state_no_nxt);
-    partial_model_getter.GetVarListForAsts(constraints_curr_var_, varlist);
-    constraints_curr_var_.pop_back();
+    constraints_curr_var_.emplace(bad_state_no_nxt,std::vector<std::pair<int,int>>({{0,0}}));
+    partial_model_getter.GetVarListForAsts_in_bitlevel(constraints_curr_var_, varlist);
+    constraints_curr_var_.erase(bad_state_no_nxt);
   } else {
-    partial_model_getter.GetVarList(bad_state_no_nxt, varlist);
+    std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> in_ast;
+    in_ast.emplace(bad_state_no_nxt, std::vector<std::pair<int,int>>({{0,0}}) );
+    partial_model_getter.GetVarListForAsts_in_bitlevel(
+      in_ast,
+      varlist);
   }
 
   {
@@ -899,39 +902,32 @@ std::pair<IC3Formula, syntax_analysis::IC3FormulaModel *>
       D(4, "[PartialModel] {} := {} ", v->to_string(), solver_->get_value(v)->to_string());
     D(4, "[PartialModel] ------------------- ");
   }
-
   Term conj_partial;
   TermVec conjvec_partial;
   syntax_analysis::IC3FormulaModel::cube_t cube_partial;
-  // BTORbuffer buffer;
-  // buffer.register_expr(p);
-  bool inst_check = false;
-  for (const auto & v : varlist) {
+  for (const auto & v_slice_pair : varlist) {
+    const auto & v = v_slice_pair.first;
     Term val = solver_->get_value(v);
-    auto eq = solver_->make_term(Op(PrimOp::Equal), v,val );
-    if(inst_check == true){
-      if ((keep_var_in_partial_model(v))) {
-        cube_partial.emplace(v,val);
+    for (const auto & h_l_pair:v_slice_pair.second) {
+      if (!keep_var_in_partial_model(v))
+          continue;
+      for (int idx = h_l_pair.first; idx >= h_l_pair.second; --idx) {
+          const auto new_v =  solver_->make_term(Op(PrimOp::Extract, idx, idx), v);
+          const auto new_val = solver_->make_term(Op(PrimOp::Extract, idx, idx), val);
+          cube_partial.emplace(new_v,new_val);
+          auto eq = solver_->make_term(Op(PrimOp::Equal), 
+          new_v,
+          new_val
+        );
         conjvec_partial.push_back( eq );
         if (conj_partial) {
           conj_partial = solver_->make_term(Op(PrimOp::And), conj_partial, eq);
         } else {
           conj_partial = eq;
         }
-      } // end of partial model
-    }
-    else{
-      if (keep_var_in_partial_model(v)) {
-        cube_partial.emplace(v,val);
-        conjvec_partial.push_back( eq );
-        if (conj_partial) {
-          conj_partial = solver_->make_term(Op(PrimOp::And), conj_partial, eq);
-        } else {
-          conj_partial = eq;
-        }
-      } // end of partial model
-    }
+      }
 
+    }
   }
   if (conj_partial == nullptr) {
     conj_partial = solver_true_;
@@ -948,7 +944,18 @@ std::pair<IC3Formula, syntax_analysis::IC3FormulaModel *>
     IC3Formula(conj_partial, {conj_partial}, false /*not a disjunction*/ ),
     partial_model
   );
-} // SygusPdr::ExtractPartialAndFullModel
+}
+
+
+IC3Formula SygusPdr::ic3formula_conjunction(const TermVec & c) const
+{
+  assert(c.size());
+  Term term = c.at(0);
+  for (size_t i = 1; i < c.size(); ++i) {
+    term = solver_->make_term(And, term, c[i]);
+  }
+  return IC3Formula(term, c, false);
+}
 
 
 void SygusPdr::predecessor_generalization(size_t i, const Term & cterm, IC3Formula & pred) {
@@ -960,6 +967,7 @@ void SygusPdr::predecessor_generalization(size_t i, const Term & cterm, IC3Formu
   // return the model and build IC3FormulaModel
   auto partial_full_model = ExtractPartialModel(cterm);
   pred = partial_full_model.first;
+  // pred = ExtractPartialModel(cterm);
 } // generalize_predecessor
 
 
@@ -1006,11 +1014,11 @@ RefineResult SygusPdr::refine() {
       smt::UnorderedTermSet vars;
       get_free_symbolic_consts(c,vars);
       if (!vars.empty())  {
-        constraints_curr_var_.push_back(c);
+        constraints_curr_var_.emplace(c,std::vector<std::pair<int,int>>({{0,0}}));
         // translate input_var to next input_var
         // but the state var ...
-        constraints_curr_var_.push_back(
-          next_curr_replace( ts_.next(c) ));    
+        constraints_curr_var_.emplace(
+          next_curr_replace( ts_.next(c)),std::vector<std::pair<int,int>>({{0,0}}));    
         has_assumptions = true; // previously it can also be true   
       }       
     }

@@ -21,7 +21,8 @@
 #include "engines/prover.h"
 #include "smt/available_solvers.h"
 #include "assert.h"
-
+#include "json/json.hpp"
+#include <fstream>
 #define UNIFIED_WIDTH(ast) ((ast)->get_sort()->get_sort_kind() == smt::SortKind::BOOL) ? 1 : (ast)->get_sort()->get_width();
 
 namespace pono {
@@ -224,6 +225,20 @@ void PartialModelGen::GetVarListForAsts_in_bitlevel(const std::unordered_map<smt
   }
 }
 
+void PartialModelGen::GetVarListForAsts_in_bitlevel_sqed(const std::unordered_map<smt::Term,std::vector<std::pair<int,int>>> & input_asts_slices, 
+    std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> & out,std::string filename) {
+  dfs_walked_extract.clear();
+  std::unordered_map<smt::Term,pair_set> varset_slices;
+  for (const auto & ast_slice_pair : input_asts_slices) {
+    for (const auto & h_l_pair : ast_slice_pair.second)
+      dfs_walk_bitlevel_sqed(ast_slice_pair.first, h_l_pair.first, h_l_pair.second, varset_slices,filename);
+  }
+  for (const auto & var_slice_pair : varset_slices) {
+    std::vector<std::pair<int,int>> intervals(var_slice_pair.second.begin(), var_slice_pair.second.end());
+    auto merged_intervals = merge_intervals(intervals);
+    out.emplace(var_slice_pair.first, merged_intervals);    
+  }
+}
 
 
 void PartialModelGen::GetVarListForAsts(const smt::TermVec & asts, 
@@ -353,6 +368,26 @@ static inline std::string to_unified_bvconst(const std::string & s) {
   return binary;
 }
 
+static inline bool having_qed_symbols(smt::Term ast, std::string filename){
+  smt::UnorderedTermSet out;
+  get_free_symbols(ast,out);
+  std::ifstream f1(filename);
+  std::vector<std::string> qed_name_terms;
+  
+  if(!f1.is_open() )
+      assert(0);
+  nlohmann::json data = nlohmann::json::parse(f1);
+  data.at("name").get_to(qed_name_terms);
+  for(const auto symbol:out){
+    auto symbol_str = symbol->to_string();
+    size_t pos = symbol_str.find('@');
+    assert(pos!=std::string::npos);
+    symbol_str = symbol_str.substr(0,pos);
+    if((symbol->to_string().find("qed")!=std::string::npos)||(std::find(qed_name_terms.begin(), qed_name_terms.end(),symbol_str) != qed_name_terms.end()))
+      return true;
+  }
+  return false;
+}
 
 void find_consecutive_zeros_ones(std::string s, 
   const std::vector<std::pair<int, int>> &ranges,  
@@ -710,6 +745,278 @@ void PartialModelGen::dfs_walk_bitlevel(const smt::Term & input_ast, int high, i
         for(const auto & both_zero: right_zero) {
           node_stack_.push_back({left, both_zero});
           node_stack_.push_back({right, both_zero});
+        }
+      } else if (op.prim_op == smt::PrimOp::BVMul) {
+        ARG2(left,right)
+        auto cond_left = solver_->get_value(left);
+        auto cond_right = solver_->get_value(right);
+        assert(cond_left->is_value() && cond_right->is_value());
+        std::string left_val = cond_left->to_string();
+        std::string right_val = cond_right->to_string();
+        auto left_w = left->get_sort()->get_width();
+        auto right_w = right->get_sort()->get_width();
+        if (is_all_zero(left_val)) // if all zeros
+          node_stack_.push_back({left, {left_w-1,0}});
+          // node_stack_.push_back(make_pair(left,extracted_bit));
+        else if (is_all_zero(right_val)) 
+          node_stack_.push_back({right, {right_w-1,0}});
+        else {
+          node_stack_.push_back({left, {left_w-1,0}});
+          node_stack_.push_back({right, {right_w-1,0}});
+        }
+      } else if (op.prim_op == smt::PrimOp::BVAdd) {
+        ARG2(left,right)
+        auto msb = extracted_bit.first;
+        node_stack_.push_back({left, {msb,0}}); // []
+        node_stack_.push_back({right, {msb,0}});
+      } else if (op.prim_op == smt::PrimOp::BVNot) {
+        ARG1(back)
+        node_stack_.push_back({back, extracted_bit}); // []
+      } else if (op.prim_op == smt::PrimOp::BVXor || op.prim_op == smt::PrimOp::BVXnor) {
+        ARG2(left, right)
+        node_stack_.push_back({left, extracted_bit}); // []
+        node_stack_.push_back({right, extracted_bit}); // []
+      } else if((op.prim_op== smt::PrimOp::Extract)) { // WIP
+        auto b = op.idx0;
+        auto p = op.idx1;
+        auto msb = extracted_bit.first;
+        auto lsb = extracted_bit.second;
+        for (const auto & arg : *ast)
+          node_stack_.push_back({arg, {p+msb,p+lsb}});
+      }
+      else if((op.prim_op== smt::PrimOp::Concat)){
+        ARG2(left,right);
+        auto width_left = left->get_sort()->get_width();
+        auto width_right = right->get_sort()->get_width();
+        auto msb = extracted_bit.first;
+        auto lsb = extracted_bit.second;
+        if(lsb >= width_right) {
+          // work on left
+          node_stack_.push_back({left, {msb-width_right, lsb-width_right}});
+        } else if (msb <width_right) {
+          // work on right
+          node_stack_.push_back({right, {msb, lsb}});
+        } else {
+          // left and right
+          node_stack_.push_back({left, {msb-width_right, 0}});
+          node_stack_.push_back({right, {width_right-1, lsb}});
+        }
+      }
+      else if(op.prim_op== smt::PrimOp::Zero_Extend || op.prim_op== smt::PrimOp::Sign_Extend){
+        ARG1(back);
+        auto width_back = back->get_sort()->get_width();
+        // auto count = 0;
+        auto width_extend = op.idx0;
+        auto msb = extracted_bit.first;
+        auto lsb = extracted_bit.second;
+        if (lsb < width_back) {
+          if (msb >= width_back)
+            node_stack_.push_back({back, {width_back-1, lsb}});
+          else 
+            node_stack_.push_back({back, {msb, lsb}});
+        } // else lsb >= width_back : do nothing
+      }
+      else if (op.prim_op==smt::PrimOp::Equal || op.prim_op == smt::PrimOp::Distinct || op.prim_op == smt::PrimOp::BVComp) {
+        // let's first see if they are equal or not
+        ARG2(left, right);
+        auto result_val = solver_->get_value(ast)->to_string();
+        if ( ((op.prim_op==smt::PrimOp::Equal  || op.prim_op == smt::PrimOp::BVComp) && is_all_one(result_val,1)) || 
+             ( op.prim_op==smt::PrimOp::Distinct && is_all_zero(result_val) )
+           ) {
+            // left and right are in fact equal, go back to trace all bits
+            auto left_width = (left->get_sort()->get_sort_kind() == smt::SortKind::BOOL) ? 1 : left->get_sort()->get_width();
+            node_stack_.push_back({left,{left_width-1,0}});
+            auto right_width = (right->get_sort()->get_sort_kind() == smt::SortKind::BOOL) ? 1 : right->get_sort()->get_width();
+            node_stack_.push_back({right,{right_width-1,0}});
+        } else {
+          // they are not equal, from lsb to msb, find which bits they are different
+          auto left_value = solver_->get_value(left)->to_string();
+          auto right_value = solver_->get_value(right)->to_string();
+          auto left_width = (left->get_sort()->get_sort_kind() == smt::SortKind::BOOL) ? 1 : left->get_sort()->get_width();
+          auto right_width = (right->get_sort()->get_sort_kind() == smt::SortKind::BOOL) ? 1 : right->get_sort()->get_width();
+          assert(left_width == right_width);
+          assert(left_value != right_value);
+
+          int rightmost_difference = find_rightmost_index_with_different_bit(left_value, right_value, left_width);
+          assert(rightmost_difference != -1); // -1 means not found, left == right
+
+          node_stack_.push_back({left,{rightmost_difference,rightmost_difference}});
+          node_stack_.push_back({right,{rightmost_difference,rightmost_difference}});
+        }
+      } else if (op.prim_op==smt::PrimOp::BVUlt || op.prim_op==smt::PrimOp::BVUle || op.prim_op==smt::PrimOp::BVUgt || op.prim_op==smt::PrimOp::BVUge) {
+        // from msb to lsb, find the one that is actually larger
+        ARG2(left, right);
+        auto left_value = solver_->get_value(left)->to_string();
+        auto right_value = solver_->get_value(right)->to_string();
+        auto left_width = (left->get_sort()->get_sort_kind() == smt::SortKind::BOOL) ? 1 : left->get_sort()->get_width();
+        auto right_width = (right->get_sort()->get_sort_kind() == smt::SortKind::BOOL) ? 1 : right->get_sort()->get_width();
+        assert(left_width == right_width);
+
+        int leftmost_difference = find_leftmost_index_with_different_bit(left_value, right_value, left_width);
+        // if left_value == right_value, will return index 0
+
+        node_stack_.push_back({left, {left_width-1, leftmost_difference}});
+        node_stack_.push_back({right,{right_width-1,leftmost_difference}});
+      }
+      else {
+        // if((op.prim_op== smt::PrimOp::BVComp)||(op.prim_op== smt::PrimOp::Distinct)||((op.prim_op== smt::PrimOp::BVUlt)||(op.prim_op==smt::Equal)))
+        for (const auto & arg : *ast) {
+          auto arg_width = (arg->get_sort()->get_sort_kind() == smt::SortKind::BOOL) ? 1 : arg->get_sort()->get_width();
+          node_stack_.push_back({arg,{arg_width-1,0}});
+        }
+      }
+    } // end non-variable case
+  } // while ( not empty )
+} // end of PartialModelGen::dfs_walk
+
+void PartialModelGen::dfs_walk_bitlevel_sqed(const smt::Term & input_ast, int high, int low, 
+    std::unordered_map<smt::Term, pair_set> & varset_slice,std::string filename) {
+  std::vector <std::pair<smt::Term,std::pair<int,int>>> node_stack_;
+  
+  // push the root node
+  auto sort = input_ast->get_sort();
+  auto input_width = sort->get_sort_kind() == smt::SortKind::BOOL ? 1 : sort->get_width();
+  assert(high >= low && low >= 0 && high < input_width);
+  node_stack_.push_back({input_ast,{high, low}});
+
+  while(!node_stack_.empty()) {
+    auto ast = node_stack_.back().first;
+    auto extracted_bit = node_stack_.back().second;
+    auto width = (ast->get_sort()->get_sort_kind() == smt::SortKind::BOOL) ? 1 : ast->get_sort()->get_width();
+    assert(extracted_bit.second >= 0 && extracted_bit.first >= extracted_bit.second && extracted_bit.first < width);
+    
+    // check if we have walked this node (w. the same extracted_bit)
+    auto pos = dfs_walked_extract.find(ast);
+    if(pos != dfs_walked_extract.end() && (pos->second.find(extracted_bit) != pos->second.end()) ) {
+      node_stack_.pop_back();
+      continue;
+    }
+    dfs_walked_extract[ast].insert(extracted_bit);
+
+    smt::Op op = ast->get_op();
+    if (op.is_null()) { // this is the root node
+      if (ast->is_symbolic_const()) {
+        varset_slice[ast].insert(extracted_bit);
+      }
+      // using_extracted = false;
+      node_stack_.pop_back(); // no need to wait for the next time
+      continue;
+    } else { // non variable/non constant case
+      if (op.prim_op == smt::PrimOp::Ite)  {
+        ARG3(cond, texpr, fexpr)
+        auto cond_val = solver_->get_value(cond);
+        assert(cond_val->is_value());
+        // using_extracted = true;
+        if ( is_all_one(cond_val->to_string(),1) ) {
+          ///For the condition, we never use the extracted terms.
+          node_stack_.push_back({cond,{0,0}});
+          node_stack_.push_back({texpr, extracted_bit});
+        }
+        else {
+          node_stack_.push_back({cond,{0,0}});
+          node_stack_.push_back({fexpr, extracted_bit});
+        }
+      } else if (op.prim_op == smt::PrimOp::Implies) {
+        ARG2(left,right)
+        auto cond_left = solver_->get_value(left);
+        auto cond_right = solver_->get_value(right);
+        assert(cond_left->is_value() && cond_right->is_value());
+        assert(ast->get_sort()->get_sort_kind() == smt::SortKind::BOOL || ast->get_sort()->get_width()==1);
+        if (!( is_all_one(cond_left->to_string(),1) )) {       
+          node_stack_.push_back({left, {0,0}});
+        }
+        else if ( is_all_one(cond_right->to_string(), 1) ) {  
+          node_stack_.push_back({right, {0,0}});
+        } else {
+          node_stack_.push_back({left, {0,0}});
+          node_stack_.push_back({right, {0,0}});      
+        }
+      } else if (op.prim_op == smt::PrimOp::And) {
+        ARG2(left,right)
+        auto cond_left = solver_->get_value(left);
+        auto cond_right = solver_->get_value(right);
+        assert(cond_left->is_value() && cond_right->is_value());
+        assert(ast->get_sort()->get_sort_kind() == smt::SortKind::BOOL || ast->get_sort()->get_width()==1);
+        if ((!( is_all_one(cond_left->to_string(),1) ))&&(is_all_one(cond_right->to_string(), 1)||(having_qed_symbols(left,filename)==false))) {  
+          node_stack_.push_back({left, {0,0}});
+        } else if ((!(is_all_one(cond_right->to_string(), 1)))&&(is_all_one(cond_left->to_string(), 1)||(having_qed_symbols(right,filename)==false))) {
+          node_stack_.push_back({right, {0,0}});
+        } else {
+          node_stack_.push_back({left, {0,0}});
+          node_stack_.push_back({right, {0,0}});
+        }
+      } else if (op.prim_op == smt::PrimOp::Or) {
+        ARG2(left,right)
+        auto cond_left = solver_->get_value(left);
+        auto cond_right = solver_->get_value(right);
+        assert(cond_left->is_value() && cond_right->is_value());
+        assert(ast->get_sort()->get_sort_kind() == smt::SortKind::BOOL || ast->get_sort()->get_width()==1);
+        if ((is_all_one(cond_left->to_string(),1))&&((!is_all_one(cond_right->to_string(), 1))||(having_qed_symbols(left,filename)==false))) {
+          node_stack_.push_back({left, {0,0}});
+        }
+        else if (is_all_one(cond_right->to_string(), 1)&&((!is_all_one(cond_left->to_string(), 1))||(having_qed_symbols(right,filename)==false))) {
+          node_stack_.push_back({right, {0,0}});
+        } else  { // it is 0, so both matter
+          node_stack_.push_back({left, {0,0}});
+          node_stack_.push_back({right, {0,0}});
+        }
+      } else if (op.prim_op == smt::PrimOp::BVAnd || op.prim_op == smt::PrimOp::BVNand) {
+        ARG2(left,right)
+        auto cond_left = solver_->get_value(left);
+        auto cond_right = solver_->get_value(right);
+        assert(cond_left->is_value() && cond_right->is_value());
+        std::string left_val = to_unified_bvconst(cond_left->to_string());
+        std::string right_val = to_unified_bvconst(cond_right->to_string());
+        // TODO: 
+        std::vector<std::pair<int, int>> left_zero, left_one;
+        find_consecutive_zeros_ones(left_val, {extracted_bit}, left_zero, left_one);
+        for(const auto & z: left_zero) { // track left is okay
+          node_stack_.push_back({left,z});
+        }
+        std::vector<std::pair<int, int>> right_zero, right_one;
+        find_consecutive_zeros_ones(right_val, left_one, right_zero, right_one);
+        for(const auto & z: right_zero) { // track right is okay
+          node_stack_.push_back({right,z});
+        }
+        for(const auto & both_one: right_one) {
+          node_stack_.push_back({left, both_one});
+          node_stack_.push_back({right, both_one});
+        }
+        if(having_qed_symbols(left,filename)){
+          std::vector<std::pair<int, int>> right_zero_qed, right_one_qed;
+          find_consecutive_zeros_ones(right_val, left_zero, right_zero_qed, right_one_qed);
+          for(const auto & z: right_zero_qed) { // track right is okay
+            node_stack_.push_back({right,z});
+          }
+        }
+      } else if (op.prim_op == smt::PrimOp::BVOr  || op.prim_op == smt::PrimOp::BVNor) {
+        ARG2(left,right)
+        auto cond_left = solver_->get_value(left);
+        auto cond_right = solver_->get_value(right);
+        assert(cond_left->is_value() && cond_right->is_value());
+        std::string left_val = to_unified_bvconst(cond_left->to_string());
+        std::string right_val = to_unified_bvconst(cond_right->to_string());
+        // TODO: 
+        std::vector<std::pair<int, int>> left_zero, left_one;
+        find_consecutive_zeros_ones(left_val, {extracted_bit}, left_zero, left_one);
+        for(const auto & one: left_one) { // track left is okay
+          node_stack_.push_back({left,one});
+        }
+        std::vector<std::pair<int, int>> right_zero, right_one;
+        find_consecutive_zeros_ones(right_val, left_zero, right_zero, right_one);
+        for(const auto & one: right_one) { // track right is okay
+          node_stack_.push_back({right,one});
+        }
+        for(const auto & both_zero: right_zero) {
+          node_stack_.push_back({left, both_zero});
+          node_stack_.push_back({right, both_zero});
+        }
+        if(having_qed_symbols(left,filename)){
+          std::vector<std::pair<int, int>> right_zero_qed, right_one_qed;
+          find_consecutive_zeros_ones(right_val, left_one, right_zero_qed, right_one_qed);
+          for(const auto & z: right_one_qed) { // track right is okay
+            node_stack_.push_back({right,z});
+          }
         }
       } else if (op.prim_op == smt::PrimOp::BVMul) {
         ARG2(left,right)

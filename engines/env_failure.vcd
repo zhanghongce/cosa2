@@ -1,0 +1,416 @@
+$date
+Wednesday 2023/06/07  14:49:52
+$end
+$version PONO $end
+$timescale 1 ns $end
+$var reg 32 v17 alu_out_q[31:0] $end
+$var reg 32 v142 cached_insn_opcode[31:0] $end
+$var reg 5 v63 cached_insn_rs1[4:0] $end
+$var reg 5 v112 cached_insn_rs2[4:0] $end
+$var reg 1 v20 clear_prefetched_high_word_q $end
+$var reg 1 v6 clk $end
+$var reg 1 v28 compressed_instr $end
+$var reg 64 v58 count_cycle[63:0] $end
+$var reg 64 v167 count_instr[63:0] $end
+$var reg 8 v145 cpu_state[7:0] $end
+$var reg 32 v74 cpuregs[0][31:0] $end
+$var reg 32 v118 cpuregs[10][31:0] $end
+$var reg 32 v177 cpuregs[11][31:0] $end
+$var reg 32 v109 cpuregs[12][31:0] $end
+$var reg 32 v102 cpuregs[13][31:0] $end
+$var reg 32 v78 cpuregs[14][31:0] $end
+$var reg 32 v125 cpuregs[15][31:0] $end
+$var reg 32 v152 cpuregs[16][31:0] $end
+$var reg 32 v114 cpuregs[17][31:0] $end
+$var reg 32 v127 cpuregs[18][31:0] $end
+$var reg 32 v157 cpuregs[19][31:0] $end
+$var reg 32 v100 cpuregs[1][31:0] $end
+$var reg 32 v175 cpuregs[20][31:0] $end
+$var reg 32 v191 cpuregs[21][31:0] $end
+$var reg 32 v80 cpuregs[22][31:0] $end
+$var reg 32 v48 cpuregs[23][31:0] $end
+$var reg 32 v143 cpuregs[24][31:0] $end
+$var reg 32 v86 cpuregs[25][31:0] $end
+$var reg 32 v57 cpuregs[26][31:0] $end
+$var reg 32 v181 cpuregs[27][31:0] $end
+$var reg 32 v29 cpuregs[28][31:0] $end
+$var reg 32 v50 cpuregs[29][31:0] $end
+$var reg 32 v22 cpuregs[2][31:0] $end
+$var reg 32 v180 cpuregs[30][31:0] $end
+$var reg 32 v198 cpuregs[31][31:0] $end
+$var reg 32 v202 cpuregs[3][31:0] $end
+$var reg 32 v30 cpuregs[4][31:0] $end
+$var reg 32 v89 cpuregs[5][31:0] $end
+$var reg 32 v83 cpuregs[6][31:0] $end
+$var reg 32 v132 cpuregs[7][31:0] $end
+$var reg 32 v165 cpuregs[8][31:0] $end
+$var reg 32 v189 cpuregs[9][31:0] $end
+$var reg 32 v166 dbg_insn_addr[31:0] $end
+$var reg 1 v67 dbg_irq_call $end
+$var reg 1 v59 dbg_irq_enter $end
+$var reg 32 v92 dbg_irq_ret[31:0] $end
+$var reg 1 v69 dbg_next $end
+$var reg 32 v135 dbg_rs1val[31:0] $end
+$var reg 1 v13 dbg_rs1val_valid $end
+$var reg 32 v85 dbg_rs2val[31:0] $end
+$var reg 1 v46 dbg_rs2val_valid $end
+$var reg 1 v39 dbg_valid_insn $end
+$var reg 32 v162 decoded_imm[31:0] $end
+$var reg 32 v187 decoded_imm_j[31:0] $end
+$var reg 5 v23 decoded_rd[4:0] $end
+$var reg 5 v119 decoded_rs1[4:0] $end
+$var reg 5 v40 decoded_rs2[4:0] $end
+$var reg 1 v199 decoder_pseudo_trigger $end
+$var reg 1 v117 decoder_pseudo_trigger_q $end
+$var reg 1 v96 decoder_trigger $end
+$var reg 1 v185 decoder_trigger_q $end
+$var reg 1 v151 do_waitirq $end
+$var reg 32 v192 eoi[31:0] $end
+$var reg 32 v3 input1697[31:0] $end
+$var reg 5 v7 input1702[4:0] $end
+$var reg 32 v164 input753[31:0] $end
+$var reg 32 v18 input774[31:0] $end
+$var reg 32 v182 input893[31:0] $end
+$var reg 32 v9 input894[31:0] $end
+$var reg 1 v61 instr_add $end
+$var reg 1 v176 instr_addi $end
+$var reg 1 v200 instr_and $end
+$var reg 1 v105 instr_andi $end
+$var reg 1 v134 instr_auipc $end
+$var reg 1 v75 instr_beq $end
+$var reg 1 v24 instr_bge $end
+$var reg 1 v153 instr_bgeu $end
+$var reg 1 v95 instr_blt $end
+$var reg 1 v66 instr_bltu $end
+$var reg 1 v87 instr_bne $end
+$var reg 1 v65 instr_getq $end
+$var reg 1 v148 instr_jal $end
+$var reg 1 v98 instr_jalr $end
+$var reg 1 v161 instr_lb $end
+$var reg 1 v184 instr_lbu $end
+$var reg 1 v90 instr_lh $end
+$var reg 1 v122 instr_lhu $end
+$var reg 1 v126 instr_lui $end
+$var reg 1 v60 instr_lw $end
+$var reg 1 v178 instr_maskirq $end
+$var reg 1 v33 instr_or $end
+$var reg 1 v137 instr_ori $end
+$var reg 1 v203 instr_rdcycle $end
+$var reg 1 v179 instr_rdcycleh $end
+$var reg 1 v144 instr_rdinstr $end
+$var reg 1 v158 instr_rdinstrh $end
+$var reg 1 v91 instr_retirq $end
+$var reg 1 v52 instr_sb $end
+$var reg 1 v172 instr_setq $end
+$var reg 1 v197 instr_sh $end
+$var reg 1 v101 instr_sll $end
+$var reg 1 v196 instr_slli $end
+$var reg 1 v183 instr_slt $end
+$var reg 1 v10 instr_slti $end
+$var reg 1 v32 instr_sltiu $end
+$var reg 1 v155 instr_sltu $end
+$var reg 1 v53 instr_sra $end
+$var reg 1 v45 instr_srai $end
+$var reg 1 v71 instr_srl $end
+$var reg 1 v36 instr_srli $end
+$var reg 1 v130 instr_sub $end
+$var reg 1 v156 instr_sw $end
+$var reg 1 v104 instr_timer $end
+$var reg 1 v25 instr_waitirq $end
+$var reg 1 v138 instr_xor $end
+$var reg 1 v115 instr_xori $end
+$var reg 32 v4 irq[31:0] $end
+$var reg 1 v121 irq_active $end
+$var reg 1 v14 irq_delay $end
+$var reg 32 v19 irq_mask[31:0] $end
+$var reg 32 v168 irq_pending[31:0] $end
+$var reg 2 v38 irq_state[1:0] $end
+$var reg 1 v136 is_alu_reg_imm $end
+$var reg 1 v49 is_alu_reg_reg $end
+$var reg 1 v149 is_beq_bne_blt_bge_bltu_bgeu $end
+$var reg 1 v88 is_compare $end
+$var reg 1 v68 is_jalr_addi_slti_sltiu_xori_ori_andi $end
+$var reg 1 v12 is_lb_lh_lw_lbu_lhu $end
+$var reg 1 v108 is_lbu_lhu_lw $end
+$var reg 1 v131 is_lui_auipc_jal $end
+$var reg 1 v56 is_lui_auipc_jal_jalr_addi_add_sub $end
+$var reg 1 v44 is_sb_sh_sw $end
+$var reg 1 v190 is_sll_srl_sra $end
+$var reg 1 v120 is_slli_srli_srai $end
+$var reg 1 v140 is_slti_blt_slt $end
+$var reg 1 v94 is_sltiu_bltu_sltu $end
+$var reg 1 v42 last_mem_valid $end
+$var reg 1 v150 latched_branch $end
+$var reg 1 v79 latched_compr $end
+$var reg 1 v15 latched_is_lb $end
+$var reg 1 v54 latched_is_lh $end
+$var reg 1 v110 latched_is_lu $end
+$var reg 5 v34 latched_rd[4:0] $end
+$var reg 1 v154 latched_stalu $end
+$var reg 1 v16 latched_store $end
+$var reg 1 v106 latched_trace $end
+$var reg 16 v99 mem_16bit_buffer[15:0] $end
+$var reg 32 v103 mem_addr[31:0] $end
+$var reg 1 v35 mem_do_prefetch $end
+$var reg 1 v163 mem_do_rdata $end
+$var reg 1 v47 mem_do_rinst $end
+$var reg 1 v41 mem_do_wdata $end
+$var reg 1 v21 mem_instr $end
+$var reg 1 v147 mem_la_firstword_reg $end
+$var reg 1 v194 mem_la_secondword $end
+$var reg 32 v2 mem_rdata[31:0] $end
+$var reg 32 v111 mem_rdata_q[31:0] $end
+$var reg 1 v1 mem_ready $end
+$var reg 2 v116 mem_state[1:0] $end
+$var reg 1 v107 mem_valid $end
+$var reg 32 v186 mem_wdata[31:0] $end
+$var reg 2 v173 mem_wordsize[1:0] $end
+$var reg 4 v72 mem_wstrb[3:0] $end
+$var reg 32 v55 next_insn_opcode[31:0] $end
+$var reg 32 v27 pcpi_insn[31:0] $end
+$var reg 32 v146 pcpi_rd[31:0] $end
+$var reg 1 v139 pcpi_ready $end
+$var reg 1 v201 pcpi_valid $end
+$var reg 1 v0 pcpi_wait $end
+$var reg 1 v8 pcpi_wr $end
+$var reg 1 v51 prefetched_high_word $end
+$var reg 32 v43 q_insn_opcode[31:0] $end
+$var reg 5 v193 q_insn_rs1[4:0] $end
+$var reg 5 v73 q_insn_rs2[4:0] $end
+$var reg 32 v124 reg_next_pc[31:0] $end
+$var reg 32 v113 reg_op1[31:0] $end
+$var reg 32 v31 reg_op2[31:0] $end
+$var reg 32 v129 reg_out[31:0] $end
+$var reg 32 v76 reg_pc[31:0] $end
+$var reg 5 v174 reg_sh[4:0] $end
+$var reg 1 v5 resetn $end
+$var reg 1 v37 rvfi_halt $end
+$var reg 32 v160 rvfi_insn[31:0] $end
+$var reg 1 v62 rvfi_intr $end
+$var reg 32 v77 rvfi_mem_addr[31:0] $end
+$var reg 32 v195 rvfi_mem_rdata[31:0] $end
+$var reg 4 v81 rvfi_mem_rmask[3:0] $end
+$var reg 32 v26 rvfi_mem_wdata[31:0] $end
+$var reg 4 v64 rvfi_mem_wmask[3:0] $end
+$var reg 2 v141 rvfi_mode[1:0] $end
+$var reg 64 v170 rvfi_order[63:0] $end
+$var reg 32 v84 rvfi_pc_rdata[31:0] $end
+$var reg 5 v97 rvfi_rd_addr[4:0] $end
+$var reg 32 v128 rvfi_rd_wdata[31:0] $end
+$var reg 5 v169 rvfi_rs1_addr[4:0] $end
+$var reg 32 v82 rvfi_rs1_rdata[31:0] $end
+$var reg 5 v159 rvfi_rs2_addr[4:0] $end
+$var reg 32 v123 rvfi_rs2_rdata[31:0] $end
+$var reg 1 v70 rvfi_trap $end
+$var reg 1 v171 rvfi_valid $end
+$var reg 32 v188 timer[31:0] $end
+$var reg 36 v11 trace_data[35:0] $end
+$var reg 1 v133 trace_valid $end
+$var reg 1 v93 trap $end
+$enddefinitions $end
+#0
+b0 v0
+b0 v1
+b00000000000000000000000000000000 v2
+b00000000000000000000000000000000 v3
+b00000000000000000000000000000000 v4
+b0 v5
+b0 v6
+b00000 v7
+b0 v8
+b00000000000000000000000000000000 v9
+b1 v10
+b000000000000000000000000000000000000 v11
+b0 v12
+b0 v13
+b1 v14
+b1 v15
+b1 v16
+b00000000000000000000000000000000 v17
+b00000000000000000000000000000000 v18
+b00000000000000000000000000000000 v19
+b1 v20
+b0 v21
+b00000000000000000000000000000000 v22
+b00000 v23
+b1 v24
+b1 v25
+b00000000000000000000000000000000 v26
+b00000000000000000000000000000000 v27
+b0 v28
+b00000000000000000000000000000000 v29
+b00000000000000000000000000000000 v30
+b00000000000000000000000000000000 v31
+b1 v32
+b1 v33
+b00000 v34
+b1 v35
+b1 v36
+b0 v37
+b11 v38
+b1 v39
+b00000 v40
+b1 v41
+b1 v42
+b00000000000000000000000000000000 v43
+b0 v44
+b1 v45
+b0 v46
+b1 v47
+b00000000000000000000000000000000 v48
+b0 v49
+b00000000000000000000000000000000 v50
+b1 v51
+b1 v52
+b1 v53
+b1 v54
+b00000000000000000000000000000000 v55
+b0 v56
+b00000000000000000000000000000000 v57
+b0000000000000000000000000000000000000000000000000000000000000000 v58
+b1 v59
+b1 v60
+b1 v61
+b0 v62
+b00000 v63
+b0000 v64
+b1 v65
+b1 v66
+b1 v67
+b0 v68
+b0 v69
+b0 v70
+b1 v71
+b0000 v72
+b00000 v73
+b00000000000000000000000000000000 v74
+b1 v75
+b11111111111111111111111111111111 v76
+b00000000000000000000000000000000 v77
+b00000000000000000000000000000000 v78
+b0 v79
+b00000000000000000000000000000000 v80
+b0000 v81
+b00000000000000000000000000000000 v82
+b00000000000000000000000000000000 v83
+b00000000000000000000000000000000 v84
+b00000000000000000000000000000000 v85
+b00000000000000000000000000000000 v86
+b1 v87
+b1 v88
+b00000000000000000000000000000000 v89
+b1 v90
+b1 v91
+b00000000000000000000000000000000 v92
+b1 v93
+b0 v94
+b1 v95
+b1 v96
+b00000 v97
+b1 v98
+b0000000000000000 v99
+b00000000000000000000000000000000 v100
+b1 v101
+b00000000000000000000000000000000 v102
+b00000000000000000000000000000000 v103
+b1 v104
+b1 v105
+b1 v106
+b1 v107
+b0 v108
+b00000000000000000000000000000000 v109
+b1 v110
+b00000000000000000000000000000000 v111
+b00000 v112
+b00000000000000000000000000000000 v113
+b00000000000000000000000000000000 v114
+b1 v115
+b11 v116
+b0 v117
+b00000000000000000000000000000000 v118
+b00000 v119
+b0 v120
+b1 v121
+b1 v122
+b00000000000000000000000000000000 v123
+b11111111111111111111111111111111 v124
+b00000000000000000000000000000000 v125
+b1 v126
+b00000000000000000000000000000000 v127
+b11111111111111111111111111111111 v128
+b11111111111111111111111111111111 v129
+b1 v130
+b0 v131
+b00000000000000000000000000000000 v132
+b1 v133
+b1 v134
+b00000000000000000000000000000000 v135
+b0 v136
+b1 v137
+b1 v138
+b0 v139
+b0 v140
+b11 v141
+b00000000000000000000000000000000 v142
+b00000000000000000000000000000000 v143
+b1 v144
+b00000000 v145
+b00000000000000000000000000000000 v146
+b1 v147
+b1 v148
+b1 v149
+b1 v150
+b1 v151
+b00000000000000000000000000000000 v152
+b1 v153
+b1 v154
+b1 v155
+b1 v156
+b00000000000000000000000000000000 v157
+b1 v158
+b00000 v159
+b00000000000000000000000000000000 v160
+b1 v161
+b00000000000000000000000000000000 v162
+b1 v163
+b00000000000000000000000000000000 v164
+b00000000000000000000000000000000 v165
+b00000000000000000000000000000000 v166
+b0000000000000000000000000000000000000000000000000000000000000000 v167
+b11111111111111111111111111111111 v168
+b00000 v169
+b0000000000000000000000000000000000000000000000000000000000000000 v170
+b1 v171
+b1 v172
+b00 v173
+b00000 v174
+b00000000000000000000000000000000 v175
+b1 v176
+b00000000000000000000000000000000 v177
+b1 v178
+b1 v179
+b00000000000000000000000000000000 v180
+b00000000000000000000000000000000 v181
+b00000000000000000000000000000000 v182
+b1 v183
+b1 v184
+b0 v185
+b00000000000000000000000000000000 v186
+b00000000000000000000000000000000 v187
+b11111111111111111111111111111111 v188
+b00000000000000000000000000000000 v189
+b0 v190
+b00000000000000000000000000000000 v191
+b11111111111111111111111111111111 v192
+b00000 v193
+b1 v194
+b00000000000000000000000000000000 v195
+b1 v196
+b1 v197
+b00000000000000000000000000000000 v198
+b1 v199
+b1 v200
+b1 v201
+b00000000000000000000000000000000 v202
+b1 v203
+#1

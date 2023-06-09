@@ -45,169 +45,20 @@
 #include "utils/make_provers.h"
 #include "utils/ts_analysis.h"
 #include "utils/term_analysis.h"
+#include "utils/str_util.h"
 #include <fstream>
 #include <filesystem>
 using namespace pono;
 using namespace smt;
 using namespace std;
 namespace fs = std::filesystem;
-ProverResult check_prop_coi(PonoOptions pono_options,
-                        Term & prop,
-                        TransitionSystem & original_ts,
-                        const SmtSolver & solver_old,
-                        std::vector<UnorderedTermMap> & cex)
-{
-  // get property name before it is rewritten
-  auto new_solver = create_solver_for(CVC5, pono_options.engine_, false,false);
-  TermTranslator to_new_solver(new_solver);
-  TermTranslator to_old_solver(solver_old);
-  FunctionalTransitionSystem new_fts(original_ts,to_new_solver);
-  std::vector<UnorderedTermMap> local_cex;
-  auto transferer = smt::TermTranslator(to_new_solver);
-  auto prop_new = transferer.transfer_term(prop);
-  const string prop_name = new_fts.get_name(prop_new);
-  logger.log(1, "Solving property: {}", prop_name);
-  logger.log(3, "INIT:\n{}", new_fts.init());
-  logger.log(3, "TRANS:\n{}", new_fts.trans());
-
-  // modify the transition system and property based on options
-  if (!pono_options.clock_name_.empty()) {
-    Term clock_symbol = new_fts.lookup(pono_options.clock_name_);
-    toggle_clock(new_fts, clock_symbol);
-  }
-  if (!pono_options.reset_name_.empty()) {
-    std::string reset_name = pono_options.reset_name_;
-    bool negative_reset = false;
-    if (reset_name.at(0) == '~') {
-      reset_name = reset_name.substr(1, reset_name.length() - 1);
-      negative_reset = true;
-    }
-    Term reset_symbol = new_fts.lookup(reset_name);
-    if (negative_reset) {
-      SortKind sk = reset_symbol->get_sort()->get_sort_kind();
-      reset_symbol = (sk == BV) ? new_solver->make_term(BVNot, reset_symbol)
-                                : new_solver->make_term(Not, reset_symbol);
-    }
-    Term reset_done = add_reset_seq(new_fts, reset_symbol, pono_options.reset_bnd_);
-    // guard the property with reset_done
-    prop_new = new_fts.solver()->make_term(Implies, reset_done, prop_new);
-  }
-
-
-  if (pono_options.static_coi_) {
-    /* Compute the set of state/input variables related to the
-       bad-state property. Based on that information, rebuild the
-       transition relation of the transition system. */
-    StaticConeOfInfluence coi(new_fts, { prop_new }, pono_options.verbosity_);
-  }
-
-  if (pono_options.pseudo_init_prop_) {
-    new_fts = pseudo_init_and_prop(new_fts, prop_new);
-  }
-
-  if (pono_options.promote_inputvars_) {
-    new_fts = promote_inputvars(new_fts);
-    assert(!new_fts.inputvars().size());
-  }
-
-  if (!new_fts.only_curr(prop_new)) {
-    logger.log(1,
-               "Got next state or input variables in property. "
-               "Generating a monitor state.");
-    prop_new = add_prop_monitor(new_fts, prop_new);
-  }
-
-  if (pono_options.assume_prop_) {
-    // NOTE: crucial that pseudo_init_prop and add_prop_monitor passes are
-    // before this pass. Can't assume the non-delayed prop and also
-    // delay it
-    prop_in_trans(new_fts, prop_new);
-  }
-
-  Property p(new_solver, prop_new, prop_name);
-
-  // end modification of the transition system and property
-
-  Engine eng = pono_options.engine_;
-
-  std::shared_ptr<Prover> prover;
-  if (pono_options.cegp_abs_vals_) {
-    prover = make_cegar_values_prover(eng, p, new_fts, new_solver, pono_options);
-  } else if (pono_options.ceg_bv_arith_) {
-    prover = make_cegar_bv_arith_prover(eng, p, new_fts, new_solver, pono_options);
-  } else if (pono_options.ceg_prophecy_arrays_) {
-    prover = make_ceg_proph_prover(eng, p, new_fts, new_solver, pono_options);
-  } else {
-    prover = make_prover(eng, p, new_fts, new_solver, pono_options);
-  }
-  assert(prover);
-
-  // TODO: handle this in a more elegant way in the future
-  //       consider calling prover for CegProphecyArrays (so that underlying
-  //       model checker runs prove unbounded) or possibly, have a command line
-  //       flag to pick between the two
-  ProverResult r;
-  if (pono_options.engine_ == MSAT_IC3IA)
-  {
-    // HACK MSAT_IC3IA does not support check_until
-    r = prover->prove();
-  }
-  else
-  {
-    r = prover->check_until(pono_options.bound_);
-  }
-
-  if (r == FALSE && pono_options.witness_) {
-    bool success = prover->witness(cex);
-    if (!success) {
-      logger.log(
-          0,
-          "Only got a partial witness from engine. Not suitable for printing.");
-    }
-  }
-
-  Term invar;
-  if (r == TRUE && (pono_options.show_invar_ || pono_options.check_invar_)) {
-    try {
-      invar = prover->invar();
-    }
-    catch (PonoException & e) {
-      std::cout << "Engine " << pono_options.engine_
-                << " does not support getting the invariant." << std::endl;
-    }
-  }
-    
-
-  if (r == TRUE && pono_options.show_invar_ && invar) {
-    logger.log(0, "INVAR: {}", invar);
-  }
-
-  if (r == TRUE && pono_options.check_invar_ && invar) {
-    bool invar_passes = check_invar(new_fts, p.prop(), invar);
-    std::cout << "Invariant Check " << (invar_passes ? "PASSED" : "FAILED")
-              << std::endl;
-    if (!invar_passes) {
-      // shouldn't return true if invariant is incorrect
-      throw PonoException("Invariant Check FAILED");
-    }
-  }
-  for (const auto & frame: local_cex) {
-    cex.push_back(UnorderedTermMap());
-    for(const auto & var_val : frame) {
-      cex.back().emplace(to_old_solver.transfer_term(var_val.first, false), 
-                         to_old_solver.transfer_term(var_val.second, false));
-    }
-  }
-
-  return r;
-}
-
 
 ProverResult check_prop(PonoOptions pono_options,
                         Term & prop,
                         TransitionSystem & ts,
                         const SmtSolver & s,
-                        std::vector<UnorderedTermMap> & cex)
+                        std::vector<UnorderedTermMap> & cex,
+                        Term & original_trans)
 {
   // get property name before it is rewritten
   const string prop_name = ts.get_name(prop);
@@ -310,14 +161,16 @@ ProverResult check_prop(PonoOptions pono_options,
           "Only got a partial witness from engine. Not suitable for printing.");
     }
     if(pono_options.dynamic_coi_check_){
-      bool res_COI = prover->check_coi();
-      if(!res_COI){
-        throw PonoException("COI check fail!");
-      }
-      else{
-        std::cout<<"COI check is pass"<<std::endl;
-      }
-    }
+      bool res_COI = prover->check_coi(original_trans);
+      if(!res_COI) {
+          std::vector<smt::UnorderedTermMap> coi_cex;
+          prover->coi_failure_witness(coi_cex);
+          VCDWitnessPrinter vcdprinter(ts, coi_cex);
+          vcdprinter.dump_trace_to_file("COI_failure.vcd");
+          // throw PonoException("COI check failed!");
+      } else
+        logger.log(0, "COI check passed");
+  }
   }
 
 
@@ -348,6 +201,80 @@ ProverResult check_prop(PonoOptions pono_options,
   }
   return r;
 }
+
+int extract_num(const std::string &n) {
+  // __auxvar?
+  // 012345678
+  size_t idx;
+  for(idx=8;idx<n.length();++idx) {
+    if(!( n.at(idx) >= '0' && n.at(idx)<='9'))
+      break;
+  }
+  return syntax_analysis::StrToULongLong( n.substr(8,idx), 10 );
+}
+
+void IF_ILA_CHECK_LOAD_ADDITIONAL_ASSUMPTIONS(FunctionalTransitionSystem & fts, Term & original_trans) {
+  auto iend_pos = fts.named_terms().find("__IEND__");
+  bool find_iend = iend_pos != fts.named_terms().end();
+  original_trans = fts.trans();
+  
+  if(!find_iend)
+    return;
+
+  auto iend_term = iend_pos->second;
+  const static std::string aux_var_ends_type1 = "__recorder_sn_cond";
+  const static std::string aux_var_ends_type2 = "__recorder_sn_condmet";
+  unordered_map<int, vector<Term>> sn_cond_condmet_pair;
+
+  auto & slv = fts.get_solver();
+  // HZ note: replacing back to true seems to be not okay?
+  // auto term_true = slv->make_term(true);
+  // { // replace existing constraints to true in fts.trans
+  //   UnorderedTermMap subst;
+  //   for(const auto & c_next_pair : fts.constraints()) {
+  //     subst.emplace(c_next_pair.first, term_true);
+  //     // if (c_next_pair.second)
+  //     //  subst.emplace(fts.next(c_next_pair.first), term_true);
+  //   }
+  //   original_trans = slv->AbsSmtSolver::substitute(original_trans, subst);
+  // }
+
+
+  for (const auto & n_term_pair : fts.named_terms()) {
+    const auto & n = n_term_pair.first;
+    if(n.find("__auxvar") == 0 && n.length() >= aux_var_ends_type1.length() && 
+        n.compare(n.length() - aux_var_ends_type1.length(), aux_var_ends_type1.length(), aux_var_ends_type1) == 0) {
+      auto auxvarnum =  extract_num(n);
+      sn_cond_condmet_pair[auxvarnum].push_back(n_term_pair.second);
+    }
+    else if(n.find("__auxvar") == 0 && n.length() >= aux_var_ends_type2.length() && 
+        n.compare(n.length() - aux_var_ends_type2.length(), aux_var_ends_type2.length(), aux_var_ends_type2) == 0) {
+      auto auxvarnum =  extract_num(n);
+      sn_cond_condmet_pair[auxvarnum].push_back(n_term_pair.second);
+    }
+  }
+  if (sn_cond_condmet_pair.empty())
+    return;
+
+  Term consq;
+  for (const auto & idx_termvec_pair : sn_cond_condmet_pair) {
+    const auto & termv = idx_termvec_pair.second;
+    assert(termv.size() == 2);
+    auto consq_sub = slv->make_term(Or, termv.at(0), termv.at(1));
+
+    if(consq == nullptr)
+      consq = consq_sub;
+    else
+      consq = slv->make_term(And, consq, consq_sub);
+  }
+  Term assumption =  slv->make_term(Implies,  iend_term, consq);
+  // this is adding `IEND => ( __auxvarXXX__recorder_sn_cond || __auxvarXXX__recorder_sn_condmet)`
+  logger.log(0, "ILA wrapper detected!");
+  // logger.log(3,"Add assumption to ila fts: {}", assumption->to_string());
+
+  fts.add_constraint(assumption);
+}
+
 
 // Note: signal handlers are registered only when profiling is enabled.
 void profiling_sig_handler(int sig)
@@ -589,7 +516,7 @@ int main(int argc, char ** argv)
 
     SmtSolver s = create_solver_for(pono_options.smt_solver_,
                                     pono_options.engine_,
-                                    false,
+                                    true,
                                     pono_options.ceg_prophecy_arrays_);
 
     if (pono_options.logging_smt_solver_) {
@@ -699,12 +626,11 @@ int main(int argc, char ** argv)
         PropertyInterfacecex prop_cex(pono_options, std::string("RTL"), true, pono_options.env_qed_,fts);
         prop = prop_cex.cex_parse_to_pono_property();
         std::cout << prop->to_raw_string() << std::endl;
-
-          
       }
-
+      Term original_trans;
       vector<UnorderedTermMap> cex;
-      res = check_prop(pono_options, prop, fts, s, cex);
+      IF_ILA_CHECK_LOAD_ADDITIONAL_ASSUMPTIONS(fts, original_trans);
+      res = check_prop(pono_options, prop, fts, s, cex,original_trans);
       // we assume that a prover never returns 'ERROR'
       assert(res != ERROR);
       
@@ -786,9 +712,9 @@ int main(int argc, char ** argv)
 
       Term prop = propvec[pono_options.prop_idx_];
       // get property name before it is rewritten
-
+      Term original_trans;
       std::vector<UnorderedTermMap> cex;
-      res = check_prop(pono_options, prop, rts, s, cex);
+      res = check_prop(pono_options, prop, rts, s, cex, original_trans);
       // we assume that a prover never returns 'ERROR'
       assert(res != ERROR);
       std::string filename = "/data/zhiyuany/cosa2/result_sat.txt";

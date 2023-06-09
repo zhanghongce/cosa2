@@ -16,7 +16,7 @@
 
 #include "utils/sygus_ic3formula_helper.h"
 #include "utils/str_util.h"
-
+#include "utils/term_analysis.h"
 #include <cassert>
 
 namespace pono {
@@ -80,7 +80,9 @@ std::string IC3FormulaModel::to_string() const {
 
 void IC3FormulaModel::get_varset(std::unordered_set<smt::Term> & varset) const {
   for (auto && v_val : cube_) {
-    varset.insert(v_val.first);
+    auto var = get_free_symbols(v_val.first);
+    for(const auto & v:var)
+      varset.insert(v);
   }
 }
 

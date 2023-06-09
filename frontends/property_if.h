@@ -150,6 +150,7 @@ class JsonCexParser: public CexExtractor
     typedef std::function<bool(const smt::Term &n)> filter_r;
   ////Build the Constructor//////
     JsonCexParser(PonoOptions & pono_options,const std::string& scope,TransitionSystem & ts);
+    smt::Term json_cex_parse_to_pono_property(filter_r filter_re,filter_t filter);
     smt::Term json_cex_parse_to_pono_property(filter_r filter_re);
     smt::Term json_cex_parse_to_pono_property(filter_t filter);
     smt::Term json_cex_parse_to_pono_property();
@@ -160,8 +161,9 @@ class JsonCexParser: public CexExtractor
     int get_reg_min_width();
     std::vector<int> get_width;
   protected:
-    bool is_extracted(const std::string & var_name, std::vector<std::pair<int,int>> & extract_info);
+    bool is_extracted(const std::string & var_name, std::vector<std::pair<int,int>> & extract_info,std::vector<std::pair<int,int>> & extract_val_info);
     void get_info(const std::pair<int,int> & out, int & idx0, int & idx1);
+    bool fix_varname(std::string & var_name,std::vector<std::pair<int,int>> & extracted_out,std::vector<std::pair<int,int>> & extract_val_info);
     TransitionSystem & ts_;
     std::vector<std::string> name_terms;
     std::vector<std::string> qed_name_terms;

@@ -264,9 +264,9 @@ void CexExtractor::parse_from_final_value(const std::string& vcd_file_name,
 
     auto vlg_name = syntax_analysis::ReplaceAll(scopes + sig->reference, "$root.", "");
     // ensure it is only register
-    // if(vlg_name.find("irq_pending")!=std::string::npos){
-    //     std::cout<< " there is irq_pending" << std::endl;
-    //   }
+    if(vlg_name.find("mem_rdata_q")!=std::string::npos){
+        std::cout<< " there is irq_pending" << std::endl;
+      }
     if (sig->type != VCDVarType::VCD_VAR_REG)
       continue;
 

@@ -15,14 +15,12 @@
  **/
 
 #include "engines/prover.h"
-#include "core/fts.h"
-#include<fstream> 
+
 #include <cassert>
 #include <climits>
 #include <functional>
-#include "json/json.hpp"
 #include <fstream>
-
+#include "json/json.hpp"
 #include "core/rts.h"
 #include "modifiers/static_coi.h"
 #include "smt/available_solvers.h"
@@ -79,10 +77,6 @@ Prover::Prover(const Property & p,
     : initialized_(false),
       solver_(s),
       to_prover_solver_(s),
-      // to_prover_solver_(create_solver_for(CVC5,
-      //                               opt.engine_,
-      //                               false,
-      //                               opt.ceg_prophecy_arrays_)),
       orig_property_(p),
       orig_ts_(ts),
       ts_(ts, to_prover_solver_),
@@ -126,8 +120,7 @@ bool Prover::witness(std::vector<UnorderedTermMap> & out)
         "Recovering witness failed. Make sure that there was "
         "a counterexample and that the engine supports witness generation.");
   }
-  // bool success = true;
-  // if(options_.coi_filter_==true){
+
   function<Term(const Term &, SortKind)> transfer_to_prover_as;
   function<Term(const Term &, SortKind)> transfer_to_orig_ts_as;
   TermTranslator to_orig_ts_solver(orig_ts_.solver());
@@ -154,7 +147,8 @@ bool Prover::witness(std::vector<UnorderedTermMap> & out)
   }
 
   bool success = true;
-    // Some backends don't support full witnesses
+
+  // Some backends don't support full witnesses
   // it will still populate state variables, but will return false instead of
   // true
   for (const auto & wit_map : witness_) {
@@ -193,64 +187,9 @@ bool Prover::witness(std::vector<UnorderedTermMap> & out)
       }
     }
   }
-  // }
-  // else{
-  // auto new_solver = create_solver_for(BTOR, options_.engine_, true,false);
-  // TermTranslator to_new_solver(new_solver);
-  // // TermTranslator to_old_solver(solver_);
-  // FunctionalTransitionSystem new_fts(ts_,to_new_solver);
-  // UnorderedTermMap & cache = to_new_solver.get_cache();
-  // for (const auto &v : orig_ts_.statevars()) {
-  //   cache[to_new_solver.transfer_term(v)] = v;
-  // }
-  // for (const auto &v : orig_ts_.inputvars()) {
-  //   cache[to_new_solver.transfer_term(v)] = v;
-  // }
-   
-  // for (const auto & wit_map : witness_) {
-  //   out.push_back(UnorderedTermMap());
-  //   UnorderedTermMap & map = out.back();
-
-  //   for (const auto &v : ts_.statevars()) {
-  //     const SortKind &sk = v->get_sort()->get_sort_kind();
-  //     const Term &pv = transfer_to_orig_as_(v, sk,new_solver);
-  //     map[pv] = transfer_to_orig_as_(wit_map.at(v), sk,new_solver);
-  //   }
-
-  //   for (const auto &v : ts_.inputvars()) {
-  //     const SortKind &sk = v->get_sort()->get_sort_kind();
-  //     const Term &pv = transfer_to_orig_as_(v, sk,new_solver);
-  //     try {
-  //       map[pv] = transfer_to_orig_as_(wit_map.at(v), sk,new_solver);
-  //     }
-  //     catch (std::exception & e) {
-  //       success = false;
-  //       break;
-  //     }
-  //   }
-
-  //   if (success) {
-  //     for (const auto &elem : ts_.named_terms()) {
-  //       const SortKind &sk = elem.second->get_sort()->get_sort_kind();
-  //       const Term &pt = transfer_to_orig_as_(elem.second, sk,new_solver);
-  //       try {
-  //         map[pt] = transfer_to_orig_as_(wit_map.at(elem.second), sk,new_solver);
-  //       }
-  //       catch (std::exception & e) {
-  //         success = false;
-  //         break;
-  //       }
-  //     }
-  //   }
-  // }
-  // }
 
   return success;
 }
-
-// Term Prover::transfer_to_orig_as_(const Term &t, const smt::SortKind &sk,TermTranslator to_new_solver){
-//   return to_new_solver.transfer_term(t, sk);
-// }
 
 size_t Prover::witness_length() const { return reached_k_ + 1; }
 
@@ -294,15 +233,34 @@ Term Prover::to_orig_ts(Term t)
 bool Prover::compute_witness()
 {
   // TODO: make sure the solver state is SAT
+  
+  // options_.compute_dynamic_coi_upon_cex_ = true;
+  // if (options_.compute_dynamic_coi_upon_cex_) {
+  //   std::unordered_map <smt::Term,std::vector<pair<int,int>>> varset_slice;
   if(options_.coi_filter_==true)
   {   
     smt::UnorderedTermMap varset;
-    
+
+    int backtrack_to_step_n = 0;
+    if (ts_.named_terms().find("__START__") != ts_.named_terms().end()) {
+      auto start = ts_.lookup("__START__");
+      for (int idx = 0; idx <= reached_k_ + 1; ++idx) {
+        auto v = solver_->get_value(unroller_.at_time(start, idx))->to_int();
+        if (v != 0) {
+          backtrack_to_step_n = idx;
+          logger.log(0,"START @ {}" , backtrack_to_step_n);
+          break;
+        }
+      }
+    }
+
     std::unordered_map <smt::Term,std::vector<pair<int,int>>> varset_slice;
+    const std::string qed_name = options_.smt_path_ + "/" + "qed_signal.json";
     if (options_.use_ilang_coi_constraint_file_) {
-      recursive_dynamic_COI_using_ILA_info(varset_slice);
+      recursive_dynamic_COI_using_ILA_info(varset_slice, backtrack_to_step_n,qed_name);
     } else {
-      compute_dynamic_COI_from_term(bad_, {{0,0}}, reached_k_+1, varset_slice);
+      var_in_coi_t input_var_tmp;
+      compute_dynamic_COI_from_term(bad_, {{0,0}}, reached_k_+1, varset_slice, input_var_tmp, backtrack_to_step_n,qed_name);
     }
     
     for(const auto & v: varset_slice){
@@ -316,16 +274,16 @@ bool Prover::compute_witness()
     //   j["name"].push_back(name);
     // }
     auto btorsolver = create_solver(BTOR);
-    auto transferer = smt::TermTranslator(btorsolver);
+    // auto transferer = smt::TermTranslator(btorsolver);
     std::string folderPath = options_.smt_path_;
     std::string filename = folderPath + "/" + "COI_variable.json";
     std::ofstream output(filename);    
     for(auto v = varset.begin(); v != varset.end(); v++) {
        std:: cout << v->first->to_string() << " : " << v->second->to_string() << std::endl;
        auto name = v->first->to_string();
-       auto value_tansfer = transferer.transfer_term(v->second);
+      //  auto value_tansfer = transferer.transfer_term(v->second);
        j["name"].push_back(name);
-       j["value"].push_back(value_tansfer->to_string());
+       j["value"].push_back(v->second->to_string());
     }
     for(auto v: varset_slice) {
        auto width = v.first->get_sort()->get_width();
@@ -342,37 +300,26 @@ bool Prover::compute_witness()
     }
 
     output<<j<<std::endl;
-  //   for (const auto & v : varset)
-  //     std::cout << v->to_string() << std::endl;
-  // options_.dynamic_coi_check_ = true;
+
     if(options_.dynamic_coi_check_) {
       UnorderedTermSet all_inputs = ts_.inputvars();
       for (const auto & inpv : ts_.statevars()) {
         if (ts_.state_updates().find(inpv) == ts_.state_updates().end())
           all_inputs.insert(inpv);
       }
-      record_coi_info(varset_slice, all_inputs,  reached_k_ + 1 );
+      record_coi_info(varset_slice, all_inputs,  reached_k_ + 1 ,backtrack_to_step_n );
     }
-
   }
 
 
   for (int i = 0; i <= reached_k_ + 1; ++i) {
     witness_.push_back(UnorderedTermMap());
     UnorderedTermMap & map = witness_.back();
-    auto new_solver = create_solver_for(BTOR, options_.engine_, false,false);
-    auto transferer = smt::TermTranslator(new_solver);
 
-    
     for (const auto &v : ts_.statevars()) {
       Term vi = unroller_.at_time(v, i);
       Term r = solver_->get_value(vi);
       map[v] = r;
-      // const Term &vi = unroller_.at_time(v, i);
-      // const Term &r = solver_->get_value(vi);
-      // auto new_v = transferer.transfer_term(vi);
-      // auto new_r = transferer.transfer_term(r);
-      // map[new_v] = new_r;
     }
 
     // early stop
@@ -383,24 +330,11 @@ bool Prover::compute_witness()
       Term vi = unroller_.at_time(v, i);
       Term r = solver_->get_value(vi);
       map[v] = r;
-      // }
-      // const Term &vi = unroller_.at_time(v, i);
-      // const Term &r = solver_->get_value(vi);
-      // // map[v] = r;
-      // auto new_v = transferer.transfer_term(vi);
-      // auto new_r = transferer.transfer_term(r);
-      // map[new_v] = new_r;
     }
 
     for (const auto &elem : ts_.named_terms()) {
       Term ti = unroller_.at_time(elem.second, i);
       map[elem.second] = solver_->get_value(ti);
-      // const Term &ti = unroller_.at_time(elem.second, i);
-      // const Term &r = solver_->get_value(ti);
-      // auto new_v = transferer.transfer_term(elem.second);
-      // auto new_r = transferer.transfer_term(r);
-      // map[new_v] = new_r;
-
     }
   }
 
@@ -410,11 +344,9 @@ bool Prover::compute_witness()
 
 static const bool restrict_RTL_vars_only_in_ILA_RTL_rfcheck = true;
 
-bool Prover::check_coi() {
+bool Prover::check_coi(const smt::Term & original_trans) {
   options_.compute_dynamic_coi_upon_cex_ = true;
-  // options_.dynamic_coi_check_ = true;
   if(!options_.compute_dynamic_coi_upon_cex_) {
-    
     std::cout << "NO COI computed." << std::endl;
     return true;
   }
@@ -427,14 +359,16 @@ bool Prover::check_coi() {
   TermTranslator tt_(another_solver_);
   TermTranslator tt_back_(solver_);
   auto add_formula = [&another_solver_, &tt_](const Term & t) -> void {
-    another_solver_->assert_formula(tt_.transfer_term(t)); };
+    auto new_term = tt_.transfer_term(t);
+    another_solver_->assert_formula(new_term); };
   auto get_model = [&another_solver_, &tt_, &tt_back_](const Term & t) -> Term {
     return tt_back_.transfer_term(
       another_solver_->get_value(tt_.transfer_term(t))); };
   
   // add_formula(unroller_.at_time(ts_.init(), 0));
   for (int k = 0; k<=reached_k_+1; ++k) {
-    add_formula(unroller_.at_time(ts_.trans(), k));
+    // add_formula(unroller_.at_time(ts_.trans(), k));
+    add_formula(unroller_.at_time(original_trans, k));
   }
 
   // this includes initial svs and input variables along the way
@@ -475,16 +409,48 @@ bool Prover::check_coi() {
   return true;
 }
 
+bool static keep_this_name(const std::string & n) {
+  const static std::unordered_set<std::string> keep = {
+    "__START__","__STARTED__","__ENDED__","__2ndENDED__","__RESETED__","__CYCLE_CNT__"
+  };
+  const static std::unordered_set<std::string> partial_keep = {
+    "__delay_d", "__recorder_sn_condmet"
+  };
+  const static std::string aux_var_ends = "__recorder";
 
-void Prover::record_coi_info(const var_in_coi_t &sv, const smt::UnorderedTermSet &inp, int bnd) {
+  if (keep.find(n)!=keep.end())
+    return true;
+  if (n.find("ILA.") == 0)
+    return false;
+  if (n.find("RTL.") == 0)
+    return true;
+  for (const auto & sub : partial_keep)
+    if (n.find(sub) != n.npos)
+      return true;
+    
+  if(n.find("__auxvar") == 0 && n.length() >= aux_var_ends.length() && 
+      n.compare(n.length() - aux_var_ends.length(), aux_var_ends.length(), aux_var_ends) == 0)
+    return false;
+  if (n.find("__VLG_I_") == 0 || n.find("__ILA_I_") == 0 || n == "dummy_reset" || n == "reset" || n == "rst")
+    return false;
+  if (n.find("ppl_stage_") == 0 )
+    return true;
+  throw PonoException("Unknown how to handle: "+n);
+  return false;
+  // 
+}
+
+void Prover::record_coi_info(const var_in_coi_t &sv, const smt::UnorderedTermSet &inp, int bnd, int start_bnd) {
   // store all values on sv @ 0 , and all inp vars @ 0...k
   for (const auto & v : sv) {
     auto sv_name = v.first->to_string();
-    if (restrict_RTL_vars_only_in_ILA_RTL_rfcheck && (sv_name.find("ILA.") == 0 || (sv_name.find("__auxvar") == 0 && sv_name.find("recorder") != sv_name.npos) ))  {
-      logger.log(0,"[COI check] removing sv {}", sv_name);
-      continue;
+    if (restrict_RTL_vars_only_in_ILA_RTL_rfcheck )  {
+      if (!keep_this_name(sv_name)) {
+        logger.log(0,"[COI check] removing sv {}", sv_name);
+        continue;
+      }
     }
-    auto timed_v = unroller_.at_time(v.first, 0);
+    auto timed_v = unroller_.at_time(v.first, start_bnd);
     auto value = solver_->get_value(timed_v);
     for (const auto & range : v.second) {
       auto extracted_v   = solver_->make_term(smt::Op(smt::PrimOp::Extract, range.first, range.second), timed_v);
@@ -493,7 +459,7 @@ void Prover::record_coi_info(const var_in_coi_t &sv, const smt::UnorderedTermSet
       logger.log(0, "[COI check] sv {} is locked as {}", extracted_v->to_string(), extracted_val->to_string());
     }
   }
-  for (int k = 0; k<=bnd+1; ++k) {
+  for (int k = start_bnd; k<=bnd+1; ++k) {
     for (const auto & inpv : inp) {
       auto timed_v = unroller_.at_time(inpv, k);
       auto value = solver_->get_value(timed_v);
@@ -504,24 +470,26 @@ void Prover::record_coi_info(const var_in_coi_t &sv, const smt::UnorderedTermSet
 } // end of record_coi_info
 
 void Prover::get_var_in_COI(const var_in_coi_t & input_asts, 
-                                  var_in_coi_t & varset_slice) {
+                                  var_in_coi_t & varset_slice,std::string filename) {
   PartialModelGen partial_model_getter(solver_);
-  partial_model_getter.GetVarListForAsts_in_bitlevel(input_asts, varset_slice);
-  // std::cout << "[get var in COI] in:\n";
-  // Print(input_asts);
-  // std::cout << "[get var in COI] out:\n";
-  // Print(varset_slice);
+  partial_model_getter.GetVarListForAsts_in_bitlevel_sqed(input_asts, varset_slice,filename);
+  std::cout << "[get var in COI] in:\n";
+  std::cout << " (Omitted). \n";
+  // // Print(input_asts);
+  std::cout << "[get var in COI] out:\n";
+  Print(varset_slice);
 }
 
-void Prover::compute_dynamic_COI_from_term(const smt::Term & t, const slice_t &ranges, int k, var_in_coi_t & init_state_variables) {
+void Prover::compute_dynamic_COI_from_term(const smt::Term & t, const slice_t &ranges, int k, var_in_coi_t & init_state_variables,
+  var_in_coi_t & input_state_variables, int backtrack_frame,std::string filename) {
   // bad_ ,  0...reached_k_+1
   // auto last_bad = unroller_.at_time(bad_, reached_k_+1);
 
   auto t_at_time_k = unroller_.at_time(t, k);
   var_in_coi_t varset;
-  get_var_in_COI({{t_at_time_k, ranges}}, varset); // varset contains variables like : a@n
+  get_var_in_COI({{t_at_time_k, ranges}}, varset,filename); // varset contains variables like : a@n
 
-  for(int i = k-1; i>=0; --i) {
+  for(int i = k-1; i>=backtrack_frame; --i) {
     std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> update_functions_to_check;
     std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> newvarset_slice;
     for (const auto & var_ranges_pair : varset) {
@@ -533,6 +501,7 @@ void Prover::compute_dynamic_COI_from_term(const smt::Term & t, const slice_t &r
         continue;
         
       auto pos = ts_.state_updates().find(untimed_var);
+
       if (pos == ts_.state_updates().end()) // this is likely
         continue; // because ts_ may promote input variables
       // therefore, there could be state vars without next function
@@ -540,12 +509,11 @@ void Prover::compute_dynamic_COI_from_term(const smt::Term & t, const slice_t &r
       // assert(pos != ts_.state_updates().end());
       const auto & update_function = pos->second;  // a, b, c ...
       // at_time is used to change the variable set in update_function
-      // get_input_var_in_COI(update_functions_to_check,varset_input);
       auto timed_update_function = unroller_.at_time(update_function, i); // i ?
       update_functions_to_check.emplace(timed_update_function, var_ranges_pair.second);
     } // for each variable in varset
     
-    get_var_in_COI(update_functions_to_check, newvarset_slice);
+    get_var_in_COI(update_functions_to_check, newvarset_slice,filename);
     
   
     varset.swap(newvarset_slice); // the same as "varset = newvarset;" , but this is faster
@@ -554,6 +522,24 @@ void Prover::compute_dynamic_COI_from_term(const smt::Term & t, const slice_t &r
   // varset at this point: a@0 ,  b@0 , ...
   for (const auto & timed_var : varset) {
     auto untimed_var = unroller_.untime(timed_var.first);
+
+    auto pos = ts_.state_updates().find(untimed_var);
+
+    if (ts_.is_input_var(untimed_var) || !ts_.is_curr_var(untimed_var)
+        || pos == ts_.state_updates().end()) {
+      // this is an input variable
+      auto res = input_state_variables.emplace(untimed_var, timed_var.second);
+      if (!res.second) {
+        const auto & old_ranges = input_state_variables.at(untimed_var);
+        auto new_range = timed_var.second;
+        new_range.insert(
+            new_range.begin(), old_ranges.begin(), old_ranges.end());
+        new_range = merge_intervals(new_range);
+        input_state_variables.at(untimed_var) = new_range;
+      }
+      continue;
+    }
+
     auto result = init_state_variables.emplace(untimed_var,timed_var.second);
     if (!result.second) {
       // was not able to insert, then we need to merge list
@@ -574,19 +560,22 @@ std::string static remove_vertical_bar(const std::string & in) {
 }
 
 
-void Prover::recursive_dynamic_COI_using_ILA_info(var_in_coi_t & init_state_variables) {
+void Prover::recursive_dynamic_COI_using_ILA_info(var_in_coi_t & init_state_variables, int backtrack_frame,std::string filename) {
 
   AssumptionRelationReader IlaAsmptLoader("/data/zhiyuany/cosa2/asmpt-ila.smt2", ts_);
   logger.log(3,"{} loaded from asmpt-ila.smt2.", IlaAsmptLoader.ReportStatus());
 
   var_in_coi_t init_sv;
+  var_in_coi_t input_variables;
   
   // initially, we extract bad
   vector<std::tuple<smt::Term, int, slice_t>> next_round_to_track = { {bad_, reached_k_+1, {{0,0}} } };
 
   while(!next_round_to_track.empty()) {
+    var_in_coi_t input_vars_at_zero_frame;
     for (const auto & term_k_range : next_round_to_track) {
-      compute_dynamic_COI_from_term(std::get<0>(term_k_range), std::get<2>(term_k_range), std::get<1>(term_k_range), init_sv);
+      compute_dynamic_COI_from_term(std::get<0>(term_k_range), std::get<2>(term_k_range), std::get<1>(term_k_range), 
+        init_sv, input_vars_at_zero_frame, backtrack_frame,filename);
     } // compute all sub var in 
     next_round_to_track.clear();
 
@@ -612,6 +601,8 @@ void Prover::recursive_dynamic_COI_using_ILA_info(var_in_coi_t & init_state_vari
         logger.log(0, "SV {} is in constraints", vname);
         auto cond = IlaAsmptLoader.GetConditionInAssumption(vname);
         auto val = IlaAsmptLoader.GetValueTermInAssumption(vname);
+        auto val_sort = val->get_sort();
+        auto actual_width = val_sort->get_sort_kind() == smt::SortKind::BOOL ? 1 : val_sort->get_width();
 
         bool triggered = false;
         for(int k = 0; k <= reached_k_+1; k++) {
@@ -621,18 +612,79 @@ void Prover::recursive_dynamic_COI_using_ILA_info(var_in_coi_t & init_state_vari
             
             logger.log(0, "SV {} is triggered at Cycle #{}", vname, k);
             // this is a bug in the ilang side
-            next_round_to_track.push_back({val, k, {{0,0}}});
+            
+            if (actual_width == 1)
+              next_round_to_track.push_back({val, k, {{0,0}}});
+            else
+              next_round_to_track.push_back({val, k, v_range_pair.second});
+
+            next_round_to_track.push_back({cond, k, {{0,0}} });
+
             logger.log(0,"added {} in next round.", val->to_string());
             triggered = true;
-            break;
+            // break;
           }
         }
-        if(!triggered)
+        if(!triggered) {
           logger.log(0, "WARNING: [COI] condition for {} was NOT triggered!", vname);
+          throw PonoException("WARNING: [COI] condition for "+ vname +" has NOT been triggered!");
+        }
       } else {
         logger.log(0, "SV {} is NOT in constraints", vname);
       }
     } // end for each init_sv
+    for (const auto & v_range_pair : input_vars_at_zero_frame) {
+      const auto v = v_range_pair.first;
+      if (input_variables.find(v) != input_variables.end()) {
+        const auto & old_slices = input_variables.at(v);
+        auto new_range = v_range_pair.second;
+        new_range.insert(
+            new_range.begin(), old_slices.begin(), old_slices.end());
+        new_range = merge_intervals(new_range);
+
+        // merge the ranges, and get the same range? then done
+        // else retrack using wider ranges?
+        if (new_range == old_slices)
+          continue;  // to avoid repitition like v : v == another variable
+        // otherwise, update the ranges
+        input_variables.at(v) = new_range;
+      } else
+        input_variables.emplace(v, v_range_pair.second);
+      auto vname = remove_vertical_bar(v->to_string());
+
+      if (IlaAsmptLoader.IsConstrainedInAssumption(vname)) {
+        logger.log(0, "INPV@0 {} is in constraints", vname);
+        auto cond = IlaAsmptLoader.GetConditionInAssumption(vname);
+        auto val = IlaAsmptLoader.GetValueTermInAssumption(vname);
+        auto val_sort = val->get_sort();
+        auto actual_width = val_sort->get_sort_kind() == smt::SortKind::BOOL
+                                ? 1
+                                : val_sort->get_width();
+
+        bool triggered = false;
+        for (int k = backtrack_frame; k <= reached_k_ + 1; k++) {
+          auto cond_at_k = unroller_.at_time(cond, k);
+          auto is_cond_true_at_k = solver_->get_value(cond_at_k)->to_int();
+          if (is_cond_true_at_k) {
+            logger.log(0, "INPV {} is triggered at Cycle #{}", vname, k);
+            // this is a bug in the ilang side
+
+            if (actual_width == 1)
+              next_round_to_track.push_back({ val, k, { { 0, 0 } } });
+            else
+              next_round_to_track.push_back({ val, k, v_range_pair.second });
+
+            next_round_to_track.push_back({ cond, k, { { 0, 0 } } });
+
+            logger.log(0, "added {} in next round.", val->to_string());
+            triggered = true;
+            break;
+          }
+        }
+      } else {
+        logger.log(0, "INPV@0 {} is NOT in constraints", vname);
+      }
+    }  // end for each input var, check for its assumption trigger as well
     init_sv.clear();
     
     logger.log(0, "----------------END of a round ----------------");

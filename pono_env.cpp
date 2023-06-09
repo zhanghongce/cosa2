@@ -178,181 +178,6 @@ Term get_term_without_fil( PropertyInterfacecex prop_cex){
       std::cout << "The final property is:"<<prop->to_raw_string() << std::endl;
       return prop;
 }
-ProverResult check_prop_inv(PonoOptions pono_options,
-                        Term & prop,
-                        TransitionSystem & ts,
-                        const SmtSolver & s,
-                        std::vector<UnorderedTermMap> & cex,
-                        int step)
-{
-  // get property name before it is rewritten
-  const string prop_name = ts.get_name(prop);
-  logger.log(1, "Solving property: {}", prop_name);
-  logger.log(3, "INIT:\n{}", ts.init());
-  logger.log(3, "TRANS:\n{}", ts.trans());
-
-  // modify the transition system and property based on options
-  if (!pono_options.clock_name_.empty()) {
-    Term clock_symbol = ts.lookup(pono_options.clock_name_);
-    toggle_clock(ts, clock_symbol);
-  }
-  if (!pono_options.reset_name_.empty()) {
-    std::string reset_name = pono_options.reset_name_;
-    bool negative_reset = false;
-    if (reset_name.at(0) == '~') {
-      reset_name = reset_name.substr(1, reset_name.length() - 1);
-      negative_reset = true;
-    }
-    Term reset_symbol = ts.lookup(reset_name);
-    if (negative_reset) {
-      SortKind sk = reset_symbol->get_sort()->get_sort_kind();
-      reset_symbol = (sk == BV) ? s->make_term(BVNot, reset_symbol)
-                                : s->make_term(Not, reset_symbol);
-    }
-    Term reset_done = add_reset_seq(ts, reset_symbol, pono_options.reset_bnd_);
-    // guard the property with reset_done
-    prop = ts.solver()->make_term(Implies, reset_done, prop);
-  }
-
-
-  if (pono_options.static_coi_) {
-    /* Compute the set of state/input variables related to the
-       bad-state property. Based on that information, rebuild the
-       transition relation of the transition system. */
-    StaticConeOfInfluence coi(ts, { prop }, pono_options.verbosity_);
-  }
-
-  if (pono_options.pseudo_init_prop_) {
-    ts = pseudo_init_and_prop(ts, prop);
-  }
-
-  if (pono_options.promote_inputvars_) {
-    ts = promote_inputvars(ts);
-    assert(!ts.inputvars().size());
-  }
-
-  if (!ts.only_curr(prop)) {
-    logger.log(1,
-               "Got next state or input variables in property. "
-               "Generating a monitor state.");
-    prop = add_prop_monitor(ts, prop);
-  }
-
-  if (pono_options.assume_prop_) {
-    // NOTE: crucial that pseudo_init_prop and add_prop_monitor passes are
-    // before this pass. Can't assume the non-delayed prop and also
-    // delay it
-    prop_in_trans(ts, prop);
-  }
-
-  Property p(s, prop, prop_name);
-
-  // end modification of the transition system and property
-  // if (step >0)
-  //   s->set_opt("incremental","true");
-  Engine eng = pono_options.engine_;
-
-  std::shared_ptr<Prover> prover;
-  if (pono_options.cegp_abs_vals_) {
-    prover = make_cegar_values_prover(eng, p, ts, s, pono_options);
-  } else if (pono_options.ceg_bv_arith_) {
-    prover = make_cegar_bv_arith_prover(eng, p, ts, s, pono_options);
-  } else if (pono_options.ceg_prophecy_arrays_) {
-    prover = make_ceg_proph_prover(eng, p, ts, s, pono_options);
-  } else {
-    prover = make_prover(eng, p, ts, s, pono_options);
-  }
-  assert(prover);
-
-  // TODO: handle this in a more elegant way in the future
-  //       consider calling prover for CegProphecyArrays (so that underlying
-  //       model checker runs prove unbounded) or possibly, have a command line
-  //       flag to pick between the two
-  ProverResult r;
-  if (pono_options.engine_ == MSAT_IC3IA)
-  {
-    // HACK MSAT_IC3IA does not support check_until
-    r = prover->prove();
-  }
-  else
-  {
-    r = prover->check_until(pono_options.bound_);
-  }
-
-  if (r == FALSE && pono_options.witness_) {
-    bool success = prover->witness(cex);
-    if (!success) {
-      logger.log(
-          0,
-          "Only got a partial witness from engine. Not suitable for printing.");
-    }
-  }
-
-  Term invar;
-  if (r == TRUE){ 
-  if (r == TRUE && (pono_options.show_invar_ || pono_options.check_invar_)) {
-    try {
-      invar = prover->invar();
-    }
-    catch (PonoException & e) {
-      std::cout << "Engine " << pono_options.engine_
-                << " does not support getting the invariant." << std::endl;
-    }
-  }
-
-    auto cvc5solver = smt::Cvc5SolverFactory::create(false);
-    auto transferer = smt::TermTranslator(cvc5solver);
-    auto invar_in_cvc5 = transferer.transfer_term(invar);
-    // auto invar_in_cvc5_origin = transferer.transfer_term(invar);
-    smt::UnorderedTermSet varset;
-   
-
-      varset = get_free_symbols(invar_in_cvc5);
-      auto invar_varname_rewritten = name_changed(invar_in_cvc5, varset, cvc5solver, "RTL.");
-      auto varset_new = get_free_symbols(invar_varname_rewritten);
-      std::string sort_list,sort_list_origin;
-      smt_lib2_front(varset_new, sort_list);
-      smt_lib2_front(varset, sort_list_origin);
-      std::string folderPath = pono_options.smt_path_;
-      std::string origin_smt = folderPath + "/inv_origin.smt2"; 
-
-        if(step == 0){
-          std::string step_char = to_string(step);
-          std::string filename = folderPath + "/" + "inv.smt2"; 
-          ofstream res1(origin_smt.c_str());        
-          ofstream res(filename.c_str());
-          res<<"("<<"define-fun"<<" "<<"assumption." << step_char << " "<<"("<<sort_list<<")"<<" "<<"Bool"<<" "<<invar_varname_rewritten->to_string()<<")"<<endl;
-          res1<<"("<<"define-fun"<<" "<<"assumption." << step_char << " "<<"("<<sort_list_origin<<")"<<" "<<"Bool"<<" "<<invar_in_cvc5->to_string()<<")"<<endl;
-        }
-        else{
-          std::string step_char = to_string(step);
-          ofstream res;
-          ofstream res1;
-          std::string filename = folderPath + "/" + "inv"  +".smt2";
-          res.open(filename, ios::app);
-          res1.open(origin_smt, ios::app);
-          res<<"("<<"define-fun"<<" "<<"assumption." << step_char << " "<<"("<<sort_list<<")"<<" "<<"Bool"<<" "<<invar_varname_rewritten->to_string()<<")"<<endl;
-          res1<<"("<<"define-fun"<<" "<<"assumption." << step_char << " "<<"("<<sort_list_origin<<")"<<" "<<"Bool"<<" "<<invar_in_cvc5->to_string()<<")"<<endl;
-        }
-  
-
-  if (r == TRUE && pono_options.show_invar_ && invar) {
-    logger.log(0, "INVAR: {}", invar_in_cvc5);
-  }
-
-  if (r == TRUE && pono_options.check_invar_ && invar) {
-    bool invar_passes = check_invar(ts, p.prop(), invar);
-    std::cout << "Invariant Check " << (invar_passes ? "PASSED" : "FAILED")
-              << std::endl;
-    if (!invar_passes) {
-      // shouldn't return true if invariant is incorrect
-      throw PonoException("Invariant Check FAILED");
-    }
-  }
-  }
-  // s->reset();
-  return r;
-}
 void write_inv_to_file(const smt::Term & invar, ostream & outf, ostream & outf_origin, unsigned step, const std::string & varname_prefix) {
     auto cvc5solver = smt::Cvc5SolverFactory::create(false);
     auto transferer = smt::TermTranslator(cvc5solver);
@@ -374,8 +199,8 @@ void write_inv_to_file(const smt::Term & invar, ostream & outf, ostream & outf_o
 }
 
 ProverResult check_prop(PonoOptions pono_options,
-                        const Term & prop_old,
-                        const TransitionSystem & original_ts,
+                        Term & prop_old,
+                        TransitionSystem & original_ts,
                         const SmtSolver & solver_old,
                         std::vector<UnorderedTermMap> & cex,
                         SolverEnum se,
@@ -578,6 +403,341 @@ ProverResult check_prop(PonoOptions pono_options,
 
   return r;
 }
+// ProverResult check_prop(PonoOptions pono_options,
+//                         Term & prop_old,
+//                         TransitionSystem & original_ts,
+//                         SmtSolver & solver_old,
+//                         std::vector<UnorderedTermMap> & cex,
+//                         SolverEnum se,
+//                         Engine e,
+//                         unsigned step)
+// {
+//   // create a solver for this
+//   // auto new_solver = create_solver_for(se, e, true,false);
+//   // TermTranslator to_new_solver(new_solver);
+//   // TermTranslator to_old_solver(solver_old);
+//   // FunctionalTransitionSystem new_fts(original_ts,to_new_solver);
+//   std::vector<UnorderedTermMap> local_cex;
+//   std::string filename_origin = pono_options.smt_path_ + "/" + "inv_origin.smt2";
+
+//   // get property name before it is rewritten
+//   const string prop_name = original_ts.get_name(prop_old);
+//   logger.log(1, "Solving property: {}", prop_name);
+//   logger.log(3, "INIT:\n{}", original_ts.init());
+//   logger.log(3, "TRANS:\n{}", original_ts.trans());
+
+//   // modify the transition system and property based on options
+//   if (!pono_options.clock_name_.empty()) {
+//     Term clock_symbol = original_ts.lookup(pono_options.clock_name_);
+//     toggle_clock(original_ts, clock_symbol);
+//   }
+//   if (!pono_options.reset_name_.empty()) {
+//     std::string reset_name = pono_options.reset_name_;
+//     bool negative_reset = false;
+//     if (reset_name.at(0) == '~') {
+//       reset_name = reset_name.substr(1, reset_name.length() - 1);
+//       negative_reset = true;
+//     }
+//     Term reset_symbol = original_ts.lookup(reset_name);
+//     if (negative_reset) {
+//       SortKind sk = reset_symbol->get_sort()->get_sort_kind();
+//       reset_symbol = (sk == BV) ? solver_old->make_term(BVNot, reset_symbol)
+//                                 : solver_old->make_term(Not, reset_symbol);
+//     }
+//     Term reset_done = add_reset_seq(original_ts, reset_symbol, pono_options.reset_bnd_);
+//     // guard the property with reset_done
+//     prop_old = original_ts.solver()->make_term(Implies, reset_done, prop_old);
+//   }
+
+
+//   if (pono_options.static_coi_) {
+//     /* Compute the set of state/input variables related to the
+//        bad-state property. Based on that information, rebuild the
+//        transition relation of the transition system. */
+//     StaticConeOfInfluence coi(original_ts, { prop_old }, pono_options.verbosity_);
+//   }
+
+//   if (pono_options.pseudo_init_prop_) {
+//     original_ts = pseudo_init_and_prop(original_ts, prop_old);
+//   }
+
+//   if (pono_options.promote_inputvars_) {
+//     original_ts = promote_inputvars(original_ts);
+//     assert(!original_ts.inputvars().size());
+//   }
+
+//   if (!original_ts.only_curr(prop_old)) {
+//     logger.log(1,
+//                "Got next state or input variables in property. "
+//                "Generating a monitor state.");
+//     prop_old = add_prop_monitor(original_ts, prop_old);
+//   }
+
+//   if (pono_options.assume_prop_) {
+//     // NOTE: crucial that pseudo_init_prop and add_prop_monitor passes are
+//     // before this pass. Can't assume the non-delayed prop and also
+//     // delay it
+//     prop_in_trans(original_ts, prop_old);
+//   }
+
+//   Property p(solver_old, prop_old, prop_name);
+
+//   // end modification of the transition system and property
+
+//   Engine eng = pono_options.engine_;
+
+//   std::shared_ptr<Prover> prover;
+//   if (pono_options.cegp_abs_vals_) {
+//     prover = make_cegar_values_prover(eng, p, original_ts, solver_old, pono_options);
+//   } else if (pono_options.ceg_bv_arith_) {
+//     prover = make_cegar_bv_arith_prover(eng, p, original_ts, solver_old, pono_options);
+//   } else if (pono_options.ceg_prophecy_arrays_) {
+//     prover = make_ceg_proph_prover(eng, p, original_ts, solver_old, pono_options);
+//   } else {
+//     prover = make_prover(eng, p, original_ts, solver_old, pono_options);
+//   }
+//   assert(prover);
+
+//   // TODO: handle this in a more elegant way in the future
+//   //       consider calling prover for CegProphecyArrays (so that underlying
+//   //       model checker runs prove unbounded) or possibly, have a command line
+//   //       flag to pick between the two
+//   ProverResult r;
+//   if (pono_options.engine_ == MSAT_IC3IA)
+//   {
+//     // HACK MSAT_IC3IA does not support check_until
+//     r = prover->prove();
+//   }
+//   else
+//   {
+//     r = prover->check_until(pono_options.bound_);
+//   }
+
+//   // if (r == FALSE && pono_options.witness_) {
+//   //   bool success = prover->witness(local_cex);
+//   //   if (!success) {
+//   //     logger.log(
+//   //         0,
+//   //         "Only got a partial witness from engine. Not suitable for printing.");
+//   //   }
+//   // }
+
+//   Term invar;
+//   if (r == TRUE && (pono_options.show_invar_ || pono_options.check_invar_)) {
+//     try {
+//       invar = prover->invar();
+
+//       // write_inv_to_file(invar, outf,outf_origin, step, "RTL.");
+//     }
+//     catch (PonoException & e) {
+//       std::cout << "Engine " << pono_options.engine_
+//                 << " does not support getting the invariant." << std::endl;
+//       // outf << "(noinvar)" << endl;      
+//     }
+
+//     std::string folderPath = pono_options.smt_path_;
+//     std::string filename = folderPath + "/" + "inv.smt2"; 
+//     auto cvc5solver = smt::Cvc5SolverFactory::create(false);
+//     auto transferer = smt::TermTranslator(cvc5solver);
+//     auto invar_in_cvc5 = transferer.transfer_term(invar);
+//     // auto invar_in_cvc5_origin = transferer.transfer_term(invar);
+//     smt::UnorderedTermSet varset;
+   
+
+//       varset = get_free_symbols(invar_in_cvc5);
+//       auto invar_varname_rewritten = name_changed(invar_in_cvc5, varset, cvc5solver, "RTL.");
+//       auto varset_new = get_free_symbols(invar_varname_rewritten);
+//       std::string sort_list,sort_list_origin;
+//       smt_lib2_front(varset_new, sort_list);
+//       smt_lib2_front(varset, sort_list_origin);
+//       // std::string folderPath = pono_options.smt_path_;
+//       std::string origin_smt = folderPath + "/inv_origin.smt2"; 
+//     // std::ofstream outf(filename, std::ofstream::out | std::ofstream::app);
+//     // std::ofstream outf_origin(origin_smt, std::ofstream::out | std::ofstream::app);
+//     if(step == 0){
+//       std::string step_char = to_string(step);
+//       std::string filename = folderPath + "/" + "inv.smt2"; 
+//       ofstream res1(origin_smt.c_str());        
+//       ofstream res(filename.c_str());
+//       res<<"("<<"define-fun"<<" "<<"assumption." << step_char << " "<<"("<<sort_list<<")"<<" "<<"Bool"<<" "<<invar_varname_rewritten->to_string()<<")"<<endl;
+//       res1<<"("<<"define-fun"<<" "<<"assumption." << step_char << " "<<"("<<sort_list_origin<<")"<<" "<<"Bool"<<" "<<invar_in_cvc5->to_string()<<")"<<endl;
+//     }
+//     else{
+//       std::string step_char = to_string(step);
+//       ofstream res;
+//       ofstream res1;
+//       std::string filename = folderPath + "/" + "inv"  +".smt2";
+//       res.open(filename, ios::app);
+//       res1.open(origin_smt, ios::app);
+//       res<<"("<<"define-fun"<<" "<<"assumption." << step_char << " "<<"("<<sort_list<<")"<<" "<<"Bool"<<" "<<invar_varname_rewritten->to_string()<<")"<<endl;
+//       res1<<"("<<"define-fun"<<" "<<"assumption." << step_char << " "<<"("<<sort_list_origin<<")"<<" "<<"Bool"<<" "<<invar_in_cvc5->to_string()<<")"<<endl;
+//         }
+
+
+//   }
+    
+
+//   if (r == TRUE && pono_options.show_invar_ && invar) {
+//     logger.log(0, "INVAR: {}", invar);
+//   }
+
+//   if (r == TRUE && pono_options.check_invar_ && invar) {
+//     bool invar_passes = check_invar(original_ts, p.prop(), invar);
+//     std::cout << "Invariant Check " << (invar_passes ? "PASSED" : "FAILED")
+//               << std::endl;
+//     if (!invar_passes) {
+//       // shouldn't return true if invariant is incorrect
+//       throw PonoException("Invariant Check FAILED");
+//     }
+//   }
+
+//   // now translate cex back to original 
+//   // for (const auto & frame: local_cex) {
+//   //   cex.push_back(UnorderedTermMap());
+//   //   for(const auto & var_val : frame) {
+//   //     cex.back().emplace(to_old_solver.transfer_term(var_val.first, false), 
+//   //                        to_old_solver.transfer_term(var_val.second, false));
+//   //   }
+//   // }
+
+//   return r;
+// }
+ProverResult check_prop_new(PonoOptions pono_options,
+                        Term & prop,
+                        TransitionSystem & ts,
+                        const SmtSolver & s,
+                        std::vector<UnorderedTermMap> & cex)
+{
+  // get property name before it is rewritten
+  const string prop_name = ts.get_name(prop);
+  logger.log(1, "Solving property: {}", prop_name);
+  logger.log(3, "INIT:\n{}", ts.init());
+  logger.log(3, "TRANS:\n{}", ts.trans());
+
+  // modify the transition system and property based on options
+  if (!pono_options.clock_name_.empty()) {
+    Term clock_symbol = ts.lookup(pono_options.clock_name_);
+    toggle_clock(ts, clock_symbol);
+  }
+  if (!pono_options.reset_name_.empty()) {
+    std::string reset_name = pono_options.reset_name_;
+    bool negative_reset = false;
+    if (reset_name.at(0) == '~') {
+      reset_name = reset_name.substr(1, reset_name.length() - 1);
+      negative_reset = true;
+    }
+    Term reset_symbol = ts.lookup(reset_name);
+    if (negative_reset) {
+      SortKind sk = reset_symbol->get_sort()->get_sort_kind();
+      reset_symbol = (sk == BV) ? s->make_term(BVNot, reset_symbol)
+                                : s->make_term(Not, reset_symbol);
+    }
+    Term reset_done = add_reset_seq(ts, reset_symbol, pono_options.reset_bnd_);
+    // guard the property with reset_done
+    prop = ts.solver()->make_term(Implies, reset_done, prop);
+  }
+
+
+  if (pono_options.static_coi_) {
+    /* Compute the set of state/input variables related to the
+       bad-state property. Based on that information, rebuild the
+       transition relation of the transition system. */
+    StaticConeOfInfluence coi(ts, { prop }, pono_options.verbosity_);
+  }
+
+  if (pono_options.pseudo_init_prop_) {
+    ts = pseudo_init_and_prop(ts, prop);
+  }
+
+  if (pono_options.promote_inputvars_) {
+    ts = promote_inputvars(ts);
+    assert(!ts.inputvars().size());
+  }
+
+  if (!ts.only_curr(prop)) {
+    logger.log(1,
+               "Got next state or input variables in property. "
+               "Generating a monitor state.");
+    prop = add_prop_monitor(ts, prop);
+  }
+
+  if (pono_options.assume_prop_) {
+    // NOTE: crucial that pseudo_init_prop and add_prop_monitor passes are
+    // before this pass. Can't assume the non-delayed prop and also
+    // delay it
+    prop_in_trans(ts, prop);
+  }
+
+  Property p(s, prop, prop_name);
+
+  // end modification of the transition system and property
+
+  Engine eng = pono_options.engine_;
+
+  std::shared_ptr<Prover> prover;
+  if (pono_options.cegp_abs_vals_) {
+    prover = make_cegar_values_prover(eng, p, ts, s, pono_options);
+  } else if (pono_options.ceg_bv_arith_) {
+    prover = make_cegar_bv_arith_prover(eng, p, ts, s, pono_options);
+  } else if (pono_options.ceg_prophecy_arrays_) {
+    prover = make_ceg_proph_prover(eng, p, ts, s, pono_options);
+  } else {
+    prover = make_prover(eng, p, ts, s, pono_options);
+  }
+  assert(prover);
+
+  // TODO: handle this in a more elegant way in the future
+  //       consider calling prover for CegProphecyArrays (so that underlying
+  //       model checker runs prove unbounded) or possibly, have a command line
+  //       flag to pick between the two
+  ProverResult r;
+  if (pono_options.engine_ == MSAT_IC3IA)
+  {
+    // HACK MSAT_IC3IA does not support check_until
+    r = prover->prove();
+  }
+  else
+  {
+    r = prover->check_until(pono_options.bound_);
+  }
+
+  if (r == FALSE && pono_options.witness_) {
+    bool success = prover->witness(cex);
+    if (!success) {
+      logger.log(
+          0,
+          "Only got a partial witness from engine. Not suitable for printing.");
+    }
+  }
+
+
+  Term invar;
+  if (r == TRUE && (pono_options.show_invar_ || pono_options.check_invar_)) {
+    try {
+      invar = prover->invar();
+    }
+    catch (PonoException & e) {
+      std::cout << "Engine " << pono_options.engine_
+                << " does not support getting the invariant." << std::endl;
+    }
+  }
+    
+
+  if (r == TRUE && pono_options.show_invar_ && invar) {
+    logger.log(0, "INVAR: {}", invar);
+  }
+
+  if (r == TRUE && pono_options.check_invar_ && invar) {
+    bool invar_passes = check_invar(ts, p.prop(), invar);
+    std::cout << "Invariant Check " << (invar_passes ? "PASSED" : "FAILED")
+              << std::endl;
+    if (!invar_passes) {
+      // shouldn't return true if invariant is incorrect
+      throw PonoException("Invariant Check FAILED");
+    }
+  }
+  return r;
+}
 
 ProverResult check_for_inductiveness_bmc(PonoOptions pono_options,
                         const Term & prop_old,
@@ -590,12 +750,14 @@ ProverResult check_for_inductiveness_bmc(PonoOptions pono_options,
                         BTOR2Encoder btor_enc)
 {
   // create a solver for this
-  auto new_solver = create_solver_for(se, BMC, true,false);
+  auto new_solver = create_solver_for(BTOR, BMC, true,false);
+  // FunctionalTransitionSystem new_fts(new_solver);
   TermTranslator to_new_solver(new_solver);
   TermTranslator to_old_solver(solver_old);
   FunctionalTransitionSystem new_fts(original_ts,to_new_solver);
   std::vector<UnorderedTermMap> local_cex;
   std::string filename_origin = pono_options.smt_path_ + "/" + "inv_origin.smt2";
+  // Term prop = new_solver.transfer_term(prop_old);
   Term prop = to_new_solver.transfer_term(prop_old);
 
   // get property name before it is rewritten
@@ -638,7 +800,7 @@ ProverResult check_for_inductiveness_bmc(PonoOptions pono_options,
   if (pono_options.pseudo_init_prop_) {
     new_fts = pseudo_init_and_prop(new_fts, prop);
   }
-
+  // pono_options.promote_inputvars_ = false;
   if (pono_options.promote_inputvars_) {
     new_fts = promote_inputvars(new_fts);
     assert(!new_fts.inputvars().size());
@@ -690,17 +852,6 @@ ProverResult check_for_inductiveness_bmc(PonoOptions pono_options,
   {
     r = prover->check_until(pono_options.bound_);
   }
-
-    
-  //   if (r == FALSE) {
-    
-
-  //   // if (!success) {
-  //   //   logger.log(
-  //   //       0,
-  //   //       "Only got a partial witness from engine. Not suitable for printing.");
-  //   // }
-  // }
   if((r == FALSE)&&(need_cex == true)){
     bool success = prover->witness(local_cex);
     std::cout<< " The bmc check failure"<<std::endl;
@@ -752,90 +903,58 @@ ProverResult get_prop_inv(PonoOptions pono_options,
       
       if(step>0){       
           RepeatFilter filter_re(filename_origin,fts,step);
+          
           // To begin with, we try to use the coi-repeat,coi-width filter
-          // prop_filter = prop_cex.cex_parse_to_pono_property_coi(filter_re);
-          // PropertyInterface add_to_frame(filename_origin, fts);
+          auto width = min_width;
+          while(width < pono_options.sygus_initial_term_width_){
+            MaxWidthFilter filter_wid(width,fts);
+            prop_filter = prop_cex.json_cex_parse_to_pono_property(filter_re,filter_wid);
+            
+            if(prop_filter!=nullptr)
+              std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
+            
+            if((prop_filter!=nullptr)&&(prop_queue.empty())&&((re = check_previous(prop_filter,prop_check)) == false)&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step,false,btor_enc)) != FALSE)){
+              prop_queue.push(make_pair(prop_filter,"coi and repeat and width filter "));
+              prop_check.insert(prop_filter);
+              std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use COI and repeat and width Filter. "<<std::endl;
+            }
+            
+            width = width*2;
+          }
+
           prop_filter = prop_cex.json_cex_parse_to_pono_property(filter_re);
-          // prop_filter = add_to_frame.Transfer_assump_to_assert(prop_filter);
-          if(prop_filter!=nullptr){
+
+          if(prop_filter!=nullptr)
             std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
-          }
-          if((prop_filter!=nullptr)&&(prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step,false,btor_enc)) != FALSE)&&((re = check_previous(prop_filter,prop_check)) == false)){
+
+          if((prop_filter!=nullptr)&&(prop_queue.empty())&&((re = check_previous(prop_filter,prop_check)) == false)&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step,false,btor_enc)) != FALSE)){
             prop_queue.push(make_pair(prop_filter,"coi and repeat filter "));
-            std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use COI and repeat Filter. "<<std::endl;
             prop_check.insert(prop_filter);
+            std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use COI and repeat Filter. "<<std::endl;
           }
+
+          
           MaxWidthFilter filter_wid(pono_options.sygus_initial_term_width_,fts);
           prop_filter = prop_cex.json_cex_parse_to_pono_property(filter_wid);
-          // prop_filter = add_to_frame.Transfer_assump_to_assert(prop_filter);
-          std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
-          if((prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step,false,btor_enc)) != FALSE)&&((re = check_previous(prop_filter,prop_check)) == false)&&(prop_filter!=nullptr)){
+          if(prop_filter!=nullptr){
+              std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
+            }
+          
+          if((prop_queue.empty())&&(prop_filter!=nullptr)&&((re = check_previous(prop_filter,prop_check)) == false)&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step,false,btor_enc)) != FALSE)){
             prop_queue.push(make_pair(prop_filter,"coi filter and average width filter"));
-            std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use COI and average width Filter. "<<std::endl;
             prop_check.insert(prop_filter);
+            std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use COI and average width Filter. "<<std::endl;
           }
+
           prop_filter = prop_cex.json_cex_parse_to_pono_property();
           // prop_filter = add_to_frame.Transfer_assump_to_assert(prop_filter);
           std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
-          if((prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step,false,btor_enc)) != FALSE)&&((re = check_previous(prop_filter,prop_check)) == false)&&(prop_filter!=nullptr)){
+          if((prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step,true,btor_enc)) != FALSE)&&((re = check_previous(prop_filter,prop_check)) == false)&&(prop_filter!=nullptr)){
             prop_queue.push(make_pair(prop_filter,"coi filter "));
-            std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use COI Filter. "<<std::endl;
             prop_check.insert(prop_filter);
-          }     
-          if((prop_check.empty())){
-            auto width_for_repeat = min_width;
-            while(width_for_repeat < pono_options.sygus_initial_term_width_){            
-                filter.filters.push_back(std::make_shared<MaxWidthFilter>(width_for_repeat, fts));
-                prop_filter = prop_cex_vcd.cex_parse_to_pono_property(filter,filter_re,false);
-                if(prop_filter!=nullptr){
-                    std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
-                }
-                if ((prop_filter!=nullptr)&&(prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step,false,btor_enc)) == TRUE)&&((re = check_previous(prop_filter,prop_check)) == false)){
-                    prop_queue.push(make_pair(prop_filter,"dual filter with width: " + to_string(width_for_repeat)));
-                    std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use Dual Filter. "<<" The width is: "<<width_for_repeat<<std::endl;
-                    prop_check.insert(prop_filter);
-                }
-                prop_filter = prop_cex_vcd.cex_parse_to_pono_property(filter,filter_re,true);
-                if(prop_filter!=nullptr){
-                    std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
-                  }
-                if(prop_filter!=nullptr){
-                  std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
-                }
-                if ((prop_filter!=nullptr)&&(prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step,false,btor_enc)) == TRUE)&&((re = check_previous(prop_filter,prop_check)) == false)){
-                    prop_queue.push(make_pair(prop_filter,"add coi variable and dual filter with width: " + to_string(width_for_repeat)));
-                    std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use Dual Filter and add coi variable. "<<" The width is: "<<width_for_repeat<<std::endl;
-                    prop_check.insert(prop_filter);
-                }
-                filter.filters.pop_back();
-                width_for_repeat *= 2;
-            }
-            auto width_for_wid = min_width;
-            while(width_for_wid < pono_options.sygus_initial_term_width_){            
-                  filter.filters.push_back(std::make_shared<MaxWidthFilter>(width_for_wid, fts));
-                  prop_filter = prop_cex_vcd.cex_parse_to_pono_property(filter,false);
-                  if(prop_filter!=nullptr){
-                    std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
-                  }
-                  if ((prop_filter!=nullptr)&&(prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step,false,btor_enc)) != FALSE)&&((re = check_previous(prop_filter,prop_check)) == false)){
-                      prop_queue.push(make_pair(prop_filter,"width filter with width: " + to_string(width_for_wid)));
-                      std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use Width Filter. "<<" The width is: "<<width_for_wid<<std::endl;
-                      prop_check.insert(prop_filter);
-                  }
-                  prop_filter = prop_cex_vcd.cex_parse_to_pono_property(filter,true);
-                  if(prop_filter!=nullptr){
-                    std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
-                  }
-                  if ((prop_filter!=nullptr)&&(prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step,false,btor_enc)) == TRUE)&&((re = check_previous(prop_filter,prop_check)) == false)){
-                      prop_queue.push(make_pair(prop_filter,"add coi variable and width filter with width: " + to_string(width_for_wid)));
-                      std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use Width Filter and add coi variable . "<<" The width is: "<<width_for_wid<<std::endl;
-                      prop_check.insert(prop_filter);
-                  }
-                  filter.filters.pop_back();
-                  width_for_wid *= 2;
-              }
+            std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use COI Filter. "<<std::endl;
           }
-          if((prop_check.empty())){
+          if((prop_queue.empty())){
             res = FALSE;
             return res;
           }
@@ -847,7 +966,7 @@ ProverResult get_prop_inv(PonoOptions pono_options,
           if(prop_filter!=nullptr){
             std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
           }
-          if((prop_check.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step,false,btor_enc)) != FALSE)&&((re = check_previous(prop_filter,prop_check)) == false)&&(prop_filter!=nullptr)){
+          if((prop_check.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step,true,btor_enc)) != FALSE)&&((re = check_previous(prop_filter,prop_check)) == false)&&(prop_filter!=nullptr)){
             prop_queue.push(make_pair(prop_filter,"coi and average width filter "));
             std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use COI and average width Filter. "<<std::endl;
             prop_check.insert(prop_filter);
@@ -862,33 +981,33 @@ ProverResult get_prop_inv(PonoOptions pono_options,
             std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use COI Filter. "<<std::endl;
             prop_check.insert(prop_filter);
           }
-          if((prop_check.empty())){
-              auto width_for_wid = min_width;
-              while(width_for_wid < pono_options.sygus_initial_term_width_){            
-                  filter.filters.push_back(std::make_shared<MaxWidthFilter>(width_for_wid, fts));
-                  prop_filter = prop_cex_vcd.cex_parse_to_pono_property(filter,true);
-                  if(prop_filter!=nullptr){
-                    std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
-                  }
-                  if ((prop_filter!=nullptr)&&(prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step,false,btor_enc)) != FALSE)&&((re = check_previous(prop_filter,prop_check)) == false)){
-                      prop_queue.push(make_pair(prop_filter,"width filter with width: " + to_string(width_for_wid)));
-                      std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use Width Filter. "<<" The width is: "<<width_for_wid<<std::endl;
-                      prop_check.insert(prop_filter);
-                  }
-                  prop_filter = prop_cex_vcd.cex_parse_to_pono_property(filter,true);
-                  if(prop_filter!=nullptr){
-                    std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
-                  }
-                  if ((prop_filter!=nullptr)&&(prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step,false,btor_enc)) == TRUE)&&((re = check_previous(prop_filter,prop_check)) == false)){
-                      prop_queue.push(make_pair(prop_filter,"add coi variable and width filter with width: " + to_string(width_for_wid)));
-                      std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use Width Filter and add coi variable . "<<" The width is: "<<width_for_wid<<std::endl;
-                      prop_check.insert(prop_filter);
-                  }
-                  filter.filters.pop_back();
-                  width_for_wid *= 2;
-              }
-          }
-          if((prop_check.empty())){
+          // if((prop_check.empty())){
+          //     auto width_for_wid = min_width;
+          //     while(width_for_wid < pono_options.sygus_initial_term_width_){            
+          //         filter.filters.push_back(std::make_shared<MaxWidthFilter>(width_for_wid, fts));
+          //         prop_filter = prop_cex_vcd.cex_parse_to_pono_property(filter,true);
+          //         if(prop_filter!=nullptr){
+          //           std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
+          //         }
+          //         if ((prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step,false,btor_enc)) != FALSE)&&((re = check_previous(prop_filter,prop_check)) == false)){
+          //             prop_queue.push(make_pair(prop_filter,"width filter with width: " + to_string(width_for_wid)));
+          //             std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use Width Filter. "<<" The width is: "<<width_for_wid<<std::endl;
+          //             prop_check.insert(prop_filter);
+          //         }
+          //         // prop_filter = prop_cex_vcd.cex_parse_to_pono_property(filter,true);
+          //         // if(prop_filter!=nullptr){
+          //         //   std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
+          //         // }
+          //         // if ((prop_filter!=nullptr)&&(prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step,false,btor_enc)) == TRUE)&&((re = check_previous(prop_filter,prop_check)) == false)){
+          //         //     prop_queue.push(make_pair(prop_filter,"add coi variable and width filter with width: " + to_string(width_for_wid)));
+          //         //     std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use Width Filter and add coi variable . "<<" The width is: "<<width_for_wid<<std::endl;
+          //         //     prop_check.insert(prop_filter);
+          //         // }
+          //         filter.filters.pop_back();
+          //         width_for_wid *= 2;
+          //     }
+          // }
+          if((prop_queue.empty())){
             res = FALSE;
             return res;
           }
@@ -904,16 +1023,12 @@ ProverResult get_prop_inv(PonoOptions pono_options,
       prop_queue.pop();
       std::cout <<"The initial reduction property for the filter is: "<< prop->to_raw_string() <<std::endl;
       std::cout << "The filter we use is: "<< fil_name <<std::endl; 
-      while ((res = check_prop(pono_options, prop, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step))!=TRUE)
-      {
+      while ((res = check_prop(pono_options, prop, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,step))!=TRUE){
         if(prop_queue.empty()==true){
           return res;
         }
         prop = prop_queue.front().first;
         fil_name = prop_queue.front().second;
-        if (prop_queue.size()==1){
-          pono_options.bound_ = 150;
-        }
         prop_queue.pop();
         std::cout << "The original filter cannot be used." <<std::endl;
         std::cout <<"The new reduction property for the filter is: "<< prop->to_raw_string() <<std::endl;
@@ -1061,14 +1176,10 @@ int main(int argc, char ** argv)
         assert(res == pono::UNKNOWN);
         cout << "unknown" << endl;
         cout << "b" << pono_options.prop_idx_ << endl;
-
-    }
-
-    
-    }
-    else{
-    Term prop;
-    if (pono_options.cex_reader_.empty()){
+      }
+    }else{
+      Term prop;
+      if ((pono_options.cex_reader_.empty())&(pono_options.property_file_.empty())){
         const TermVec & propvec = btor_enc.propvec();
         unsigned int num_props = propvec.size();
         /// YZY: I am not sure whether we need to comment the following code
@@ -1081,8 +1192,12 @@ int main(int argc, char ** argv)
         }
     
         prop = propvec[pono_options.prop_idx_];
-    }
+      }
       if(!pono_options.property_file_.empty()) {
+        const TermVec & propvec = btor_enc.propvec();
+        unsigned int num_props = propvec.size();
+        if (num_props!=0)
+          prop = propvec[pono_options.prop_idx_];
         PropertyInterface prop_if (pono_options.property_file_,fts);
         prop_if.AddAssumptionsToTS();
         prop = prop_if.AddAssertions(prop);
@@ -1090,32 +1205,14 @@ int main(int argc, char ** argv)
       //////TODO: Add the transformation of the vcd at here!!!!//////////
       if(!pono_options.cex_reader_.empty()){
         PropertyInterfacecex prop_cex(pono_options, std::string("RTL"), true, pono_options.env_qed_,fts);
-        FilterConcat filter;
         prop = prop_cex.cex_parse_to_pono_property();
         std::cout << prop->to_raw_string() << std::endl;
-
-          
       }
-
       vector<UnorderedTermMap> cex;
-      // res = check_prop(pono_options, prop, fts, s, cex);
-      // we assume that a prover never returns 'ERROR'
-      assert(res != ERROR);
-      
-      std::string filename = "/data/zhiyuany/cosa2/result_2.txt";
-      // print btor output
+      res = check_prop(pono_options, prop, fts, s, cex, pono_options.smt_solver_,pono_options.engine_,0);
       if (res == FALSE) {
         cout << "sat" << endl;
         cout << "b" << pono_options.prop_idx_ << endl;
-        if (FILE* file = fopen(filename.c_str(), "r")){        
-          ofstream res_collect;
-          res_collect.open(filename, ios::app);
-          res_collect<<"step: "<<  pono_options.step_ << "sat" <<endl;
-        }
-        else{
-          ofstream res_collect(filename.c_str());
-          res_collect<<"step: "<<  pono_options.step_ << "sat" <<endl;
-        }
         assert(pono_options.witness_ || !cex.size());
         if (cex.size()) {
           print_witness_btor(btor_enc, cex, fts);
@@ -1128,21 +1225,13 @@ int main(int argc, char ** argv)
       } else if (res == TRUE) {
         cout << "unsat" << endl;
         cout << "b" << pono_options.prop_idx_ << endl;
-        if (FILE* file = fopen(filename.c_str(), "r")){        
-          ofstream res_collect;
-          res_collect.open(filename, ios::app);
-          res_collect<<"step: "<<  pono_options.step_ << "unsat" <<endl;
-        }
-        else{
-          ofstream res_collect(filename.c_str());
-          res_collect<<"step: "<<  pono_options.step_ << "unsat" <<endl;
-        }
       } else {
         assert(res == pono::UNKNOWN);
         cout << "unknown" << endl;
         cout << "b" << pono_options.prop_idx_ << endl;
       }
-    }
     } 
+    }
     return res;
 }
+

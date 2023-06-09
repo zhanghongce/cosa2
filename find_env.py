@@ -33,11 +33,11 @@ if __name__ == '__main__':
      opts = parser.parse_args(args=[
           '--path_cex','cex_2.vcd',
           '--engine','ic3bits',
-          '--path_design','/data/zhiyuany/EnvSynSamples/QED/PICO/envinvsyn/design.btor',
-          '--ILA_model' , '/data/zhiyuany/EnvSynSamples/QED/PICO/verification/pico_change_tracing_method.btor2',
+          '--path_design','/data/zhiyuany/EnvSynSamples/EnvSynSamples/QED/PICO/envinvsyn/design.btor',
+          '--ILA_model' , '/data/zhiyuany/EnvSynSamples/EnvSynSamples/QED/PICO/verification/pico_origin.btor2',
           '--inv_path','inductive_invariant',
           '--continue_from',
-          '--continue-file','/data/zhiyuany/cosa2/inductive_invariant/inv.smt2'
+          '--continue-file','inv.smt2',
           ])
      exp_name = 'initial_term_width:{:d}_engine:{}_design{}'.format(opts.init_term_width,opts.engine,opts.path_design)
      log_dir = os.path.join(opts.log_dir,exp_name + '.log')
@@ -89,7 +89,7 @@ if __name__ == '__main__':
                     # path = os.getcwd()
                     try_rm(path_cex)
                     # try_rm("/data/zhiyuany/cosa2/inductive_invariant/COI_variable.json")
-                    subprocess.run(["./build/pono","--vcd", "{:s}" .format(path_cex),"-e","{:s}" .format("bmc"),"--bound","{:s}" .format("10"),"--coi_filter","--coi_check" ,"--smt-solver","btor","--property-file", "{:s}" .format(inv_file),"--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(opts.ILA_model)])
+                    subprocess.run(["./build/pono","--vcd", "{:s}" .format(path_cex),"-e","{:s}" .format("bmc"),"--bound","{:s}" .format("10"),"--coi_filter" ,"--coi_check","--smt-solver","btor","--property-file", "{:s}" .format(inv_file),"--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(opts.ILA_model)])
                     if os.path.exists(path_cex) == False:
                          logger.info("The enviroment invariant is found")
                          break
@@ -120,7 +120,7 @@ if __name__ == '__main__':
                # path = os.getcwd()
                try_rm(path_cex)
                try_rm("/data/zhiyuany/cosa2/inductive_invariant/COI_variable.json")
-               subprocess.run(["./build/pono","--vcd", "{:s}" .format(path_cex),"-e","{:s}" .format("bmc"),"--coi_filter" ,"--bound","{:s}" .format("10"),"--smt-solver","btor","--property-file", "{:s}" .format(inv_file),"--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(opts.ILA_model)])
+               subprocess.run(["./build/pono","--vcd", "{:s}" .format(path_cex),"-e","{:s}" .format("bmc"),"--coi_filter" ,"--coi_check","--bound","{:s}" .format("15"),"--smt-solver","btor","--property-file", "{:s}" .format(inv_file),"--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(opts.ILA_model)])
                if os.path.exists(path_cex) == False:
                     # print("The enviroment invariant is found")
                     logger.info("The enviroment invariant is found")

@@ -69,7 +69,7 @@ class SygusPdr : public IC3Base
   void check_ts() const override;
 
   void initialize() override;
-
+  IC3Formula ic3formula_conjunction(const smt::TermVec & c) const;
 
   virtual void abstract() override;
 
@@ -101,6 +101,7 @@ class SygusPdr : public IC3Base
   IC3Formula get_initial_bad_model();
   std::pair<IC3Formula, syntax_analysis::IC3FormulaModel *>
     ExtractPartialModel(const smt::Term & p);
+  // IC3Formula ExtractPartialModel(const smt::Term & p);
   std::pair<IC3Formula, syntax_analysis::IC3FormulaModel *>
     ExtractInitPrimeModel(const smt::Term & p_prime);
   std::tuple<IC3Formula, syntax_analysis::IC3FormulaModel *, syntax_analysis::IC3FormulaModel *>
@@ -121,7 +122,8 @@ class SygusPdr : public IC3Base
   smt::UnorderedTermMap nxt_state_updates_; // a map from prime var -> next
   smt::UnorderedTermSet no_next_vars_; //  the inputs
   smt::Term bad_next_;
-  smt::TermVec constraints_curr_var_;
+  std::unordered_map<smt::Term,std::vector<std::pair<int,int>>> constraints_curr_var_;
+  // smt::TermVec constraints_curr_var_;
   smt::TermVec op_uf_assumptions_;
 
   bool has_assumptions;

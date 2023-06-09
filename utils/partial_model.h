@@ -69,6 +69,8 @@ protected:
   void dfs_walk_bitlevel(const smt::Term & input_ast, int high, int low, 
     std::unordered_map<smt::Term, pair_set> & varset_slice);
   // conditon var buffer
+  void dfs_walk_bitlevel_sqed(const smt::Term & input_ast, int high, int low, 
+    std::unordered_map<smt::Term, pair_set> & varset_slice,std::string filename);
   void GetVarList(const smt::Term & ast);
 public:
 
@@ -83,13 +85,13 @@ public:
   void GetVarListForAsts_in_bitlevel(
     const std::unordered_map<smt::Term,std::vector<std::pair<int,int>>> & input_asts_slices, 
     std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> & varset_slice);
-  void dfs_walk_bitlevel_counterexample(const smt::Term & input_ast, int high, int low, 
-    std::unordered_map<smt::Term, pair_set> & varset_slice);
   /** This class computes the variables that need to
    *  appear in the partial model of asts in the vector
    *  @param the vector of ast to walk
    *  @param (output) the set of variables
    */
+  void GetVarListForAsts_in_bitlevel_sqed(const std::unordered_map<smt::Term,std::vector<std::pair<int,int>>> & input_asts_slices, 
+    std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> & out,std::string filename);
   void GetVarListForAsts(const smt::TermVec & asts, 
     smt::UnorderedTermSet & out_vars);
 

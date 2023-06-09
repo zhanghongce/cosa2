@@ -128,6 +128,7 @@ TransitionSystem promote_inputvars(const TransitionSystem & ts)
   }
 
   // set init
+  // std::cout<< "The init is: "<<ts.init()->to_string() <<std::endl;
   new_ts.set_init(ts.init());
 
   // copy over state updates

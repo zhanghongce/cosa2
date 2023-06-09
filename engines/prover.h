@@ -66,14 +66,16 @@ class Prover
 
   virtual bool witness(std::vector<smt::UnorderedTermMap> & out);
 
-  void recursive_dynamic_COI_using_ILA_info(var_in_coi_t & varset_slice);
-  void compute_dynamic_COI_from_term(const smt::Term & t, const slice_t &ranges, int k, var_in_coi_t & init_state_variables);
+  void recursive_dynamic_COI_using_ILA_info(var_in_coi_t & init_state_variables, int backtrack_frame,std::string filename);
+  void compute_dynamic_COI_from_term(const smt::Term & t, const slice_t &ranges, int k, var_in_coi_t & init_state_variables,
+  var_in_coi_t & input_state_variables, int backtrack_frame,std::string filename);
   void get_var_in_COI(const var_in_coi_t & input_asts,
-                            var_in_coi_t & varset_slice);
+                            var_in_coi_t & varset_slice,std::string filename);
 
-  void record_coi_info(const var_in_coi_t &sv, const smt::UnorderedTermSet &inp, int k);
+  void record_coi_info(const var_in_coi_t &sv, const smt::UnorderedTermSet &inp, int k ,int backtrack_to_step_n);
   smt::UnorderedTermMap all_coi_values;
   bool check_coi();
+  bool check_coi(const smt::Term & original_trans);
   std::vector<smt::UnorderedTermMap> coi_failure_witness_; 
   virtual bool coi_failure_witness(std::vector<smt::UnorderedTermMap> & out);
 

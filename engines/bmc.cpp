@@ -68,7 +68,9 @@ ProverResult Bmc::check_until(int k)
 
   for (int i = bound_start_; i <= k;
        i = exp_step ? (i == 0 ? 1 : i << 1) : (i + bound_step_)) {
+      std::cout<< " The BMC is in the step: " << i <<std::endl;
     if (!step(i)) {
+      std::cout<< " The BMC bug is found in the step: " << i <<std::endl;
       compute_witness();
       return ProverResult::FALSE;
     }
@@ -114,8 +116,8 @@ bool Bmc::step(int i)
     for (int j = reached_k_ + 1; j <= i; j++) {
       logger.log(2, "  BMC adding bad state constraint for j = {}", j);
       //TODO: The clause_2 output is very strange
-      auto clause_2 = unroller_.at_time(bad_, j);
-      clause = solver_->make_term(PrimOp::Or, clause, clause_2);
+      // auto clause_2 = unroller_.at_time(bad_, j);
+      clause = solver_->make_term(PrimOp::Or, clause, unroller_.at_time(bad_, j));
     }
   } else {
     // Add a single bad state predicate (bugs might be missed)
@@ -147,7 +149,7 @@ bool Bmc::step(int i)
       // before 'get-value'. Hence don't 'push' if we don't add any terms
       // in function 'bmc_interval_block_cex_ub'.
       if (cex_upper_bound + 1 <= i)
-	solver_->push();
+	      solver_->push();
       bmc_interval_block_cex_ub(cex_upper_bound + 1, i);
       // Find shortest cex within tested interval given by bad state clause
       // 'success' will be false if binary search fails or linear search is enabled

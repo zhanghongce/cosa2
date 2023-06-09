@@ -591,13 +591,16 @@ bool TransitionSystem::contains(const Term & term,
   while (to_visit.size()) {
     t = to_visit.back();
     to_visit.pop_back();
-
+    // if(t->is_value())
+    //   continue;
     if (visited.find(t) != visited.end()) {
       // cache hit
       continue;
     }
 
-    if (t->is_symbolic_const()) {
+    if (t->is_symbolic_const()) 
+    // if (t->is_symbolic_const()) 
+    {
       bool in_atleast_one = false;
       for (const auto & ts : term_sets) {
         if (ts->find(t) != ts->end()) {

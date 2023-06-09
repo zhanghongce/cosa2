@@ -233,6 +233,7 @@ int main(int argc, char ** argv){
         auto new_init_symbols = get_free_symbols(new_init);
         // UnorderedTermSet out_predicate;
         // get_predicates(s,origin_init,out_predicate,true,false,false);
+        std::cout << origin_init->to_raw_string() << std::endl;
         std::cout << new_init->to_raw_string() << std::endl;
         new_init = fts.make_term(And,new_init,origin_init);
         // for (const auto &origin:orgin_init_symbols){
