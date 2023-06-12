@@ -332,4 +332,50 @@ smt::Term QedCexParser::cex2property(
   return ts_.make_term(Not, prop);
 }
 
+smt::Term QedCexParser::cex2property_ant(
+  filter_t & filter,filter_r & filter_ant) const
+{
+  // NOT (var1 == val1 && var2 == val2 && ...)
+  smt::Term prop;
+  for (const auto & var_val_pair : GetCex() ) {
+    const auto & var_name = var_val_pair.first;
+    if(!filter(var_name))
+      continue;
+    auto pos = ts_.named_terms().find(var_name);
+    assert(pos != ts_.named_terms().end());
+    auto var = pos->second;
+
+    auto sort = var->get_sort();
+    auto val = ts_.make_term(var_val_pair.second, sort, 2);
+
+    auto range = filter.range(var_name);
+    Term eq;
+    if (range.empty()) 
+      eq = ts_.make_term(Equal, var, val);
+    else {
+      for (const auto & slice : range) {
+        auto extract_op = smt::Op(smt::PrimOp::Extract, slice.first, slice.second);
+        auto slice_eq = 
+          ts_.make_term(Equal, ts_.make_term(extract_op, var), ts_.make_term(extract_op, val));
+
+        if (eq == nullptr)
+          eq = slice_eq;
+        else
+          eq = ts_.make_term(And, eq, slice_eq);
+      }
+    }
+    if(!filter_ant(eq))
+      continue;
+    if (prop == nullptr)
+      prop = eq;
+    else
+      prop = ts_.make_term(And, prop, eq);
+  }
+  // assert(prop != nullptr);
+  if(prop!=nullptr)
+    return ts_.make_term(Not, prop);
+  else
+    return prop;
+}
+
 }  // namespace pono

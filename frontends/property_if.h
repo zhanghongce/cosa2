@@ -16,6 +16,12 @@
 **/
 
 #pragma once
+// #ifndef PROPERTY_IF_H
+// #define PROPERTY_IF_H
+
+
+
+// #endif 
 
 #include <iostream>
 
@@ -24,9 +30,11 @@
 #include "smt-switch/smt.h"
 #include "smt-switch/smtlib_reader.h"
 #include "utils/exceptions.h"
-#include "utils/filter.h"
+
 #include "cexreader/cex_extract.h"
 
+
+#include "utils/filter.h"
 
 namespace pono {
 class PropertyInterface : public smt::SmtLibReader
@@ -103,17 +111,18 @@ class PropertyInterfacecex : public CexExtractor
 };
 
 
-class QedCexParser : public SelectiveExtractor 
+class QedCexParser : public SelectiveExtractor  
 {
   public:
     typedef Filter filter_t;
+    typedef AntFilter filter_r;
   ////Build the Constructor//////
     QedCexParser(const std::string& vcd_file_name,
                  const std::string& filter,
                  const std::string& name_removal,
                  TransitionSystem & ts);
     smt::Term cex2property(filter_t & filter) const;
-
+    smt::Term cex2property_ant(filter_t & filter,filter_r & filter_re) const;
     void get_remaining_var(filter_t & filter, std::vector<std::string> & out) const;
   protected:
     TransitionSystem & ts_;

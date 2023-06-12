@@ -1,14 +1,54 @@
 
 #pragma once
+// #ifndef FILTER_H
+// #define FILTER_H
 
+// #include "frontends/property_if.cpp"
+
+// #endif /* B_H */
 #include <string>
 #include <list>
 #include <vector>
 #include <assert.h>
-
 #include "core/ts.h"
+// #include "frontends/property_if.h"
 
+// #include "utils/term_analysis.h"
 namespace pono {
+
+// class PropertyInterface;
+
+class AntFilter{
+  public:  
+    smt::UnorderedTermSet out;
+    std::vector<smt::UnorderedTermSet> out_vec;
+    AntFilter(const std::string filename, TransitionSystem &ts, int step); 
+    // : filename_(filename),ts_(ts), step_(step){
+    //     // PropertyInterface pp = new PropertyInterface(filename_,ts_,step);
+    //     PropertyInterface prop_inv(filename_,ts_,step);
+    //     auto assumption = prop_inv.assumption;
+        
+    //     // auto assumption = assumptions_.at(i);
+    //     get_predicates(ts.get_solver(),assumption,out,false,true,true);
+          
+    // }
+    ~AntFilter() {}
+    bool operator()(const smt::Term &n) const;
+    // {
+    //     for (const auto & it: out){
+    //       if (it->to_string() == n ->to_string()){
+    //         return true;
+    //       }
+    // }
+    // return false;
+    // }
+  protected:
+    std::string filename_;
+    TransitionSystem & ts_;
+    smt::Term assumption;
+    int step_ ;
+    int num_consider_;
+};
 
 class Filter {
 public:
@@ -79,6 +119,7 @@ public:
     return {};
   }
 };
+
 
 
 class SliceFilter : public Filter{
@@ -153,6 +194,5 @@ struct FilterConcat : public Filter{
     return {};
   }
 };
-
 }
 

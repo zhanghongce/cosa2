@@ -52,7 +52,10 @@ using namespace pono;
 using namespace smt;
 using namespace std;
 
-void write_inv_to_file(const smt::Term & invar, ostream & outf, unsigned step, const std::string & varname_prefix) {
+
+
+
+void write_inv_to_file(const smt::Term & invar, ostream & outf, ostream & outf_origin ,unsigned step, const std::string & varname_prefix) {
     auto cvc5solver = smt::Cvc5SolverFactory::create(false);
     auto transferer = smt::TermTranslator(cvc5solver);
     auto invar_in_cvc5 = transferer.transfer_term(invar);
@@ -63,12 +66,13 @@ void write_inv_to_file(const smt::Term & invar, ostream & outf, unsigned step, c
     auto invar_varname_rewritten = varname_prefix.empty() ?
       invar_in_cvc5 : name_changed(invar_in_cvc5, varset, cvc5solver, varname_prefix);
     auto varset_new = get_free_symbols(invar_varname_rewritten);
-
-    std::string sort_list;
+    auto varset_origin = get_free_symbols(invar_in_cvc5);
+    std::string sort_list,sort_list_origin;
     smt_lib2_front(varset_new, sort_list);
-
+    smt_lib2_front(varset_origin, sort_list_origin);
     std::string step_char = to_string(step);
     outf<<"(define-fun assumption." << step_char << " ("<<sort_list<<") Bool "<<invar_varname_rewritten->to_string()<<")"<<endl;
+    outf_origin<<"(define-fun assumption." << step_char << " ("<<sort_list_origin<<") Bool "<<invar_in_cvc5->to_string()<<")"<<endl;
 }
 
 ProverResult check_prop(PonoOptions pono_options,
@@ -193,12 +197,12 @@ ProverResult check_prop(PonoOptions pono_options,
 
   Term invar;
   if (r == TRUE && (pono_options.show_invar_ || pono_options.check_invar_)) {
-
+    std::ofstream outf_origin("envinv_origin.smt2", std::ofstream::out | std::ofstream::app);
     std::ofstream outf("envinv.smt2", std::ofstream::out | std::ofstream::app);
     try {
       invar = prover->invar();
 
-      write_inv_to_file(invar, outf, step, varname_prefix);
+      write_inv_to_file(invar, outf, outf_origin ,step, varname_prefix);
     }
     catch (PonoException & e) {
       std::cout << "Engine " << pono_options.engine_
@@ -349,7 +353,7 @@ int main(int argc, char ** argv)
   FilterConcat filter;
   unsigned max_width = 32;
   filter.filters.push_back(std::make_shared<NameFilter>(cexinfo.auxvar_removal_, fts, false));
-  filter.filters.push_back(std::make_shared<SliceFilter>(cexinfo.COI_to_consider_, fts, true));
+  filter.filters.push_back(std::make_shared<SliceFilter>(cexinfo.COI_to_consider_, fts));
   auto COI_filter = filter.filters.back(); // mark this down and we should not remove it, so later we will check this
   filter.filters.push_back(std::make_shared<NameFilter>(cexinfo.datapath_elements_, fts, false));
   filter.filters.push_back(std::make_shared<MaxWidthFilter>(max_width, fts));
@@ -376,21 +380,68 @@ int main(int argc, char ** argv)
     }while( (inductiveness = check_for_inductiveness(prop, fts)) == true && varset.size() > 1 );
   }
 
-  cout << "PROPERTY:" << prop->to_string() << endl;
-
   vector<UnorderedTermMap> cex;
-  while (  (res = check_prop(pono_options, prop, fts, s, cex, 
-      pono_options.smt_solver_, pono_options.engine_, pono_options.step_, cexinfo.module_name_removal_)) == FALSE 
-   && !filter.filters.empty()) {
-    if (filter.filters.back() == COI_filter)
-      throw PonoException("Removing COI filter! Something is wrong here!");
-    filter.filters.pop_back();
-    cout << "Reachable, removing filter, after: " << filter.to_string() << endl;
-    prop = cexreader.cex2property(filter);
-    cex.clear();
-    cout << "Now work on PROPERTY:" << prop->to_string() << endl;
+
+  if(pono_options.step_>0){
+    AntFilter ant_filter("envinv_origin.smt2",fts,pono_options.step_);
+    prop = cexreader.cex2property_ant(filter,ant_filter);
+    int switch_mode = 0;
+    if(prop!=nullptr){
+      cout << "PROPERTY:" << prop->to_string()<< ", with open Ant filter." << endl;
+      switch_mode = 1;
+    }
+    else{
+      cout << "Ant filter cannot be used in this stage." << endl;
+      prop = cexreader.cex2property(filter);
+      cout << "PROPERTY:" << prop->to_string() << ", without open Ant filter."<<endl;
+      switch_mode = 2;
+    }
+    
+    while (  (res = check_prop(pono_options, prop, fts, s, cex, 
+        pono_options.smt_solver_, pono_options.engine_, pono_options.step_, cexinfo.module_name_removal_)) == FALSE 
+    && !filter.filters.empty()) {
+      if (filter.filters.back() == COI_filter)
+        throw PonoException("Removing COI filter! Something is wrong here!");
+      if(switch_mode == 2){
+        filter.filters.pop_back();
+        cout << "Reachable, removing filter, after: " << filter.to_string() << endl;
+        switch_mode = 0;
+      }
+      if((switch_mode == 1)||((prop = cexreader.cex2property_ant(filter,ant_filter))==nullptr)){
+        cout << "Reachable, removing Ant filter" << endl;
+        prop = cexreader.cex2property(filter);
+        cout << "Now work on PROPERTY:" << prop->to_string() <<", without open Ant filter." << endl;
+        switch_mode = 2;
+      }
+      else{
+        prop = cexreader.cex2property_ant(filter,ant_filter);
+        cout << "Now work on PROPERTY:" << prop->to_string() <<", with open Ant filter." << endl;
+        switch_mode = 1;
+      }
+      cex.clear();
     // TODO: s->reset();
+    }
   }
+
+
+  else{
+      cout << "PROPERTY:" << prop->to_string() << endl;
+
+      vector<UnorderedTermMap> cex;
+      while (  (res = check_prop(pono_options, prop, fts, s, cex, 
+          pono_options.smt_solver_, pono_options.engine_, pono_options.step_, cexinfo.module_name_removal_)) == FALSE 
+      && !filter.filters.empty()) {
+        if (filter.filters.back() == COI_filter)
+          throw PonoException("Removing COI filter! Something is wrong here!");
+        filter.filters.pop_back();
+        cout << "Reachable, removing filter, after: " << filter.to_string() << endl;
+        prop = cexreader.cex2property(filter);
+        cex.clear();
+        cout << "Now work on PROPERTY:" << prop->to_string() << endl;
+        // TODO: s->reset();
+      }
+  }
+
 
   assert ( filter.filters.empty() || res != FALSE);
   assert ( res != ERROR);
