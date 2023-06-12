@@ -45,6 +45,7 @@
 #include "utils/make_provers.h"
 #include "utils/ts_analysis.h"
 #include "utils/term_analysis.h"
+#include "utils/filter.h"
 #include <fstream>
 #include <filesystem>
 #include <queue>
@@ -77,67 +78,67 @@ void profiling_sig_handler(int sig)
   signal(sig, SIG_DFL);
   raise(sig);
 }
-class Filter {
-public:
-  virtual bool operator()(const std::string & n) const = 0;
-  virtual std::string to_string() const = 0;
-  virtual ~Filter() {}
-};
+// class Filter {
+// public:
+//   virtual bool operator()(const std::string & n) const = 0;
+//   virtual std::string to_string() const = 0;
+//   virtual ~Filter() {}
+// };
 
-class MaxWidthFilter : public Filter {
-protected:
-  unsigned width_;
-  const TransitionSystem & ts_;
-public:
-  MaxWidthFilter(unsigned w, const TransitionSystem & ts) : width_(w), ts_(ts) { }
-  bool operator()(const std::string & n) const override {
-    auto pos = ts_.named_terms().find(n);
-    assert(pos != ts_.named_terms().end());
-    auto var = pos->second;
-    if ( var->get_sort()->get_sort_kind() != SortKind::BV )
-      return true;
-    if (var->get_sort()->get_width() <= width_ )
-      return true;
-    return false;
-  }
-  std::string to_string() const override {
-    return "[W<" + std::to_string(width_) +"]";
-  }
-};
+// class MaxWidthFilter : public Filter {
+// protected:
+//   unsigned width_;
+//   const TransitionSystem & ts_;
+// public:
+//   MaxWidthFilter(unsigned w, const TransitionSystem & ts) : width_(w), ts_(ts) { }
+//   bool operator()(const std::string & n) const override {
+//     auto pos = ts_.named_terms().find(n);
+//     assert(pos != ts_.named_terms().end());
+//     auto var = pos->second;
+//     if ( var->get_sort()->get_sort_kind() != SortKind::BV )
+//       return true;
+//     if (var->get_sort()->get_width() <= width_ )
+//       return true;
+//     return false;
+//   }
+//   std::string to_string() const override {
+//     return "[W<" + std::to_string(width_) +"]";
+//   }
+// };
 
-class NameFilter : public Filter{
-protected:
-  unordered_set<string> varset;
-  const TransitionSystem & ts_;
-  bool must_in_;
-public:
-  NameFilter(const vector<string> & v, const TransitionSystem & ts, bool must_in) : ts_(ts), must_in_(must_in)
-     { varset.insert(v.begin(), v.end()); }
-  bool operator()(const std::string & n) const {
-    auto pos1 = varset.find(n);
-    auto pos2 = ts_.named_terms().find(n);
-    assert(pos2 != ts_.named_terms().end());
-    auto var = pos2->second;
+// class NameFilter : public Filter{
+// protected:
+//   unordered_set<string> varset;
+//   const TransitionSystem & ts_;
+//   bool must_in_;
+// public:
+//   NameFilter(const vector<string> & v, const TransitionSystem & ts, bool must_in) : ts_(ts), must_in_(must_in)
+//      { varset.insert(v.begin(), v.end()); }
+//   bool operator()(const std::string & n) const {
+//     auto pos1 = varset.find(n);
+//     auto pos2 = ts_.named_terms().find(n);
+//     assert(pos2 != ts_.named_terms().end());
+//     auto var = pos2->second;
 
-    std::string varname_from_smt2 = var->to_raw_string();
-    if(varname_from_smt2.length() > 2 && varname_from_smt2.front() == '|' 
-      && varname_from_smt2.back() == '|' )
-      varname_from_smt2 = varname_from_smt2.substr(1, varname_from_smt2.length() -2 );
-    auto pos3 = varset.find(varname_from_smt2);
+//     std::string varname_from_smt2 = var->to_raw_string();
+//     if(varname_from_smt2.length() > 2 && varname_from_smt2.front() == '|' 
+//       && varname_from_smt2.back() == '|' )
+//       varname_from_smt2 = varname_from_smt2.substr(1, varname_from_smt2.length() -2 );
+//     auto pos3 = varset.find(varname_from_smt2);
 
-    bool in_vars  = pos1 != varset.end() || pos3 != varset.end();
-    if(must_in_ && !in_vars)
-      return false;
-    if (!must_in_ && in_vars)
-      return false;
-    return true;
-  }
-  std::string to_string() const override {
-    if(must_in_)
-      return "[Keep " + std::to_string(varset.size()) +" V]";
-    return "[rm " + std::to_string(varset.size()) +"V]";
-  }
-};
+//     bool in_vars  = pos1 != varset.end() || pos3 != varset.end();
+//     if(must_in_ && !in_vars)
+//       return false;
+//     if (!must_in_ && in_vars)
+//       return false;
+//     return true;
+//   }
+//   std::string to_string() const override {
+//     if(must_in_)
+//       return "[Keep " + std::to_string(varset.size()) +" V]";
+//     return "[rm " + std::to_string(varset.size()) +"V]";
+//   }
+// };
 
 class RepeatFilter{
   public:  
@@ -241,24 +242,24 @@ bool check_for_inductiveness(const Term & prop, const TransitionSystem & ts) {
 }
 
 
-Term get_term_with_dual_fil(FilterConcat filter, int num_consider, PropertyInterfacecex prop_cex, TransitionSystem &fts, int step, std::string filename_origin){
-    std::cout<<"The current reduction property cannot be used."<<std::endl;
-    RepeatFilter filter_re(filename_origin,fts,step);
-    Term prop_filter;
-    prop_filter = prop_cex.cex_parse_to_pono_property(filter,filter_re);
-    std::cout <<"The new reduction property for the width filter and repeat filter is : "<< prop_filter->to_raw_string() << std::endl;
-    return prop_filter;
+// Term get_term_with_dual_fil(FilterConcat filter, int num_consider, PropertyInterfacecex prop_cex, TransitionSystem &fts, int step, std::string filename_origin){
+//     std::cout<<"The current reduction property cannot be used."<<std::endl;
+//     RepeatFilter filter_re(filename_origin,fts,step);
+//     Term prop_filter;
+//     prop_filter = prop_cex.cex_parse_to_pono_property(filter,filter_re);
+//     std::cout <<"The new reduction property for the width filter and repeat filter is : "<< prop_filter->to_raw_string() << std::endl;
+//     return prop_filter;
 
-}
+// }
 
 
-Term get_term_with_width_fil(FilterConcat filter, PropertyInterfacecex prop_cex){
-      std::cout<<"The current reduction property cannot be used."<<std::endl;
-      Term prop_filter_single;
-      prop_filter_single = prop_cex.cex_parse_to_pono_property(filter);
-      std::cout <<"The new reduction property for the width filter is : "<< prop_filter_single->to_raw_string() << std::endl;
-      return prop_filter_single;
-}
+// Term get_term_with_width_fil(FilterConcat filter, PropertyInterfacecex prop_cex){
+//       std::cout<<"The current reduction property cannot be used."<<std::endl;
+//       Term prop_filter_single;
+//       prop_filter_single = prop_cex.cex_parse_to_pono_property(filter);
+//       std::cout <<"The new reduction property for the width filter is : "<< prop_filter_single->to_raw_string() << std::endl;
+//       return prop_filter_single;
+// }
 
 
 
