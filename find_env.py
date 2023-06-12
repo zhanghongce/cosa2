@@ -34,10 +34,10 @@ if __name__ == '__main__':
           '--path_cex','cex_2.vcd',
           '--engine','ic3bits',
           '--path_design','/data/zhiyuany/EnvSynSamples/EnvSynSamples/QED/PICO/envinvsyn/design.btor',
-          '--ILA_model' , '/data/zhiyuany/EnvSynSamples/EnvSynSamples/QED/PICO/verification/pico_origin.btor2',
-          '--inv_path','inductive_invariant',
-          '--continue_from',
-          '--continue-file','inv.smt2',
+          '--ILA_model' , '/data/zhiyuany/EnvSynSamples/EnvSynSamples/QED/PICO/verification/pico.btor2',
+          '--inv_path','inductive_invariant'
+          # '--continue_from',
+          # '--continue-file','inv.smt2',
           ])
      exp_name = 'initial_term_width:{:d}_engine:{}_design{}'.format(opts.init_term_width,opts.engine,opts.path_design)
      log_dir = os.path.join(opts.log_dir,exp_name + '.log')

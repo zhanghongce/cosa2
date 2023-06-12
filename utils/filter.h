@@ -10,6 +10,28 @@
 
 
 namespace pono {
+class AntFilter{
+  public:  
+    smt::UnorderedTermSet out;
+    std::vector<smt::UnorderedTermSet> out_vec;
+    AntFilter(const std::string filename, TransitionSystem &ts, int step);
+    //  : filename_(filename),ts_(ts), step_(step){
+    //     PropertyInterface prop_inv(filename_,ts_,step);
+    //     auto assumption = prop_inv.assumption;
+        
+    //     // auto assumption = assumptions_.at(i);
+    //     get_predicates(ts.get_solver(),assumption,out,false,false,true);
+          
+    // };
+    ~AntFilter() {}
+  bool operator()(const smt::Term &n) const;
+  protected:
+    std::string filename_;
+    TransitionSystem & ts_;
+    smt::Term assumption;
+    int step_ ;
+    int num_consider_;
+};
 
 class Filter {
 public:

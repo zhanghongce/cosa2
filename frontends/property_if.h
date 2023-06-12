@@ -147,7 +147,7 @@ class JsonCexParser: public CexExtractor
 {
   public:
     typedef std::function<bool(const std::string &n)> filter_t;
-    typedef std::function<bool(const smt::Term &n)> filter_r;
+    typedef AntFilter filter_r;
   ////Build the Constructor//////
     JsonCexParser(PonoOptions & pono_options,const std::string& scope,TransitionSystem & ts);
     smt::Term json_cex_parse_to_pono_property(filter_r filter_re,filter_t filter);

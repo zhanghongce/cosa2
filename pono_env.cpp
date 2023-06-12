@@ -81,37 +81,6 @@ void profiling_sig_handler(int sig)
 
 
 
-class RepeatFilter{
-  public:  
-    smt::UnorderedTermSet out;
-    std::vector<smt::UnorderedTermSet> out_vec;
-    RepeatFilter(const std::string filename, TransitionSystem &ts, int step) : filename_(filename),ts_(ts), step_(step){
-        PropertyInterface prop_inv(filename_,ts_,step);
-        auto assumption = prop_inv.assumption;
-        
-        // auto assumption = assumptions_.at(i);
-        get_predicates(ts.get_solver(),assumption,out,false,false,true);
-          
-    };
-    ~RepeatFilter() {}
-  bool operator()(const smt::Term &n) const{
-      // UnorderedTermSet::const_iterator got = out.find(n);
-   
-        for (smt::Term it: out){
-          if (it->to_string() == n->to_string()){            
-            std::cout<<" The repeat Term is: " << it->to_string()<<std::endl;
-            return true;
-          }
-    }
-    return false;
-  }
-  protected:
-    std::string filename_;
-    TransitionSystem & ts_;
-    smt::Term assumption;
-    int step_ ;
-    int num_consider_;
-};
 
 
 
@@ -139,37 +108,6 @@ bool check_for_inductiveness(const Term & prop, const TransitionSystem & ts) {
 
   return true;
 }
-
-
-// Term get_term_with_dual_fil(FilterConcat filter, int num_consider, PropertyInterfacecex prop_cex, TransitionSystem &fts, int step, std::string filename_origin){
-//     std::cout<<"The current reduction property cannot be used."<<std::endl;
-//     RepeatFilter filter_re(filename_origin,fts,step);
-//     Term prop_filter;
-//     prop_filter = prop_cex.cex_parse_to_pono_property(filter,filter_re);
-//     std::cout <<"The new reduction property for the width filter and repeat filter is : "<< prop_filter->to_raw_string() << std::endl;
-//     return prop_filter;
-
-// }
-
-
-// Term get_term_with_width_fil(FilterConcat filter, PropertyInterfacecex prop_cex){
-//       std::cout<<"The current reduction property cannot be used."<<std::endl;
-//       Term prop_filter_single;
-//       prop_filter_single = prop_cex.cex_parse_to_pono_property(filter);
-//       std::cout <<"The new reduction property for the width filter is : "<< prop_filter_single->to_raw_string() << std::endl;
-//       return prop_filter_single;
-// }
-
-
-
-// Term get_term_with_repeat_fil(int num_consider, PropertyInterfacecex prop_cex, TransitionSystem &fts, int step, std::string filename_origin){
-//         std::cout<<"The current reduction property cannot be used."<<std::endl;
-//         RepeatFilter filter_re(filename_origin,fts,step);
-//         Term prop_filter_single_re;
-//         prop_filter_single_re = prop_cex.cex_parse_to_pono_property(filter_re,filter);
-//         std::cout <<"The new reduction property for the repeat filter is : "<< prop_filter_single_re->to_raw_string() << std::endl;
-//         return prop_filter_single_re;
-// }
 
 Term get_term_without_fil( PropertyInterfacecex prop_cex){
       std::cout <<"We cannot get any reduction."<<std::endl;
@@ -902,7 +840,7 @@ ProverResult get_prop_inv(PonoOptions pono_options,
       
       
       if(step>0){       
-          RepeatFilter filter_re(filename_origin,fts,step);
+          AntFilter filter_re(filename_origin,fts,step);
           
           // To begin with, we try to use the coi-repeat,coi-width filter
           auto width = min_width;
