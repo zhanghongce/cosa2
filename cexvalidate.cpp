@@ -46,8 +46,11 @@
 #include "utils/make_provers.h"
 #include "utils/ts_analysis.h"
 #include "utils/term_analysis.h"
-#include "utils/filter.h"
+#include "json/json.hpp"
 #include <fstream>
+#include <filesystem>
+#include <queue>
+#include "utils/filter.h"
 using namespace pono;
 using namespace smt;
 using namespace std;
@@ -56,7 +59,7 @@ using namespace std;
 
 
 void write_inv_to_file(const smt::Term & invar, ostream & outf, ostream & outf_origin ,unsigned step, const std::string & varname_prefix) {
-    auto cvc5solver = smt::Cvc5SolverFactory::create(false);
+    auto cvc5solver = smt::Cvc5SolverFactory::create(true);
     auto transferer = smt::TermTranslator(cvc5solver);
     auto invar_in_cvc5 = transferer.transfer_term(invar);
 
@@ -293,7 +296,7 @@ int main(int argc, char ** argv)
 
   SmtSolver s = create_solver_for(pono_options.smt_solver_,
                                   pono_options.engine_,
-                                  false,
+                                  true,
                                   pono_options.ceg_prophecy_arrays_);
 
   if (pono_options.logging_smt_solver_) {
