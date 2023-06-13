@@ -683,6 +683,9 @@ bool IC3Base::block_all()
         assert(collateral.children.size());
         constrain_frame(idx, collateral);
 
+        logger.log(
+            3, "Using lemma {}: {}", idx, collateral.term);
+
         // re-add the proof goal at a higher frame if not blocked
         // up to the frontier
         if (idx < frontier_idx()) {

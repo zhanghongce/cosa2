@@ -241,8 +241,8 @@ ProverResult check_prop(PonoOptions pono_options,
 }
 
 bool check_for_inductiveness(const Term & prop, const TransitionSystem & ts) {
-  return true; // always return true to allow adding all filters
-#if 0
+  return true;
+  // below does nothing!
   Term init = ts.init();
   Term trans = ts.trans();
   const auto & s = ts.solver();
@@ -264,7 +264,6 @@ bool check_for_inductiveness(const Term & prop, const TransitionSystem & ts) {
     return false;
 
   return true;
-#endif
 }
 
 
