@@ -271,7 +271,7 @@ target_link_libraries(pono-lib PUBLIC "${PROJECT_SOURCE_DIR}/deps/btor2tools/bui
 target_link_libraries(pono-lib PUBLIC "${GMPXX_LIBRARIES}")
 target_link_libraries(pono-lib PUBLIC "${GMP_LIBRARIES}")
 target_link_libraries(pono-lib PUBLIC pthread)
-target_link_libraries(pono-lib PUBLIC y)
+#target_link_libraries(pono-lib PUBLIC y)
 
 if (LIBRT)
   target_link_libraries(pono-lib PUBLIC ${LIBRT})
@@ -287,19 +287,19 @@ enable_testing()
 # and builds all the parametrized tests
 add_subdirectory(tests)
 
-add_executable(pono-bin "${PROJECT_SOURCE_DIR}/pono.cpp")
+# add_executable(pono-bin "${PROJECT_SOURCE_DIR}/pono.cpp")
 # add_executable(pono-bin-env "${PROJECT_SOURCE_DIR}/pono_env.cpp")
-set_target_properties(pono-bin PROPERTIES OUTPUT_NAME pono)
+# set_target_properties(pono-bin PROPERTIES OUTPUT_NAME pono)
 # set_target_properties(pono-bin-env PROPERTIES OUTPUT_NAME pono-env)##the name of the output
-target_include_directories(pono-bin PUBLIC
-  "${PROJECT_SOURCE_DIR}/utils"
-  "${PROJECT_SOURCE_DIR}/core"
-  "${PROJECT_SOURCE_DIR}/cexreader"
-  "${PROJECT_SOURCE_DIR}/contrib/"
-  "${PROJECT_SOURCE_DIR}/contrib/optionparser-1.7/src"
-  "${PROJECT_SOURCE_DIR}/deps/btor2tools/src"
-  "${SMT_SWITCH_DIR}/local/include")
-
+# target_include_directories(pono-bin PUBLIC
+#   "${PROJECT_SOURCE_DIR}/utils"
+#   "${PROJECT_SOURCE_DIR}/core"
+#   "${PROJECT_SOURCE_DIR}/cexreader"
+#   "${PROJECT_SOURCE_DIR}/contrib/"
+#   "${PROJECT_SOURCE_DIR}/contrib/optionparser-1.7/src"
+#   "${PROJECT_SOURCE_DIR}/deps/btor2tools/src"
+#   "${SMT_SWITCH_DIR}/local/include")
+# 
 # target_include_directories(pono-bin-env PUBLIC
 #   "${PROJECT_SOURCE_DIR}/utils"
 #   "${PROJECT_SOURCE_DIR}/core"
@@ -308,21 +308,21 @@ target_include_directories(pono-bin PUBLIC
 #   "${PROJECT_SOURCE_DIR}/contrib/optionparser-1.7/src"
 #   "${PROJECT_SOURCE_DIR}/deps/btor2tools/src"
 #   "${SMT_SWITCH_DIR}/local/include")
-
-target_link_libraries(pono-bin PUBLIC pono-lib)
+# 
+# target_link_libraries(pono-bin PUBLIC pono-lib)
 # target_link_libraries(pono-bin-env PUBLIC pono-lib)
-
-if ("${PONO_STATIC_EXEC}" STREQUAL "YES")
-  target_link_libraries(pono-bin PUBLIC -static)
-endif()
-
+# 
+# if ("${PONO_STATIC_EXEC}" STREQUAL "YES")
+#   target_link_libraries(pono-bin PUBLIC -static)
+# endif()
+# 
 # if ("${PONO_STATIC_EXEC}" STREQUAL "YES")
 #   target_link_libraries(pono-bin-env PUBLIC -static)
 # endif()
 
 # install smt-switch
 install(TARGETS pono-lib DESTINATION lib)
-install(TARGETS pono-bin DESTINATION bin)
+# install(TARGETS pono-bin DESTINATION bin)
 # install(TARGETS pono-bin-env DESTINATION bin)
 
 add_executable(cexgen-bin "${PROJECT_SOURCE_DIR}/cexgen.cpp")
@@ -344,7 +344,6 @@ if ("${PONO_STATIC_EXEC}" STREQUAL "YES")
 endif()
 
 
-
 add_executable(cexvalidate-bin "${PROJECT_SOURCE_DIR}/cexvalidate.cpp")
 set_target_properties(cexvalidate-bin PROPERTIES OUTPUT_NAME cexvalidate)
 
@@ -364,11 +363,34 @@ if ("${PONO_STATIC_EXEC}" STREQUAL "YES")
 endif()
 
 
+
+
+add_executable(cexconcat-bin "${PROJECT_SOURCE_DIR}/cexconcat.cpp")
+set_target_properties(cexconcat-bin PROPERTIES OUTPUT_NAME cexconcat)
+
+target_include_directories(cexconcat-bin PUBLIC
+  "${PROJECT_SOURCE_DIR}/utils"
+  "${PROJECT_SOURCE_DIR}/core"
+  "${PROJECT_SOURCE_DIR}/cexreader"
+  "${PROJECT_SOURCE_DIR}/contrib/"
+  "${PROJECT_SOURCE_DIR}/contrib/optionparser-1.7/src"
+  "${PROJECT_SOURCE_DIR}/deps/btor2tools/src"
+  "${SMT_SWITCH_DIR}/local/include")
+
+target_link_libraries(cexconcat-bin PUBLIC pono-lib)
+
+if ("${PONO_STATIC_EXEC}" STREQUAL "YES")
+  target_link_libraries(cexconcat-bin PUBLIC -static)
+endif()
+
+
+
 # install smt-switch
 install(TARGETS pono-lib DESTINATION lib)
-install(TARGETS pono-bin DESTINATION bin)
+# install(TARGETS pono-bin DESTINATION bin)
 install(TARGETS cexgen-bin DESTINATION bin)
 install(TARGETS cexvalidate-bin DESTINATION bin)
+install(TARGETS cexconcat-bin DESTINATION bin)
 
 # install public headers
 install(DIRECTORY "${PROJECT_SOURCE_DIR}/core/"

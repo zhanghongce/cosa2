@@ -20,6 +20,8 @@
 
 #include "assert.h"
 
+#define UNIFIED_WIDTH(ast) ((ast)->get_sort()->get_sort_kind() == smt::SortKind::BOOL) ? 1 : (ast)->get_sort()->get_width();
+
 namespace pono {
 
 IC3Formula PartialModelGen::GetPartialModel(const smt::Term & ast) {
@@ -67,6 +69,79 @@ std::pair<IC3Formula,syntax_analysis::IC3FormulaModel>
     syntax_analysis::IC3FormulaModel(std::move(cube), conj));
 }
 
+
+IC3Formula PartialModelGen::GetPartialModel_bitlevel(const smt::Term & ast) {
+  auto width = UNIFIED_WIDTH(ast);
+  std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> output_var_slices;
+
+  GetVarListForAsts_in_bitlevel(
+    {{ast, std::vector<std::pair<int,int>>(1, {width-1,0})}},
+    output_var_slices);
+
+  smt::Term conj;
+  smt::TermVec conjvec;
+  for (const auto & var_vec_pair : output_var_slices) {
+    const auto & v = var_vec_pair.first;
+    const auto & slices = var_vec_pair.second;
+    smt::Term val = solver_->get_value(v);
+    for (const auto & bitfield : slices) {
+      
+      auto left = solver_->make_term(smt::Op(smt::PrimOp::Extract, bitfield.first, bitfield.second), v);
+      auto right = solver_->make_term(smt::Op(smt::PrimOp::Extract, bitfield.first, bitfield.second), val);
+      auto eq = solver_->make_term(smt::Op(smt::PrimOp::Equal), left, right );
+
+      conjvec.push_back( eq );
+      if (conj) {
+        conj = solver_->make_term(smt::Op(smt::PrimOp::And), conj, eq);
+      } else {
+        conj = eq;
+      }
+    }
+  }
+  return IC3Formula(conj, conjvec, false /*not a disjunction*/ );
+} // GetPartialModel to ic3formula
+
+
+std::pair<IC3Formula,syntax_analysis::IC3FormulaModel> 
+    PartialModelGen::GetPartialModelInCube_bitlevel(const smt::Term & ast) {
+  
+  auto width = UNIFIED_WIDTH(ast);
+  std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> output_var_slices;
+
+  GetVarListForAsts_in_bitlevel(
+    {{ast, std::vector<std::pair<int,int>>(1, {width-1,0})}},
+    output_var_slices);
+
+
+  std::unordered_map<smt::Term, smt::Term> cube;
+
+  smt::Term conj;
+  smt::TermVec conjvec;
+  for (const auto & var_vec_pair : output_var_slices) {
+    const auto & v = var_vec_pair.first;
+    const auto & slices = var_vec_pair.second;
+    smt::Term val = solver_->get_value(v);
+    for (const auto & bitfield : slices) {
+      
+      auto left = solver_->make_term(smt::Op(smt::PrimOp::Extract, bitfield.first, bitfield.second), v);
+      auto right = solver_->make_term(smt::Op(smt::PrimOp::Extract, bitfield.first, bitfield.second), val);
+      auto eq = solver_->make_term(smt::Op(smt::PrimOp::Equal), left, right );
+
+      cube.emplace(left,right);
+      conjvec.push_back( eq );
+      if (conj) {
+        conj = solver_->make_term(smt::Op(smt::PrimOp::And), conj, eq);
+      } else {
+        conj = eq;
+      }
+    }
+  }
+
+  return std::make_pair(IC3Formula(conj, conjvec,
+      false /*not a disjunction*/ ), 
+    syntax_analysis::IC3FormulaModel(std::move(cube), conj));
+}
+
 void PartialModelGen::GetVarList(const smt::Term & ast ) {
   dfs_walked_.clear();
   dfs_vars_.clear();
@@ -83,31 +158,53 @@ void PartialModelGen::GetVarList(const smt::Term & ast,
   out_vars.insert(dfs_vars_.begin(), dfs_vars_.end());
 }
 
+//                    [a.first, a.second]
+// [b.first, b.second]
+
+static inline bool inrange(int i, int left, int right) {
+  if(i <= left + 1 && i >= right-1)
+    return true;
+  return false;
+}
+
+static inline bool mergeable(const std::pair<int,int> & a, const std::pair<int,int> & b) {
+  if (inrange(a.first, b.first, b.second))
+    return true;
+  if (inrange(a.second, b.first, b.second))
+    return true;
+  if (inrange(b.first, a.first, a.second))
+    return true;
+  if (inrange(b.second, a.first, a.second))
+    return true;
+  return false;
+}
+
+static inline std::pair<int,int> merge_range(const std::pair<int,int> & l, const std::pair<int, int> & r) {
+  return {std::max(l.first, r.first), std::min(l.second, r.second)};
+}
 
 static std::vector<std::pair<int, int>> merge_intervals(const std::vector<std::pair<int, int>> &intervals) {
-    if (intervals.empty()) {
-        return {};
+  if (intervals.size() <= 1) {
+      return intervals;
+  }
+
+  std::list<std::pair<int,int>> merged;
+  for (auto r : intervals) {
+    auto pos = merged.begin();
+    while(pos != merged.end()) {
+      if (mergeable(*pos, r)) {
+        r = merge_range(*pos, r);
+        merged.erase(pos);
+        pos = merged.begin();
+      } else
+        ++ pos;
     }
-
-    std::vector<std::pair<int, int>> sorted_intervals = intervals;
-    // Sort by the second value (the smaller one) in descending order
-    std::sort(sorted_intervals.begin(), sorted_intervals.end(), [](const auto &a, const auto &b) {
-        return a.second > b.second;
-    });
-
-    std::vector<std::pair<int, int>> merged_intervals;
-    merged_intervals.push_back(sorted_intervals[0]);
-
-    for (size_t i = 1; i < sorted_intervals.size(); ++i) {
-        auto &last_merged_interval = merged_intervals.back();
-        if (sorted_intervals[i].first >= last_merged_interval.second - 1) {
-            last_merged_interval.second = std::min(sorted_intervals[i].second, last_merged_interval.second);
-            last_merged_interval.first = std::max(sorted_intervals[i].first, last_merged_interval.first);
-        } else {
-            merged_intervals.push_back(sorted_intervals[i]);
-        }
-    }
-    return merged_intervals;
+    // the last one r should have no intersection
+    // so we can safely insert it
+    merged.push_back(r);
+  }
+  
+  return std::vector<std::pair<int,int>>(merged.begin(), merged.end());
 }
 
 void PartialModelGen::GetVarListForAsts_in_bitlevel(const std::unordered_map<smt::Term,std::vector<std::pair<int,int>>> & input_asts_slices, 
@@ -279,6 +376,53 @@ void find_consecutive_zeros_ones(std::string s,
   }
 }
 
+static inline std::string bool2bv_str(const std::string & in) {
+  if( in == "true")
+    return "#b1";
+  else if (in == "false")
+    return "#b0";
+  return in;
+}
+
+static int find_rightmost_index_with_different_bit(const std::string & left, const std::string & right, size_t width)
+{
+  auto l = to_unified_bvconst(bool2bv_str(left));
+  auto r = to_unified_bvconst(bool2bv_str(right));
+  assert(l.length() > 0 && r.length() > 0);
+  assert(l.length() == r.length() && l.length() == width);
+  auto lpos = l.length()-1;
+  auto rpos = r.length()-1;
+  int bitindex = 0;
+  while(lpos != -1 && rpos != -1) {
+    if(l.at(lpos) != r.at(rpos)) {
+      return bitindex;
+    } // else
+    rpos -- ; lpos --;
+    bitindex ++;
+  }
+  assert(bitindex <= width);
+  return -1;
+}
+
+static int find_leftmost_index_with_different_bit(const std::string & left, const std::string & right, size_t width)
+{
+  auto l = to_unified_bvconst(bool2bv_str(left));
+  auto r = to_unified_bvconst(bool2bv_str(right));
+  assert(l.length() > 0 && r.length() > 0);
+  assert(l.length() == r.length() && l.length() == width);
+  auto lpos = 0;
+  auto rpos = 0;
+  int bitindex = width-1;
+  while(lpos != width && rpos != width) {
+    if(l.at(lpos) != r.at(rpos)) {
+      return bitindex;
+    } // else
+    rpos ++ ; lpos ++;
+    bitindex --;
+  }
+  assert(bitindex >= -1);
+  return 0;
+}
 
 
 /* Internal Macros */
@@ -482,7 +626,7 @@ void PartialModelGen::dfs_walk_bitlevel(const smt::Term & input_ast, int high, i
         auto cond_left = solver_->get_value(left);
         auto cond_right = solver_->get_value(right);
         assert(cond_left->is_value() && cond_right->is_value());
-        assert(ast->get_sort()->get_width()==1);
+        assert(ast->get_sort()->get_sort_kind() == smt::SortKind::BOOL || ast->get_sort()->get_width()==1);
         if (!( is_all_one(cond_left->to_string(),1) )) {       
           node_stack_.push_back({left, {0,0}});
         }
@@ -497,7 +641,7 @@ void PartialModelGen::dfs_walk_bitlevel(const smt::Term & input_ast, int high, i
         auto cond_left = solver_->get_value(left);
         auto cond_right = solver_->get_value(right);
         assert(cond_left->is_value() && cond_right->is_value());
-        assert((ast->get_sort()->get_sort_kind() == smt::SortKind::BOOL)||(ast->get_sort()->get_width()==1));
+        assert(ast->get_sort()->get_sort_kind() == smt::SortKind::BOOL || ast->get_sort()->get_width()==1);
         if (!( is_all_one(cond_left->to_string(),1) )) {  
           node_stack_.push_back({left, {0,0}});
         } else if (!(is_all_one(cond_right->to_string(), 1))) {
@@ -511,7 +655,7 @@ void PartialModelGen::dfs_walk_bitlevel(const smt::Term & input_ast, int high, i
         auto cond_left = solver_->get_value(left);
         auto cond_right = solver_->get_value(right);
         assert(cond_left->is_value() && cond_right->is_value());
-        assert(ast->get_sort()->get_width()==1);
+        assert(ast->get_sort()->get_sort_kind() == smt::SortKind::BOOL || ast->get_sort()->get_width()==1);
         if (is_all_one(cond_left->to_string(),1)) {
           node_stack_.push_back({left, {0,0}});
         }
@@ -625,13 +769,57 @@ void PartialModelGen::dfs_walk_bitlevel(const smt::Term & input_ast, int high, i
         ARG1(back);
         auto width_back = back->get_sort()->get_width();
         // auto count = 0;
-        auto width_extend = op.idx0;
+        // auto width_extend = op.idx0;
         auto msb = extracted_bit.first;
         auto lsb = extracted_bit.second;
-        if (msb >= width_back)
-          node_stack_.push_back({back, {width_back-1, lsb}});
-        else 
-          node_stack_.push_back({back, {msb, lsb}});
+        if (lsb < width_back) {
+          if (msb >= width_back)
+            node_stack_.push_back({back, {width_back-1, lsb}});
+          else 
+            node_stack_.push_back({back, {msb, lsb}});
+        } // else lsb >= width_back : do nothing
+      }
+      else if (op.prim_op==smt::PrimOp::Equal || op.prim_op == smt::PrimOp::Distinct || op.prim_op == smt::PrimOp::BVComp) {
+        // let's first see if they are equal or not
+        ARG2(left, right);
+        auto result_val = solver_->get_value(ast)->to_string();
+        if ( ((op.prim_op==smt::PrimOp::Equal  || op.prim_op == smt::PrimOp::BVComp) && is_all_one(result_val,1)) || 
+             ( op.prim_op==smt::PrimOp::Distinct && is_all_zero(result_val) )
+           ) {
+            // left and right are in fact equal, go back to trace all bits
+            auto left_width = (left->get_sort()->get_sort_kind() == smt::SortKind::BOOL) ? 1 : left->get_sort()->get_width();
+            node_stack_.push_back({left,{left_width-1,0}});
+            auto right_width = (right->get_sort()->get_sort_kind() == smt::SortKind::BOOL) ? 1 : right->get_sort()->get_width();
+            node_stack_.push_back({right,{right_width-1,0}});
+        } else {
+          // they are not equal, from lsb to msb, find which bits they are different
+          auto left_value = solver_->get_value(left)->to_string();
+          auto right_value = solver_->get_value(right)->to_string();
+          auto left_width = (left->get_sort()->get_sort_kind() == smt::SortKind::BOOL) ? 1 : left->get_sort()->get_width();
+          auto right_width = (right->get_sort()->get_sort_kind() == smt::SortKind::BOOL) ? 1 : right->get_sort()->get_width();
+          assert(left_width == right_width);
+          assert(left_value != right_value);
+
+          int rightmost_difference = find_rightmost_index_with_different_bit(left_value, right_value, left_width);
+          assert(rightmost_difference != -1); // -1 means not found, left == right
+
+          node_stack_.push_back({left,{rightmost_difference,rightmost_difference}});
+          node_stack_.push_back({right,{rightmost_difference,rightmost_difference}});
+        }
+      } else if (op.prim_op==smt::PrimOp::BVUlt || op.prim_op==smt::PrimOp::BVUle || op.prim_op==smt::PrimOp::BVUgt || op.prim_op==smt::PrimOp::BVUge) {
+        // from msb to lsb, find the one that is actually larger
+        ARG2(left, right);
+        auto left_value = solver_->get_value(left)->to_string();
+        auto right_value = solver_->get_value(right)->to_string();
+        auto left_width = (left->get_sort()->get_sort_kind() == smt::SortKind::BOOL) ? 1 : left->get_sort()->get_width();
+        auto right_width = (right->get_sort()->get_sort_kind() == smt::SortKind::BOOL) ? 1 : right->get_sort()->get_width();
+        assert(left_width == right_width);
+
+        int leftmost_difference = find_leftmost_index_with_different_bit(left_value, right_value, left_width);
+        // if left_value == right_value, will return index 0
+
+        node_stack_.push_back({left, {left_width-1, leftmost_difference}});
+        node_stack_.push_back({right,{right_width-1,leftmost_difference}});
       }
       else {
         // if((op.prim_op== smt::PrimOp::BVComp)||(op.prim_op== smt::PrimOp::Distinct)||((op.prim_op== smt::PrimOp::BVUlt)||(op.prim_op==smt::Equal)))

@@ -315,6 +315,34 @@ void SelectiveExtractor::parse_from(const std::string& vcd_file_name,
 
   for (VCDSignal* sig : *sigs) {
 
+    if (sig->type != VCDVarType::VCD_VAR_REG)
+      continue;
+
+    // determine the start signal time
+    std::string start_sig_hash;
+    for (VCDSignal* root_sig : top->signals) {
+      // find the hash of it
+      if (root_sig->reference == "__START__" ||
+          root_sig->reference == "__START__[0:0]")
+        start_sig_hash = root_sig->hash;
+    }
+    if (start_sig_hash.empty()) {
+      logger.log(0,"CEX is not from ILA");
+      break;
+    }
+
+    VCDSignalValues* start_sig_vals = trace->get_signal_value(start_sig_hash);
+    for (VCDTimedValue* tv : *start_sig_vals) {
+      if (val2str(*(tv->value)) == "1'b1") {
+        start_time = tv->time;
+        break;
+      }
+    } 
+  }
+
+  logger.log(0,"START @ {}", start_time);
+  for (VCDSignal* sig : *sigs) {
+
     // ensure it is only register
     if (sig->type != VCDVarType::VCD_VAR_REG)
       continue;

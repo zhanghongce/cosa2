@@ -51,6 +51,114 @@ using namespace pono;
 using namespace smt;
 using namespace std;
 
+std::vector<std::string> assumption_wire_name = {
+"start_condition__p71__",
+"start_condition__p69__",
+"start_condition__p70__",
+"input_map_assume___p0__",
+"noreset__p1__",
+"post_value_holder__p2__",
+"post_value_holder__p3__",
+"post_value_holder__p4__",
+"post_value_holder__p5__",
+"post_value_holder__p6__",
+"post_value_holder__p7__",
+"post_value_holder__p8__",
+"post_value_holder__p9__",
+"post_value_holder__p10__",
+"post_value_holder__p11__",
+"post_value_holder__p12__",
+"post_value_holder__p13__",
+"post_value_holder__p14__",
+"post_value_holder__p15__",
+"post_value_holder__p16__",
+"post_value_holder__p17__",
+"post_value_holder__p18__",
+"post_value_holder__p19__",
+"post_value_holder__p20__",
+"post_value_holder__p21__",
+"post_value_holder__p22__",
+"post_value_holder__p23__",
+"post_value_holder__p24__",
+"post_value_holder__p25__",
+"post_value_holder__p26__",
+"post_value_holder__p27__",
+"post_value_holder__p28__",
+"post_value_holder__p29__",
+"post_value_holder__p30__",
+"post_value_holder__p31__",
+"post_value_holder__p32__",
+"post_value_holder__p33__",
+"post_value_holder__p34__",
+"post_value_holder__p35__",
+"post_value_holder__p36__",
+"post_value_holder__p37__",
+"post_value_holder__p38__",
+"post_value_holder__p39__",
+"post_value_holder__p40__",
+"post_value_holder__p41__",
+"post_value_holder__p42__",
+"post_value_holder__p43__",
+"post_value_holder__p44__",
+"post_value_holder__p45__",
+"post_value_holder__p46__",
+"post_value_holder__p47__",
+"post_value_holder__p48__",
+"post_value_holder__p49__",
+"post_value_holder__p50__",
+"post_value_holder__p51__",
+"post_value_holder__p52__",
+"post_value_holder__p53__",
+"post_value_holder__p54__",
+"post_value_holder__p55__",
+"post_value_holder__p56__",
+"post_value_holder__p57__",
+"post_value_holder__p58__",
+"post_value_holder__p59__",
+"post_value_holder__p60__",
+"post_value_holder__p61__",
+"post_value_holder__p62__",
+"post_value_holder__p63__",
+"post_value_holder__p64__",
+"post_value_holder__p65__",
+"post_value_holder__p66__",
+"post_value_holder__p67__",
+"post_value_holder__p68__",
+"variable_map_assume___p72__",
+"variable_map_assume___p73__",
+"variable_map_assume___p74__",
+"variable_map_assume___p75__",
+"variable_map_assume___p76__",
+"variable_map_assume___p77__",
+"variable_map_assume___p78__",
+"variable_map_assume___p79__",
+"variable_map_assume___p80__",
+"variable_map_assume___p81__",
+"variable_map_assume___p82__",
+"variable_map_assume___p83__",
+"variable_map_assume___p84__",
+"variable_map_assume___p85__",
+"variable_map_assume___p86__",
+"variable_map_assume___p87__",
+"variable_map_assume___p88__",
+"variable_map_assume___p89__",
+"variable_map_assume___p90__",
+"variable_map_assume___p91__",
+"variable_map_assume___p92__",
+"variable_map_assume___p93__",
+"variable_map_assume___p94__",
+"variable_map_assume___p95__",
+"variable_map_assume___p96__",
+"variable_map_assume___p97__",
+"variable_map_assume___p98__",
+"variable_map_assume___p99__",
+"variable_map_assume___p100__",
+"variable_map_assume___p101__",
+"variable_map_assume___p102__",
+"variable_map_assume___p103__",
+"variable_map_assume___p104__",
+};
+
 ProverResult check_prop(PonoOptions pono_options,
                         Term & prop,
                         TransitionSystem & ts,
@@ -58,143 +166,71 @@ ProverResult check_prop(PonoOptions pono_options,
                         std::vector<UnorderedTermMap> & cex,
                         const Term & original_trans)
 {
-  // get property name before it is rewritten
-  const string prop_name = ts.get_name(prop);
-  logger.log(1, "Solving property: {}", prop_name);
-  logger.log(3, "INIT:\n{}", ts.init());
-  logger.log(3, "TRANS:\n{}", ts.trans());
+  Unroller unroller_(ts);
+  int bound = 20;
 
-  // modify the transition system and property based on options
-  if (!pono_options.clock_name_.empty()) {
-    Term clock_symbol = ts.lookup(pono_options.clock_name_);
-    toggle_clock(ts, clock_symbol);
-  }
-  if (!pono_options.reset_name_.empty()) {
-    std::string reset_name = pono_options.reset_name_;
-    bool negative_reset = false;
-    if (reset_name.at(0) == '~') {
-      reset_name = reset_name.substr(1, reset_name.length() - 1);
-      negative_reset = true;
-    }
-    Term reset_symbol = ts.lookup(reset_name);
-    if (negative_reset) {
-      SortKind sk = reset_symbol->get_sort()->get_sort_kind();
-      reset_symbol = (sk == BV) ? s->make_term(BVNot, reset_symbol)
-                                : s->make_term(Not, reset_symbol);
-    }
-    Term reset_done = add_reset_seq(ts, reset_symbol, pono_options.reset_bnd_);
-    // guard the property with reset_done
-    prop = ts.solver()->make_term(Implies, reset_done, prop);
-  }
-
-
-  if (pono_options.static_coi_) {
-    /* Compute the set of state/input variables related to the
-       bad-state property. Based on that information, rebuild the
-       transition relation of the transition system. */
-    StaticConeOfInfluence coi(ts, { prop }, pono_options.verbosity_);
-  }
-
-  if (pono_options.pseudo_init_prop_) {
-    ts = pseudo_init_and_prop(ts, prop);
-  }
-
-  if (pono_options.promote_inputvars_) {
-    ts = promote_inputvars(ts);
-    assert(!ts.inputvars().size());
-  }
-
-  if (!ts.only_curr(prop)) {
-    logger.log(1,
-               "Got next state or input variables in property. "
-               "Generating a monitor state.");
-    prop = add_prop_monitor(ts, prop);
-  }
-
-  if (pono_options.assume_prop_) {
-    // NOTE: crucial that pseudo_init_prop and add_prop_monitor passes are
-    // before this pass. Can't assume the non-delayed prop and also
-    // delay it
-    prop_in_trans(ts, prop);
-  }
-
-  Property p(s, prop, prop_name);
-
-  // end modification of the transition system and property
-
-  Engine eng = pono_options.engine_;
-
-  std::shared_ptr<Prover> prover;
-  if (pono_options.cegp_abs_vals_) {
-    prover = make_cegar_values_prover(eng, p, ts, s, pono_options);
-  } else if (pono_options.ceg_bv_arith_) {
-    prover = make_cegar_bv_arith_prover(eng, p, ts, s, pono_options);
-  } else if (pono_options.ceg_prophecy_arrays_) {
-    prover = make_ceg_proph_prover(eng, p, ts, s, pono_options);
-  } else {
-    prover = make_prover(eng, p, ts, s, pono_options);
-  }
-  assert(prover);
-
-  // TODO: handle this in a more elegant way in the future
-  //       consider calling prover for CegProphecyArrays (so that underlying
-  //       model checker runs prove unbounded) or possibly, have a command line
-  //       flag to pick between the two
-  ProverResult r;
-  if (pono_options.engine_ == MSAT_IC3IA)
-  {
-    // HACK MSAT_IC3IA does not support check_until
-    r = prover->prove();
-  }
-  else
-  {
-    r = prover->check_until(pono_options.bound_);
-  }
-
-  if (r == FALSE && pono_options.witness_) {
-    bool success = prover->witness(cex);
-    if (!success) {
-      logger.log(
-          0,
-          "Only got a partial witness from engine. Not suitable for printing.");
-    }
-    bool res_COI = prover->check_coi(original_trans);
-    if(!res_COI) {
-        std::vector<smt::UnorderedTermMap> coi_cex;
-        prover->coi_failure_witness(coi_cex);
-        VCDWitnessPrinter vcdprinter(ts, coi_cex);
-        vcdprinter.dump_trace_to_file("COI_failure.vcd");
-        throw PonoException("COI check failed!");
+  std::vector<std::tuple<int, Term, Term>> coi_info;
+  { // load variable assignment
+    std::ifstream fin("coi-check-rev.txt");
+    if (fin.is_open()) { 
+      { int n; std::string x; fin>>n>>x; assert(n==0 && x=="="); }
+      int offset; fin >> offset; // read `0 = 5`
+      int idx; std::string name; std::string val;
+      while((fin>>idx)) {
+        fin>>name; fin>>val;
+        idx += offset;
+        Term var_term = ts.lookup(name);
+        auto sort = var_term->get_sort();
+        assert(val.substr(0,2) == "#b" && val.length() > 2);
+        Term val_term = ts.make_term(val.substr(2), sort, 2);
+        coi_info.push_back({idx, var_term, val_term});
+      }
     } else
-      logger.log(0, "COI check passed");
+      throw PonoException("Need `coi-check-rev.txt`");
+    cout << "Loaded " << coi_info.size() << " assignments" << endl;
   }
 
-  Term invar;
-  if (r == TRUE && (pono_options.show_invar_ || pono_options.check_invar_)) {
-    try {
-      invar = prover->invar();
-    }
-    catch (PonoException & e) {
-      std::cout << "Engine " << pono_options.engine_
-                << " does not support getting the invariant." << std::endl;
-    }
+  s->assert_formula(unroller_.at_time(ts.init(), 0));
+  for (int j = 0; j < bound; j ++) {
+    s->assert_formula(unroller_.at_time(ts.trans(), j));
   }
-    
+  assert(s->check_sat().is_sat());
 
-  if (r == TRUE && pono_options.show_invar_ && invar) {
-    logger.log(0, "INVAR: {}", invar);
-  }
-
-  if (r == TRUE && pono_options.check_invar_ && invar) {
-    bool invar_passes = check_invar(ts, p.prop(), invar);
-    std::cout << "Invariant Check " << (invar_passes ? "PASSED" : "FAILED")
-              << std::endl;
-    if (!invar_passes) {
-      // shouldn't return true if invariant is incorrect
-      throw PonoException("Invariant Check FAILED");
+  // now let's check COI
+  s->push();
+  bool is_sat = true;
+  for (const auto & idx_var_val : coi_info) {
+    auto idx = std::get<0>(idx_var_val);
+    const auto & var = std::get<1>(idx_var_val);
+    const auto & val = std::get<2>(idx_var_val);
+    s->assert_formula(ts.make_term(Equal, unroller_.at_time(var, idx), val));
+    cout << "@" << idx << " " << var->to_string() << " := " << val->to_string() << endl;
+    if(s->check_sat().is_unsat()) {
+      cout << "becomes UNSAT!" << endl;
+      is_sat = false;
+      break;
     }
   }
-  return r;
+
+  bool stop = false;
+  for (int idx = 5; idx <= 10; idx ++) {
+    for (const auto & wire_name : assumption_wire_name) {
+      auto a = ts.lookup(wire_name);
+      s->assert_formula(unroller_.at_time(a, idx));
+      cout << "Asmpt @ " << idx << " "<< wire_name << endl;
+      if(s->check_sat().is_unsat()) {
+        cout << "becomes UNSAT!" << endl;
+        stop = true;
+        break;
+      }
+    }
+    if (stop)
+      break;
+  }
+
+  s->pop();
+  return ProverResult::TRUE;
+  // just unroll 
 }
 
 int extract_num(const std::string &n) {
@@ -222,18 +258,6 @@ void IF_ILA_CHECK_LOAD_ADDITIONAL_ASSUMPTIONS(FunctionalTransitionSystem & fts, 
   unordered_map<int, vector<Term>> sn_cond_condmet_pair;
 
   auto & slv = fts.get_solver();
-  // HZ note: replacing back to true seems to be not okay?
-  // auto term_true = slv->make_term(true);
-  // { // replace existing constraints to true in fts.trans
-  //   UnorderedTermMap subst;
-  //   for(const auto & c_next_pair : fts.constraints()) {
-  //     subst.emplace(c_next_pair.first, term_true);
-  //     // if (c_next_pair.second)
-  //     //  subst.emplace(fts.next(c_next_pair.first), term_true);
-  //   }
-  //   original_trans = slv->AbsSmtSolver::substitute(original_trans, subst);
-  // }
-
 
   for (const auto & n_term_pair : fts.named_terms()) {
     const auto & n = n_term_pair.first;
@@ -318,24 +342,6 @@ int main(int argc, char ** argv)
     //      to allow resetting assertions
   }
 
-  // limitations with COI
-  if (pono_options.static_coi_) {
-    if (pono_options.pseudo_init_prop_) {
-      // Issue explained here:
-      // https://github.com/upscale-project/pono/pull/160 will be resolved
-      // once state variables removed by COI are removed from init then should
-      // do static-coi BEFORE mod-init-prop
-      logger.log(0,
-                  "Warning: --mod-init-prop and --static-coi don't work "
-                  "well together currently.");
-    }
-  }
-  // default options for IC3SA
-  if (pono_options.engine_ == IC3SA_ENGINE || pono_options.engine_ == SYGUS_PDR) {
-    // IC3SA expects all state variables
-    pono_options.promote_inputvars_ = true;
-  }
-
   // TODO: make this less ugly, just need to keep it in scope if using
   //       it would be better to have a generic encoder
   //       and also only create the transition system once
@@ -362,39 +368,6 @@ int main(int argc, char ** argv)
   vector<UnorderedTermMap> cex;
   res = check_prop(pono_options, prop, fts, s, cex, original_trans);
   // we assume that a prover never returns 'ERROR'
-  assert(res != ERROR);
-
-  std::ofstream fout("check.result");
-  // print btor output
-  if (res == FALSE) {
-    cout << "sat" << endl;
-    fout << "sat" << endl;
-    cout << "b" << pono_options.prop_idx_ << endl;
-    assert(pono_options.witness_ || !cex.size());
-    if (cex.size()) {
-      // if we expect only the first state
-      // we don't have the input on every cycle
-      // access will be out of range, so let's
-      // disable it
-      if(!pono_options.witness_first_state_only_) {
-        // print_witness_btor(btor_enc, cex, fts);
-      }
-      if (!pono_options.vcd_name_.empty()) {
-        VCDWitnessPrinter vcdprinter(fts, cex);
-        vcdprinter.dump_trace_to_file(pono_options.vcd_name_);
-      }
-    }
-
-  } else if (res == TRUE) {
-    cout << "unsat" << endl;
-    fout << "unsat" << endl;
-    cout << "b" << pono_options.prop_idx_ << endl;
-  } else {
-    assert(res == pono::UNKNOWN);
-    cout << "unknown" << endl;
-    fout << "unknown" << endl;
-    cout << "b" << pono_options.prop_idx_ << endl;
-  }
 
   return res;
 }

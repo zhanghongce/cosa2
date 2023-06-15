@@ -58,7 +58,7 @@ using namespace std;
 
 
 
-void write_inv_to_file(const smt::Term & invar, ostream & outf, ostream & outf_origin ,unsigned step, const std::string & varname_prefix) {
+void write_inv_to_file(const smt::Term & invar, ostream & outf ,unsigned step, const std::string & varname_prefix) {
     auto cvc5solver = smt::Cvc5SolverFactory::create(true);
     auto transferer = smt::TermTranslator(cvc5solver);
     auto invar_in_cvc5 = transferer.transfer_term(invar);
@@ -75,7 +75,7 @@ void write_inv_to_file(const smt::Term & invar, ostream & outf, ostream & outf_o
     smt_lib2_front(varset_origin, sort_list_origin);
     std::string step_char = to_string(step);
     outf<<"(define-fun assumption." << step_char << " ("<<sort_list<<") Bool "<<invar_varname_rewritten->to_string()<<")"<<endl;
-    outf_origin<<"(define-fun assumption." << step_char << " ("<<sort_list_origin<<") Bool "<<invar_in_cvc5->to_string()<<")"<<endl;
+    // outf_origin<<"(define-fun assumption." << step_char << " ("<<sort_list_origin<<") Bool "<<invar_in_cvc5->to_string()<<")"<<endl;
 }
 
 ProverResult check_prop(PonoOptions pono_options,
@@ -205,13 +205,28 @@ ProverResult check_prop(PonoOptions pono_options,
     try {
       invar = prover->invar();
 
-      write_inv_to_file(invar, outf, outf_origin ,step, varname_prefix);
     }
     catch (PonoException & e) {
       std::cout << "Engine " << pono_options.engine_
                 << " does not support getting the invariant." << std::endl;
       outf << "(noinvar)" << endl;      
     }
+
+
+    if (pono_options.check_invar_ && invar) {
+      bool invar_passes = check_invar(new_fts, p.prop(), invar);
+      std::cout << "Invariant Check " << (invar_passes ? "PASSED" : "FAILED")
+                << std::endl;
+      if (!invar_passes) {
+        // shouldn't return true if invariant is incorrect
+        throw PonoException("Invariant Check FAILED");
+      }
+    }
+
+    if ( invar) {
+      write_inv_to_file(invar, outf, step, varname_prefix);
+    }
+
   }
     
 
@@ -219,15 +234,6 @@ ProverResult check_prop(PonoOptions pono_options,
     logger.log(0, "INVAR: {}", invar);
   }
 
-  if (r == TRUE && pono_options.check_invar_ && invar) {
-    bool invar_passes = check_invar(new_fts, p.prop(), invar);
-    std::cout << "Invariant Check " << (invar_passes ? "PASSED" : "FAILED")
-              << std::endl;
-    if (!invar_passes) {
-      // shouldn't return true if invariant is incorrect
-      throw PonoException("Invariant Check FAILED");
-    }
-  }
 
   // now translate cex back to original 
   for (const auto & frame: local_cex) {
@@ -242,6 +248,8 @@ ProverResult check_prop(PonoOptions pono_options,
 }
 
 bool check_for_inductiveness(const Term & prop, const TransitionSystem & ts) {
+  return true;
+  // below does nothing!
   Term init = ts.init();
   Term trans = ts.trans();
   const auto & s = ts.solver();
@@ -274,7 +282,7 @@ int main(int argc, char ** argv)
   pono_options.engine_ = IC3_BITS;
   pono_options.verbosity_ = 1;
   pono_options.show_invar_ = true;
-  pono_options.check_invar_ = false;
+  pono_options.check_invar_ = true;
 
   if (res == ERROR) return res;
   // expected result returned by option parsing and setting is

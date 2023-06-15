@@ -55,14 +55,20 @@ class Prover
 
   virtual bool witness(std::vector<smt::UnorderedTermMap> & out);
 
-  void recursive_dynamic_COI_using_ILA_info(var_in_coi_t & varset_slice);
-  void compute_dynamic_COI_from_term(const smt::Term & t, const slice_t &ranges, int k, var_in_coi_t & init_state_variables);
+  void recursive_dynamic_COI_using_ILA_info(var_in_coi_t & varset_slice, int backtrack_frame);
+  void compute_dynamic_COI_from_term(
+    const smt::Term & t, 
+    const slice_t &ranges, int k,
+    var_in_coi_t & init_state_variables,
+    var_in_coi_t & input_state_variables,
+    int backtrack_frame);
+
   void get_var_in_COI(const var_in_coi_t & input_asts,
                             var_in_coi_t & varset_slice);
 
-  void record_coi_info(const var_in_coi_t &sv, const smt::UnorderedTermSet &inp, int k);
+  void record_coi_info(const var_in_coi_t &sv, const smt::UnorderedTermSet &inp, int k, int start_bnd);
   smt::UnorderedTermMap all_coi_values;
-  bool check_coi();
+  bool check_coi(const smt::Term & original_trans);
   std::vector<smt::UnorderedTermMap> coi_failure_witness_; 
   virtual bool coi_failure_witness(std::vector<smt::UnorderedTermMap> & out);
 
@@ -81,6 +87,11 @@ class Prover
   smt::Term invar();
 
  protected:
+  std::vector<std::tuple<std::string, int, std::string>> coi_trace_k;
+  void register_coi_trace_k(const std::string & s, int k, const std::string & v) {
+    coi_trace_k.push_back({s,k,v});
+  }
+
   /** Take a term from the Prover's solver
    *  to the original transition system's solver
    *  as a particular SortKind
