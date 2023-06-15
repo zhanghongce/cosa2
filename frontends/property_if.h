@@ -88,7 +88,7 @@ class PropertyInterfacecex : public CexExtractor
   ////Build the Constructor//////
   std::vector<int> get_width;
   typedef std::function<bool(const std::string &n)> filter_t;
-  typedef std::function<bool(const smt::Term &n)> filter_r;
+  typedef AntFilter filter_r;
     PropertyInterfacecex(const PonoOptions pono_options,
                            const std::string& scope,
                            bool reg_only, bool is_qed,TransitionSystem & ts);
@@ -96,17 +96,12 @@ class PropertyInterfacecex : public CexExtractor
                            const std::string& scope,
                            bool reg_only, TransitionSystem & ts,bool is_parse_concat);                       
     void get_COI_variable(PonoOptions pono_options_);
-    smt::Term cex_parse_to_pono_property(filter_t filter,bool add_coi);
-    smt::Term cex_parse_to_pono_property(filter_r filter_re,bool add_coi);
-    smt::Term cex_parse_to_pono_property(filter_t filter,filter_r filter_re,bool add_coi);
+    smt::Term cex_parse_to_pono_property(filter_t filter,bool filter_en,filter_r filter_re,bool filter_re_en);
     smt::Term cex_parse_to_pono_property(bool is_concat);
     smt::Term cex_parse_to_pono_property();
-    smt::Term cex_parse_to_pono_property_coi(filter_r filter_re);
-    smt::Term cex_parse_to_pono_property_coi(filter_t filter);
-    smt::Term cex_parse_to_pono_property_coi();
     int get_reg_width();
     int get_reg_min_width();
-    smt::Term get_extract_from_coi(const smt::Term val, const smt::Term var, std::string var_name);
+    smt::Term get_extract_from_coi(const std::string val_string, const smt::Term var, std::string var_name,filter_r filter,bool filter_re_en);
     bool is_extracted(const std::string & var_name, std::vector<std::pair<int,int>> & extract_info);
     void get_info(const std::pair<int,int> & out, int & idx0, int & idx1);
   protected:
@@ -122,6 +117,7 @@ class PropertyInterfacecex : public CexExtractor
     bool having_extract;
     is_reg_t is_reg;
     bool is_parse_concat_;
+    int startsfrom;
 };
 
 

@@ -22,7 +22,7 @@
 #include "core/unroller.h"
 #include "options/options.h"
 #include "smt-switch/smt.h"
-
+#include <fstream>
 namespace pono {
 
 /** enum for communicating result of a refinement step
@@ -68,7 +68,7 @@ class Prover
 
   void recursive_dynamic_COI_using_ILA_info(var_in_coi_t & init_state_variables, int backtrack_frame,std::string filename);
   void compute_dynamic_COI_from_term(const smt::Term & t, const slice_t &ranges, int k, var_in_coi_t & init_state_variables,
-  var_in_coi_t & input_state_variables, int backtrack_frame,std::string filename);
+  var_in_coi_t & input_state_variables, int backtrack_frame,std::string filename,std::ofstream & fout);
   void get_var_in_COI(const var_in_coi_t & input_asts,
                             var_in_coi_t & varset_slice,std::string filename);
 

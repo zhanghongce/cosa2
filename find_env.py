@@ -3,6 +3,16 @@ import os
 import argparse
 import datetime
 from loguru import logger
+from shutil import copyfile
+
+def try_cp(name):
+     try:
+          try_rm('cex_ant.vcd')
+          copyfile(name, 'cex_ant.vcd')
+     except IOError as e:
+          print("Unable to copy file. %s" % e)
+
+
 def try_rm(name):
     try:
         os.remove(name)
@@ -33,11 +43,11 @@ if __name__ == '__main__':
      opts = parser.parse_args(args=[
           '--path_cex','cex_2.vcd',
           '--engine','ic3bits',
-          '--path_design','/data/zhiyuany/EnvSynSamples/EnvSynSamples/QED/PICO/envinvsyn/design.btor',
+          '--path_design','/data/zhiyuany/EnvSynSamples/EnvSynSamples/QED/PICO/envinvsyn/design_new.btor',
           '--ILA_model' , '/data/zhiyuany/EnvSynSamples/EnvSynSamples/QED/PICO/verification/pico.btor2',
-          '--inv_path','inductive_invariant'
-          # '--continue_from',
-          # '--continue-file','inv.smt2',
+          '--inv_path','inductive_invariant',
+          '--continue_from',
+          '--continue-file','inv.smt2',
           ])
      exp_name = 'initial_term_width:{:d}_engine:{}_design{}'.format(opts.init_term_width,opts.engine,opts.path_design)
      log_dir = os.path.join(opts.log_dir,exp_name + '.log')
@@ -60,6 +70,7 @@ if __name__ == '__main__':
                inv_file = os.path.join(inv_path,'inv' +'.smt2')
                inv_origin = os.path.join(inv_path,'inv_origin.smt2')
                if count ==0:
+                    try_cp(path_cex)
                     try_rm(path_cex)
                     try_rm(inv_file)
                     try_rm(inv_origin)
@@ -87,6 +98,7 @@ if __name__ == '__main__':
                else:
                     # os.chdir(opts.ILA_path)
                     # path = os.getcwd()
+                    try_cp(path_cex)
                     try_rm(path_cex)
                     # try_rm("/data/zhiyuany/cosa2/inductive_invariant/COI_variable.json")
                     subprocess.run(["./build/pono","--vcd", "{:s}" .format(path_cex),"-e","{:s}" .format("bmc"),"--bound","{:s}" .format("10"),"--coi_filter" ,"--coi_check","--smt-solver","btor","--property-file", "{:s}" .format(inv_file),"--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(opts.ILA_model)])
@@ -118,6 +130,7 @@ if __name__ == '__main__':
           while(count == count_file):
                # os.chdir(opts.ILA_path)
                # path = os.getcwd()
+               try_cp(path_cex)
                try_rm(path_cex)
                try_rm("/data/zhiyuany/cosa2/inductive_invariant/COI_variable.json")
                subprocess.run(["./build/pono","--vcd", "{:s}" .format(path_cex),"-e","{:s}" .format("bmc"),"--coi_filter" ,"--coi_check","--bound","{:s}" .format("15"),"--smt-solver","btor","--property-file", "{:s}" .format(inv_file),"--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(opts.ILA_model)])

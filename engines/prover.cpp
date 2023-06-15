@@ -253,18 +253,29 @@ bool Prover::compute_witness()
         }
       }
     }
-
+    else if (ts_.named_terms().find("RTL.__START__") != ts_.named_terms().end()) {
+      auto start = ts_.lookup("RTL.__START__");
+      for (int idx = 0; idx <= reached_k_ + 1; ++idx) {
+        auto v = solver_->get_value(unroller_.at_time(start, idx))->to_int();
+        if (v != 0) {
+          backtrack_to_step_n = idx;
+          logger.log(0,"START @ {}" , backtrack_to_step_n);
+          break;
+        }
+      }
+    }
     std::unordered_map <smt::Term,std::vector<pair<int,int>>> varset_slice;
     const std::string qed_name = options_.smt_path_ + "/" + "qed_signal.json";
+    std::ofstream fout("coi-check-rev.txt");
     if (options_.use_ilang_coi_constraint_file_) {
       recursive_dynamic_COI_using_ILA_info(varset_slice, backtrack_to_step_n,qed_name);
     } else {
       var_in_coi_t input_var_tmp;
-      compute_dynamic_COI_from_term(bad_, {{0,0}}, reached_k_+1, varset_slice, input_var_tmp, backtrack_to_step_n,qed_name);
+      compute_dynamic_COI_from_term(bad_, {{0,0}}, reached_k_+1, varset_slice, input_var_tmp, backtrack_to_step_n,qed_name,fout);
     }
     
     for(const auto & v: varset_slice){
-      auto v_time = unroller_.at_time(v.first,0);
+      auto v_time = unroller_.at_time(v.first,backtrack_to_step_n);
       auto val = solver_->get_value(v_time);
       varset[v.first] = val; 
     }
@@ -273,8 +284,6 @@ bool Prover::compute_witness()
     //   auto name = v->to_string();
     //   j["name"].push_back(name);
     // }
-    auto btorsolver = create_solver(BTOR);
-    // auto transferer = smt::TermTranslator(btorsolver);
     std::string folderPath = options_.smt_path_;
     std::string filename = folderPath + "/" + "COI_variable.json";
     std::ofstream output(filename);    
@@ -481,14 +490,20 @@ void Prover::get_var_in_COI(const var_in_coi_t & input_asts,
 }
 
 void Prover::compute_dynamic_COI_from_term(const smt::Term & t, const slice_t &ranges, int k, var_in_coi_t & init_state_variables,
-  var_in_coi_t & input_state_variables, int backtrack_frame,std::string filename) {
+  var_in_coi_t & input_state_variables, int backtrack_frame,std::string filename,std::ofstream  & fout) {
   // bad_ ,  0...reached_k_+1
   // auto last_bad = unroller_.at_time(bad_, reached_k_+1);
 
   auto t_at_time_k = unroller_.at_time(t, k);
   var_in_coi_t varset;
   get_var_in_COI({{t_at_time_k, ranges}}, varset,filename); // varset contains variables like : a@n
-
+  for(const auto out:varset){
+    for(const auto slice: out.second){
+      auto val = solver_->get_value(out.first);
+      fout<< k << " "<<out.first->to_string() << " " <<val->to_string()<< " "<<slice.first << " " <<slice.second<<"\n";
+    }
+  }
+     
   for(int i = k-1; i>=backtrack_frame; --i) {
     std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> update_functions_to_check;
     std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> newvarset_slice;
@@ -514,8 +529,13 @@ void Prover::compute_dynamic_COI_from_term(const smt::Term & t, const slice_t &r
     } // for each variable in varset
     
     get_var_in_COI(update_functions_to_check, newvarset_slice,filename);
-    
-  
+
+    for(const auto out:newvarset_slice){
+      for(const auto slice: out.second){
+        auto val = solver_->get_value(out.first);
+        fout<< i << " "<<out.first->to_string() << " " <<val->to_string()<< " "<<slice.first << " " <<slice.second<<"\n";
+      }
+    }
     varset.swap(newvarset_slice); // the same as "varset = newvarset;" , but this is faster
   }
 
@@ -570,12 +590,12 @@ void Prover::recursive_dynamic_COI_using_ILA_info(var_in_coi_t & init_state_vari
   
   // initially, we extract bad
   vector<std::tuple<smt::Term, int, slice_t>> next_round_to_track = { {bad_, reached_k_+1, {{0,0}} } };
-
+  std::ofstream fout("coi-check-rev.txt");
   while(!next_round_to_track.empty()) {
     var_in_coi_t input_vars_at_zero_frame;
     for (const auto & term_k_range : next_round_to_track) {
       compute_dynamic_COI_from_term(std::get<0>(term_k_range), std::get<2>(term_k_range), std::get<1>(term_k_range), 
-        init_sv, input_vars_at_zero_frame, backtrack_frame,filename);
+        init_sv, input_vars_at_zero_frame, backtrack_frame,filename,fout);
     } // compute all sub var in 
     next_round_to_track.clear();
 

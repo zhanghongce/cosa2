@@ -109,13 +109,6 @@ bool check_for_inductiveness(const Term & prop, const TransitionSystem & ts) {
   return true;
 }
 
-Term get_term_without_fil( PropertyInterfacecex prop_cex){
-      std::cout <<"We cannot get any reduction."<<std::endl;
-      Term prop;
-      prop = prop_cex.cex_parse_to_pono_property();
-      std::cout << "The final property is:"<<prop->to_raw_string() << std::endl;
-      return prop;
-}
 void write_inv_to_file(const smt::Term & invar, ostream & outf, ostream & outf_origin, unsigned step, const std::string & varname_prefix) {
     auto cvc5solver = smt::Cvc5SolverFactory::create(false);
     auto transferer = smt::TermTranslator(cvc5solver);
@@ -819,48 +812,47 @@ ProverResult get_prop_inv(PonoOptions pono_options,
       ProverResult res_bmc;
       // TODO: Transfer the PropertyInterfacecex to JsonCexParser
       PropertyInterfacecex prop_cex_vcd(pono_options, std::string("RTL"), true, pono_options.env_qed_ ,fts);
-      JsonCexParser prop_cex(pono_options, std::string("RTL"),fts);
+      // JsonCexParser prop_cex(pono_options, std::string("RTL"),fts);
       UnorderedTermSet prop_check;
-      pono_options.sygus_initial_term_width_= prop_cex.get_reg_width();
-      int min_width = prop_cex.get_reg_min_width();
+      pono_options.sygus_initial_term_width_= prop_cex_vcd.get_reg_width();
+      int min_width = prop_cex_vcd.get_reg_min_width();
       FilterConcat filter;
       Term prop_filter;
       std::queue<pair<Term,std::string>> prop_queue;
       // UnorderedTermSet prop_check;
       std::string filename_origin = pono_options.smt_path_ + "/" + "inv_origin.smt2";
-      // filter.filters.push_back(std::make_shared<MaxWidthFilter>(pono_options.sygus_initial_term_width_,fts));
-      // bool inductiveness;
         
       if ((pono_options.add_assuption_in_origin_ == true)&&(step>0)){       
         PropertyInterface add_to_frame(filename_origin, fts);
-        // add_to_frame.AddAssumptionsToTS();
+        add_to_frame.AddAssumptionsToTS();
       }      
       bool repeat_first = true;
       bool re;
       
       
       if(step>0){       
-          AntFilter filter_re(filename_origin,fts,step);
+          AntFilter filter_re("cex_ant.vcd",std::string("RTL"),fts);
           
           // To begin with, we try to use the coi-repeat,coi-width filter
           auto width = min_width;
           while(width < pono_options.sygus_initial_term_width_){
             MaxWidthFilter filter_wid(width,fts);
-            prop_filter = prop_cex.json_cex_parse_to_pono_property(filter_re,filter_wid);
+            prop_filter = prop_cex_vcd.cex_parse_to_pono_property(filter_wid,true, filter_re,true);
             
             if(prop_filter!=nullptr)
               std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
             
             if((prop_filter!=nullptr)&&(prop_queue.empty())&&((re = check_previous(prop_filter,prop_check)) == false)&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step,false,btor_enc)) != FALSE)){
               prop_queue.push(make_pair(prop_filter,"coi and repeat and width filter "));
-              prop_check.insert(prop_filter);
               std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use COI and repeat and width Filter. "<<std::endl;
             }
-            
+            if(prop_filter!=nullptr)
+              prop_check.insert(prop_filter);
             width = width*2;
           }
 
-          prop_filter = prop_cex.json_cex_parse_to_pono_property(filter_re);
+          MaxWidthFilter filter_wid(pono_options.sygus_initial_term_width_,fts);
+          prop_filter = prop_cex_vcd.cex_parse_to_pono_property(filter_wid ,false, filter_re, true);
 
           if(prop_filter!=nullptr)
             std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
@@ -870,21 +862,24 @@ ProverResult get_prop_inv(PonoOptions pono_options,
             prop_check.insert(prop_filter);
             std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use COI and repeat Filter. "<<std::endl;
           }
-
+          if(prop_filter!=nullptr)
+            prop_check.insert(prop_filter);
           
-          MaxWidthFilter filter_wid(pono_options.sygus_initial_term_width_,fts);
-          prop_filter = prop_cex.json_cex_parse_to_pono_property(filter_wid);
+          
+          prop_filter = prop_cex_vcd.cex_parse_to_pono_property(filter_wid ,true, filter_re, false);
           if(prop_filter!=nullptr){
               std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
-            }
-          
+          }
+
           if((prop_queue.empty())&&(prop_filter!=nullptr)&&((re = check_previous(prop_filter,prop_check)) == false)&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step,false,btor_enc)) != FALSE)){
             prop_queue.push(make_pair(prop_filter,"coi filter and average width filter"));
             prop_check.insert(prop_filter);
             std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is inserted. We use COI and average width Filter. "<<std::endl;
           }
-
-          prop_filter = prop_cex.json_cex_parse_to_pono_property();
+          if(prop_filter!=nullptr)
+            prop_check.insert(prop_filter);
+          
+          prop_filter = prop_cex_vcd.cex_parse_to_pono_property(filter_wid ,false, filter_re, false);
           // prop_filter = add_to_frame.Transfer_assump_to_assert(prop_filter);
           std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
           if((prop_queue.empty())&&((res_bmc = check_for_inductiveness_bmc(pono_options, prop_filter, fts, s, cex, pono_options.smt_solver_,step,true,btor_enc)) != FALSE)&&((re = check_previous(prop_filter,prop_check)) == false)&&(prop_filter!=nullptr)){
@@ -900,7 +895,8 @@ ProverResult get_prop_inv(PonoOptions pono_options,
         else{
           MaxWidthFilter filter_wid(pono_options.sygus_initial_term_width_,fts);
           // prop_filter = prop_cex.cex_parse_to_pono_property_coi(filter_wid);
-          prop_filter = prop_cex.json_cex_parse_to_pono_property(filter_wid);
+          AntFilter filter_re(fts);
+          prop_filter = prop_cex_vcd.cex_parse_to_pono_property(filter_wid ,true, filter_re, false);
           if(prop_filter!=nullptr){
             std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
           }
@@ -910,7 +906,7 @@ ProverResult get_prop_inv(PonoOptions pono_options,
             prop_check.insert(prop_filter);
           }
           // prop_filter = prop_cex.cex_parse_to_pono_property_coi();
-          prop_filter = prop_cex.json_cex_parse_to_pono_property();
+          prop_filter = prop_cex_vcd.cex_parse_to_pono_property(filter_wid ,false, filter_re, false);
           if(prop_filter!=nullptr){
             std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
           }
@@ -950,7 +946,6 @@ ProverResult get_prop_inv(PonoOptions pono_options,
             return res;
           }
         }
-      // std::cout <<"The initial reduction property for the filter is: "<< prop_filter->to_raw_string() << std::endl;
       Term prop;
       std::string fil_name;
       if(prop_queue.empty()){

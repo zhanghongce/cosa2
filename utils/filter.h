@@ -5,16 +5,16 @@
 #include <list>
 #include <vector>
 #include <assert.h>
-#include "utils/term_analysis.h"
 #include "core/ts.h"
-
+#include "cexreader/cex_extract.h"
 
 namespace pono {
-class AntFilter{
+class AntFilter:public CexExtractor {
   public:  
     smt::UnorderedTermSet out;
     std::vector<smt::UnorderedTermSet> out_vec;
-    AntFilter(const std::string filename, TransitionSystem &ts, int step);
+    AntFilter(const std::string filename, const std::string& filter, TransitionSystem &ts);
+    AntFilter(TransitionSystem & ts):ts_(ts){};
     //  : filename_(filename),ts_(ts), step_(step){
     //     PropertyInterface prop_inv(filename_,ts_,step);
     //     auto assumption = prop_inv.assumption;
@@ -24,13 +24,15 @@ class AntFilter{
           
     // };
     ~AntFilter() {}
-  bool operator()(const smt::Term &n) const;
+  bool operator()(const std::string name_check, const std::string val_check,int idx0,int idx1) const;
   protected:
     std::string filename_;
     TransitionSystem & ts_;
     smt::Term assumption;
     int step_ ;
     int num_consider_;
+    int startsfrom_;
+    is_reg_t is_reg;
 };
 
 class Filter {
