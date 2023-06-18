@@ -248,6 +248,17 @@ bool Prover::compute_witness()
         }
       }
     }
+    else if (ts_.named_terms().find("RTL.__START__") != ts_.named_terms().end()) {
+      auto start = ts_.lookup("RTL.__START__");
+      for (int idx = 0; idx <= reached_k_ + 1; ++idx) {
+        auto v = solver_->get_value(unroller_.at_time(start, idx))->to_int();
+        if (v != 0) {
+          backtrack_to_step_n = idx;
+          logger.log(0,"START @ {}" , backtrack_to_step_n);
+          break;
+        }
+      }
+    }
 
     if (options_.use_ilang_coi_constraint_file_) {
       recursive_dynamic_COI_using_ILA_info(varset, backtrack_to_step_n);

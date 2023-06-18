@@ -140,82 +140,82 @@ void profiling_sig_handler(int sig)
 //   }
 // };
 
-class RepeatFilter{
-  public:  
-    UnorderedTermSet out;
-    std::vector<UnorderedTermSet> out_vec;
-    // RepeatFilter(const std::string filename, TransitionSystem &ts, int step, int num_consider) : filename_(filename),ts_(ts), step_(step),num_consider_(num_consider){
-    //     PropertyInterface prop_inv(filename_,ts_,step,num_consider);
-    //     auto assumption = prop_inv.con_assumption;
+// class RepeatFilter{
+//   public:  
+//     UnorderedTermSet out;
+//     std::vector<UnorderedTermSet> out_vec;
+//     // RepeatFilter(const std::string filename, TransitionSystem &ts, int step, int num_consider) : filename_(filename),ts_(ts), step_(step),num_consider_(num_consider){
+//     //     PropertyInterface prop_inv(filename_,ts_,step,num_consider);
+//     //     auto assumption = prop_inv.con_assumption;
         
-    //     for(auto &it:assumption)
-    //      { 
-    //       get_predicates(ts.get_solver(),it,out,false,false,true);
-    //       out_vec.push_back(out);
-    //      }
+//     //     for(auto &it:assumption)
+//     //      { 
+//     //       get_predicates(ts.get_solver(),it,out,false,false,true);
+//     //       out_vec.push_back(out);
+//     //      }
           
-    // };
-    RepeatFilter(const std::string filename, TransitionSystem &ts, int step) : filename_(filename),ts_(ts), step_(step){
-        PropertyInterface prop_inv(filename_,ts_,step);
-        auto assumption = prop_inv.assumption;
+//     // };
+//     RepeatFilter(const std::string filename, TransitionSystem &ts, int step) : filename_(filename),ts_(ts), step_(step){
+//         PropertyInterface prop_inv(filename_,ts_,step);
+//         auto assumption = prop_inv.assumption;
         
-        // auto assumption = assumptions_.at(i);
-        get_predicates(ts.get_solver(),assumption,out,false,false,true);
+//         // auto assumption = assumptions_.at(i);
+//         get_predicates(ts.get_solver(),assumption,out,false,false,true);
           
-    };
-    ~RepeatFilter() {}
-  bool operator()(const Term &n) const{
-      // UnorderedTermSet::const_iterator got = out.find(n);
+//     };
+//     ~RepeatFilter() {}
+//   bool operator()(const Term &n) const{
+//       // UnorderedTermSet::const_iterator got = out.find(n);
    
-        for (Term it: out){
-          if (it->to_string() == n ->to_string()){
-            return true;
-          }
-    }
-    return false;
-  }
-  // bool operator()(const Term &n) const{
-  //     // UnorderedTermSet::const_iterator got = out.find(n);
-  //   int count = 0;
-  //   int count1 = 0;
-  //   for(auto output:out_vec){
-  //     for (Term it: output){
-  //         count1 = count1 +1;
-  //         if (it->to_string() == n ->to_string()){
-  //           count =count +1;
-  //           break;
-  //         }
-  //     }
-  //     if(count == num_consider_)
-  //       return true;
-  //     }
-  //   return false;
-  // }
+//         for (Term it: out){
+//           if (it->to_string() == n ->to_string()){
+//             return true;
+//           }
+//     }
+//     return false;
+//   }
+//   // bool operator()(const Term &n) const{
+//   //     // UnorderedTermSet::const_iterator got = out.find(n);
+//   //   int count = 0;
+//   //   int count1 = 0;
+//   //   for(auto output:out_vec){
+//   //     for (Term it: output){
+//   //         count1 = count1 +1;
+//   //         if (it->to_string() == n ->to_string()){
+//   //           count =count +1;
+//   //           break;
+//   //         }
+//   //     }
+//   //     if(count == num_consider_)
+//   //       return true;
+//   //     }
+//   //   return false;
+//   // }
 
-  protected:
-    std::string filename_;
-    TransitionSystem & ts_;
-    smt::Term assumption;
-    int step_ ;
-    int num_consider_;
-};
+//   protected:
+//     std::string filename_;
+//     TransitionSystem & ts_;
+//     smt::Term assumption;
+//     int step_ ;
+//     int num_consider_;
+// };
 
-struct FilterConcat : public Filter{
-  list<shared_ptr<Filter>> filters;
-  bool operator()(const std::string & n) const override {
-    for (const auto & f : filters) {
-      if (!(*f)(n))
-        return false;
-    }
-    return true;
-  }
-  std::string to_string() const override {
-    std::string ret;
-    for (const auto & f : filters) 
-      ret += f->to_string();
-    return ret;
-  }
-};
+// struct FilterConcat : public Filter{
+//   list<shared_ptr<Filter>> filters;
+//   bool operator()(const std::string & n) const override {
+//     for (const auto & f : filters) {
+//       if (!(*f)(n))
+//         return false;
+//     }
+//     return true;
+//   }
+//   std::string to_string() const override {
+//     std::string ret;
+//     for (const auto & f : filters) 
+//       ret += f->to_string();
+//     return ret;
+//   }
+// };
 
 bool check_for_inductiveness(const Term & prop, const TransitionSystem & ts) {
   Term init = ts.init();
@@ -724,7 +724,7 @@ ProverResult get_prop_inv(PonoOptions pono_options,
       bool repeat_first = true;
       bool re;
       if(step>0){
-          RepeatFilter filter_re(filename_origin,fts,step);
+          Antfilter filter_re(filename_origin,fts,step);
           if(repeat_first){
             prop_filter = prop_cex.cex_parse_to_pono_property(filter,filter_re);
             if(((inductiveness = check_for_inductiveness(prop_filter, fts)) == true))

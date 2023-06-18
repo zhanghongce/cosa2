@@ -55,7 +55,136 @@ using namespace pono;
 using namespace smt;
 using namespace std;
 
+ProverResult check_for_inductiveness_bmc(PonoOptions pono_options,
+                        const Term & prop_old,
+                        const TransitionSystem & original_ts,
+                        const SmtSolver & solver_old,
+                        std::vector<UnorderedTermMap> & cex,
+                        SolverEnum se,
+                        bool need_cex,
+                        BTOR2Encoder btor_enc)
+{
+  // create a solver for this
+  auto new_solver = create_solver_for(BTOR, BMC, true,false);
+  // FunctionalTransitionSystem new_fts(new_solver);
+  TermTranslator to_new_solver(new_solver);
+  TermTranslator to_old_solver(solver_old);
+  FunctionalTransitionSystem new_fts(original_ts,to_new_solver);
+  std::vector<UnorderedTermMap> local_cex;
+  std::string filename_origin = pono_options.smt_path_ + "/" + "inv_origin.smt2";
+  // Term prop = new_solver.transfer_term(prop_old);
+  Term prop = to_new_solver.transfer_term(prop_old);
 
+  // get property name before it is rewritten
+  const string prop_name = new_fts.get_name(prop);
+  logger.log(1, "Solving property: {}", prop_name);
+  logger.log(3, "INIT:\n{}", new_fts.init());
+  logger.log(3, "TRANS:\n{}", new_fts.trans());
+
+  // modify the transition system and property based on options
+  if (!pono_options.clock_name_.empty()) {
+    Term clock_symbol = new_fts.lookup(pono_options.clock_name_);
+    toggle_clock(new_fts, clock_symbol);
+  }
+  if (!pono_options.reset_name_.empty()) {
+    std::string reset_name = pono_options.reset_name_;
+    bool negative_reset = false;
+    if (reset_name.at(0) == '~') {
+      reset_name = reset_name.substr(1, reset_name.length() - 1);
+      negative_reset = true;
+    }
+    Term reset_symbol = new_fts.lookup(reset_name);
+    if (negative_reset) {
+      SortKind sk = reset_symbol->get_sort()->get_sort_kind();
+      reset_symbol = (sk == BV) ? new_solver->make_term(BVNot, reset_symbol)
+                                : new_solver->make_term(Not, reset_symbol);
+    }
+    Term reset_done = add_reset_seq(new_fts, reset_symbol, pono_options.reset_bnd_);
+    // guard the property with reset_done
+    prop = new_fts.solver()->make_term(Implies, reset_done, prop);
+  }
+
+
+  if (pono_options.static_coi_) {
+    /* Compute the set of state/input variables related to the
+       bad-state property. Based on that information, rebuild the
+       transition relation of the transition system. */
+    StaticConeOfInfluence coi(new_fts, { prop }, pono_options.verbosity_);
+  }
+
+  if (pono_options.pseudo_init_prop_) {
+    new_fts = pseudo_init_and_prop(new_fts, prop);
+  }
+  // pono_options.promote_inputvars_ = false;
+  if (pono_options.promote_inputvars_) {
+    new_fts = promote_inputvars(new_fts);
+    assert(!new_fts.inputvars().size());
+  }
+
+  if (!new_fts.only_curr(prop)) {
+    logger.log(1,
+               "Got next state or input variables in property. "
+               "Generating a monitor state.");
+    prop = add_prop_monitor(new_fts, prop);
+  }
+
+  if (pono_options.assume_prop_) {
+    // NOTE: crucial that pseudo_init_prop and add_prop_monitor passes are
+    // before this pass. Can't assume the non-delayed prop and also
+    // delay it
+    prop_in_trans(new_fts, prop);
+  }
+
+  Property p(new_solver, prop, prop_name);
+
+  // end modification of the transition system and property
+
+  Engine eng = BMC;
+
+  std::shared_ptr<Prover> prover;
+  if (pono_options.cegp_abs_vals_) {
+    prover = make_cegar_values_prover(eng, p, new_fts, new_solver, pono_options);
+  } else if (pono_options.ceg_bv_arith_) {
+    prover = make_cegar_bv_arith_prover(eng, p, new_fts, new_solver, pono_options);
+  } else if (pono_options.ceg_prophecy_arrays_) {
+    prover = make_ceg_proph_prover(eng, p, new_fts, new_solver, pono_options);
+  } else {
+    prover = make_prover(eng, p, new_fts, new_solver, pono_options);
+  }
+  assert(prover);
+//TODO: W
+  // TODO: handle this in a more elegant way in the future
+  //       consider calling prover for CegProphecyArrays (so that underlying
+  //       model checker runs prove unbounded) or possibly, have a command line
+  //       flag to pick between the two
+  ProverResult r;
+  if (pono_options.engine_ == MSAT_IC3IA)
+  {
+    // HACK MSAT_IC3IA does not support check_until
+    r = prover->prove();
+  }
+  else
+  {
+    r = prover->check_until(15);
+  }
+  // if((r == FALSE)&&(need_cex == true)){
+  //   bool success = prover->witness(local_cex);
+  //   std::cout<< " The bmc check failure"<<std::endl;
+  //   print_witness_btor(btor_enc, local_cex, new_fts);
+  //   VCDWitnessPrinter vcdprinter(new_fts, local_cex);
+  //   vcdprinter.dump_trace_to_file("env_failure.vcd");
+  // }
+  return r;
+}
+
+// bool check_previous(Term prop_filter, UnorderedTermSet prop_check)
+// {
+//   for (auto prop:prop_check){
+//     if(prop->to_string()== prop_filter->to_string())
+//       return true;
+//   }
+//   return false;
+// }
 
 
 void write_inv_to_file(const smt::Term & invar, ostream & outf ,unsigned step, const std::string & varname_prefix) {
@@ -391,51 +520,84 @@ int main(int argc, char ** argv)
     }while( (inductiveness = check_for_inductiveness(prop, fts)) == true && varset.size() > 1 );
   }
 
-  vector<UnorderedTermMap> cex;
+  // vector<UnorderedTermMap> cex;
 
-  if(pono_options.step_>0){
-    AntFilter ant_filter("envinv_origin.smt2",fts,pono_options.step_);
-    prop = cexreader.cex2property_ant(filter,ant_filter);
-    int switch_mode = 0;
-    if(prop!=nullptr){
-      cout << "PROPERTY:" << prop->to_string()<< ", with open Ant filter." << endl;
-      switch_mode = 1;
-    }
-    else{
-      cout << "Ant filter cannot be used in this stage." << endl;
-      prop = cexreader.cex2property(filter);
-      cout << "PROPERTY:" << prop->to_string() << ", without open Ant filter."<<endl;
-      switch_mode = 2;
-    }
-    
-    while (  (res = check_prop(pono_options, prop, fts, s, cex, 
-        pono_options.smt_solver_, pono_options.engine_, pono_options.step_, cexinfo.module_name_removal_)) == FALSE 
-    && !filter.filters.empty()) {
+  // if(pono_options.step_>0){
+  //   AntFilter ant_filter("cex_ant.vcd",std::string("RTL"),fts);
+  //   prop = cexreader.cex2property_ant(filter,ant_filter);
+  //   int switch_mode = 0;
+  //   if(prop!=nullptr){
+  //     cout << "PROPERTY:" << prop->to_string()<< ", with open Ant filter." << endl;
+  //     switch_mode = 1;
+  //   }
+  //   else{
+  //     cout << "Ant filter cannot be used in this stage." << endl;
+  //     prop = cexreader.cex2property(filter);
+  //     cout << "PROPERTY:" << prop->to_string() << ", without open Ant filter."<<endl;
+  //     switch_mode = 2;
+  //   }
+    // ProverResult res_bmc;
+    // vector<UnorderedTermMap> cex_bmc;
+    // while((res_bmc = check_for_inductiveness_bmc(pono_options, prop, fts, s, cex_bmc, pono_options.smt_solver_,true,btor_enc)) == false){
+    //   if (filter.filters.back() == COI_filter)
+    //     throw PonoException("Removing COI filter! Something is wrong here!");
+    //   if(switch_mode == 2){
+    //     filter.filters.pop_back();
+    //     cout << "Reachable, removing filter, after: " << filter.to_string() << endl;
+    //     switch_mode = 0;
+    //   }
+    //   if((switch_mode == 1)||((prop = cexreader.cex2property_ant(filter,ant_filter))==nullptr)){
+    //     cout << "Reachable, removing Ant filter" << endl;
+    //     prop = cexreader.cex2property(filter);
+    //     cout << "Now work on PROPERTY:" << prop->to_string() <<", without open Ant filter." << endl;
+    //     switch_mode = 2;
+    //   }
+    //   else{
+    //     prop = cexreader.cex2property_ant(filter,ant_filter);
+    //     cout << "Now work on PROPERTY:" << prop->to_string() <<", with open Ant filter." << endl;
+    //     switch_mode = 1;
+    //   }
+    //   cex_bmc.clear();      
+    // }
+  //   while (  (res = check_prop(pono_options, prop, fts, s, cex, 
+  //       pono_options.smt_solver_, pono_options.engine_, pono_options.step_, cexinfo.module_name_removal_)) == FALSE 
+  //   && !filter.filters.empty()) {
+  //     if (filter.filters.back() == COI_filter)
+  //       throw PonoException("Removing COI filter! Something is wrong here!");
+  //     if(switch_mode == 2){
+  //       filter.filters.pop_back();
+  //       cout << "Reachable, removing filter, after: " << filter.to_string() << endl;
+  //       switch_mode = 0;
+  //     }
+  //     if((switch_mode == 1)||((prop = cexreader.cex2property_ant(filter,ant_filter))==nullptr)){
+  //       cout << "Reachable, removing Ant filter" << endl;
+  //       prop = cexreader.cex2property(filter);
+  //       cout << "Now work on PROPERTY:" << prop->to_string() <<", without open Ant filter." << endl;
+  //       switch_mode = 2;
+  //     }
+  //     else{
+  //       prop = cexreader.cex2property_ant(filter,ant_filter);
+  //       cout << "Now work on PROPERTY:" << prop->to_string() <<", with open Ant filter." << endl;
+  //       switch_mode = 1;
+  //     }
+  //     cex.clear();
+  //   // TODO: s->reset();
+  //   }
+  // }
+
+
+  // else{
+    ProverResult res_bmc;
+    vector<UnorderedTermMap> cex_bmc;
+    while((res_bmc = check_for_inductiveness_bmc(pono_options, prop, fts, s, cex_bmc, pono_options.smt_solver_,true,btor_enc)) == false){
       if (filter.filters.back() == COI_filter)
         throw PonoException("Removing COI filter! Something is wrong here!");
-      if(switch_mode == 2){
         filter.filters.pop_back();
         cout << "Reachable, removing filter, after: " << filter.to_string() << endl;
-        switch_mode = 0;
-      }
-      if((switch_mode == 1)||((prop = cexreader.cex2property_ant(filter,ant_filter))==nullptr)){
-        cout << "Reachable, removing Ant filter" << endl;
         prop = cexreader.cex2property(filter);
         cout << "Now work on PROPERTY:" << prop->to_string() <<", without open Ant filter." << endl;
-        switch_mode = 2;
-      }
-      else{
-        prop = cexreader.cex2property_ant(filter,ant_filter);
-        cout << "Now work on PROPERTY:" << prop->to_string() <<", with open Ant filter." << endl;
-        switch_mode = 1;
-      }
-      cex.clear();
-    // TODO: s->reset();
+      cex_bmc.clear();      
     }
-  }
-
-
-  else{
       cout << "PROPERTY:" << prop->to_string() << endl;
 
       vector<UnorderedTermMap> cex;
@@ -451,7 +613,7 @@ int main(int argc, char ** argv)
         cout << "Now work on PROPERTY:" << prop->to_string() << endl;
         // TODO: s->reset();
       }
-  }
+  // }
 
 
   assert ( filter.filters.empty() || res != FALSE);

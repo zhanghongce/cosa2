@@ -275,7 +275,9 @@ ts_(ts), is_reg([this](const std::string & check_name) -> bool{
   auto pos = ts_.named_terms().find(check_name);
   if(pos == ts_.named_terms().end())
     return false;
-  return ts_.is_curr_var(pos->second);
+  auto a = ts_.is_curr_var(pos->second);
+  auto b = (ts_.state_updates().find(pos->second)!=ts_.state_updates().end());
+  return a&&b;
  } )
   {
     parse_from(vcd_file_name, filter, is_reg, true);
@@ -354,6 +356,8 @@ smt::Term QedCexParser::cex2property_ant(
       eq = ts_.make_term(Equal, var, val);
     else {
       for (const auto & slice : range) {
+        if((!filter_ant(var_name,var_val_pair.second,slice.first,slice.second)))
+          continue;
         auto extract_op = smt::Op(smt::PrimOp::Extract, slice.first, slice.second);
         auto slice_eq = 
           ts_.make_term(Equal, ts_.make_term(extract_op, var), ts_.make_term(extract_op, val));
@@ -364,7 +368,7 @@ smt::Term QedCexParser::cex2property_ant(
           eq = ts_.make_term(And, eq, slice_eq);
       }
     }
-    if(!filter_ant(eq))
+    if(eq==nullptr)
       continue;
     if (prop == nullptr)
       prop = eq;
@@ -377,5 +381,6 @@ smt::Term QedCexParser::cex2property_ant(
   else
     return prop;
 }
+
 
 }  // namespace pono

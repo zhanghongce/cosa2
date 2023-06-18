@@ -309,7 +309,7 @@ int main(int argc, char ** argv)
 
   SmtSolver s = create_solver_for(pono_options.smt_solver_,
                                   pono_options.engine_,
-                                  false,
+                                  true,
                                   pono_options.ceg_prophecy_arrays_);
 
   if (pono_options.logging_smt_solver_) {
@@ -354,6 +354,9 @@ int main(int argc, char ** argv)
   
   // HERE we load the assumptions from environment invariant synthesis
   if(!pono_options.property_file_.empty()) {
+    // auto map = fts.named_terms();
+    // auto a = fts.named_terms().find("RTL.cpuregs[17]");
+    // assert(a!=fts.named_terms().end());
     PropertyInterface prop_if (pono_options.property_file_,fts);
     prop_if.AddAssumptionsToTS();
     prop = prop_if.AddAssertions(prop);

@@ -11,43 +11,33 @@
 #include <vector>
 #include <assert.h>
 #include "core/ts.h"
-// #include "frontends/property_if.h"
+#include "cexreader/cex_extract.h"
 
-// #include "utils/term_analysis.h"
 namespace pono {
-
-// class PropertyInterface;
-
-class AntFilter{
+class AntFilter:public SelectiveExtractor {
   public:  
     smt::UnorderedTermSet out;
     std::vector<smt::UnorderedTermSet> out_vec;
-    AntFilter(const std::string filename, TransitionSystem &ts, int step); 
-    // : filename_(filename),ts_(ts), step_(step){
-    //     // PropertyInterface pp = new PropertyInterface(filename_,ts_,step);
+    AntFilter(const std::string filename, const std::string& filter, TransitionSystem &ts);
+    AntFilter(TransitionSystem & ts):SelectiveExtractor("RTL."),ts_(ts){};
+    //  : filename_(filename),ts_(ts), step_(step){
     //     PropertyInterface prop_inv(filename_,ts_,step);
     //     auto assumption = prop_inv.assumption;
         
     //     // auto assumption = assumptions_.at(i);
-    //     get_predicates(ts.get_solver(),assumption,out,false,true,true);
+    //     get_predicates(ts.get_solver(),assumption,out,false,false,true);
           
-    // }
+    // };
     ~AntFilter() {}
-    bool operator()(const smt::Term &n) const;
-    // {
-    //     for (const auto & it: out){
-    //       if (it->to_string() == n ->to_string()){
-    //         return true;
-    //       }
-    // }
-    // return false;
-    // }
+  bool operator()(const std::string name_check, const std::string val_check,int idx0,int idx1) const;
   protected:
     std::string filename_;
     TransitionSystem & ts_;
     smt::Term assumption;
     int step_ ;
     int num_consider_;
+    int startsfrom_;
+    is_reg_t is_reg;
 };
 
 class Filter {
