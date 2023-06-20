@@ -3,6 +3,16 @@ import os
 import argparse
 import datetime
 from loguru import logger
+from shutil import copyfile
+
+def try_cp(name):
+     try:
+          try_rm('cex_ant.vcd')
+          copyfile(name, 'cex_ant.vcd')
+     except IOError as e:
+          print("Unable to copy file. %s" % e)
+
+
 def try_rm(name):
     try:
         os.remove(name)
@@ -31,13 +41,13 @@ if __name__ == '__main__':
      parser.add_argument('--continue-file', type=str,default=None)
      parser.add_argument('--log-dir', type=str, default='log', help='log folder dir')
      opts = parser.parse_args(args=[
-          '--path_cex','cex_2.vcd',
-          '--engine','sygus-pdr',
-          '--path_design','/data/zhiyuany/EnvSynSamples/ILAng/PICO/envinvsyn/design.btor',
-          '--ILA_model' , '/data/zhiyuany/EnvSynSamples/ILAng/PICO/verification/ADD/problem.btor2',
+          '--path_cex','cex.vcd',
+          '--engine','ic3bits',
+          '--path_design','/data/zhiyuany/EnvSynSamples/EnvSynSamples/ILAng/PICO-delay-start/envinvsyn/design.btor',
+          '--ILA_model' , '/data/zhiyuany/EnvSynSamples/EnvSynSamples/ILAng/PICO-delay-start/verification/ADD/problem.btor2',
           '--inv_path','inductive_invariant'
           # '--continue_from',
-          # '--continue-file','inv.smt2'
+          # '--continue-file','inv.smt2',
           ])
      exp_name = 'initial_term_width:{:d}_engine:{}_design{}'.format(opts.init_term_width,opts.engine,opts.path_design)
      log_dir = os.path.join(opts.log_dir,exp_name + '.log')
@@ -63,16 +73,19 @@ if __name__ == '__main__':
                     try_rm(path_cex)
                     try_rm(inv_file)
                     try_rm(inv_origin)
-                    subprocess.run(["./build/pono","--vcd", "{:s}" .format(path_cex),"-e","{:s}" .format("ind"), "{:s}" .format(opts.ILA_model)])
+                    subprocess.run(["./build/pono","--vcd", "{:s}" .format(path_cex),"-e","{:s}" .format("bmc"),"--bound","{:s}" .format("10"),"--smt-solver","btor","--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(opts.ILA_model)])
                     if os.path.exists(path_cex) == False:
                          # print("The enviroment invariant is found")
                          logger.info("The enviroment invariant is found")
                          break
                     logger.info("The step is {:d}" .format(count))
                     # print("The step is {:d}" .format(count))
-                    subprocess.run(["./build/pono-env","--engine","{:s}" .format(engine),"--bound","{:s}" .format("5"),"--cex-reader","{:s}" .format(path_cex),
-                    "--num-of-itr","{:s}" .format(str(count)),"--sygus-initial-term-width","{:s}" .format(str(init_term_width)),
-                    "--find-environment-invariant","--show-invar","--promote-inputvars","--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(path_design)])
+                    # subprocess.run(["./build/pono-env","--engine","{:s}" .format(engine),
+                    #                 "--cex-reader","{:s}" .format(path_cex),"--num-of-itr","{:s}" .format(str(count)),"--bound","{:s}" .format("10"),"--sygus-initial-term-width","{:s}" .format(str(init_term_width)),
+                    #                 "--find-environment-invariant","--show-invar","--promote-inputvars","--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(path_design)])
+                    subprocess.run(["./build/pono-env","--engine","{:s}" .format(engine),"--cex-reader","{:s}" .format(path_cex),"--find-environment-invariant",
+                                    "--num-of-itr","{:s}" .format(str(count)),"--bound","{:s}" .format("20"),"--sygus-initial-term-width","{:s}" .format(str(init_term_width)),
+                                    "--show-invar","--check-invar","--promote-inputvars","--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(path_design)])
                     count = count +1
                     count_file = try_open(inv_file)
                     # count_file = len(open(inv_file,'r').readlines())
@@ -84,16 +97,21 @@ if __name__ == '__main__':
                else:
                     # os.chdir(opts.ILA_path)
                     # path = os.getcwd()
+                    try_cp(path_cex)
                     try_rm(path_cex)
-                    subprocess.run(["./build/pono","--vcd" , "{:s}" .format(path_cex),"-e","{:s}" .format("ind"), "--property-file", "{:s}" .format(inv_file),"{:s}" .format(opts.ILA_model)])
+                    # try_rm("/data/zhiyuany/cosa2/inductive_invariant/COI_variable.json")
+                    subprocess.run(["./build/pono","--vcd", "{:s}" .format(path_cex),"-e","{:s}" .format("bmc"),"--bound","{:s}" .format("10"),"--coi_filter" ,"--coi_check","--smt-solver","btor","--property-file", "{:s}" .format(inv_file),"--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(opts.ILA_model)])
                     if os.path.exists(path_cex) == False:
                          logger.info("The enviroment invariant is found")
                          break
                     logger.info("The step is {:d}" .format(count))
                     # print("The step is {:d}" .format(count))           
-                    subprocess.run(["./build/pono-env","-e","{:s}" .format(engine),"--bound","{:s}" .format("5"),"--cex-reader","{:s}" .format(path_cex),
-                    "--num-of-itr","{:s}" .format(str(count)),"--sygus-initial-term-width","{:s}" .format(str(init_term_width)),
-                    "--find-environment-invariant","--show-invar","--promote-inputvars","--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(path_design)])
+                    # subprocess.run(["./build/pono-env","--engine","{:s}" .format(engine),
+                    #                 "--cex-reader","{:s}" .format(path_cex),"--num-of-itr","{:s}" .format(str(count)),"--bound","{:s}" .format("15"),"--sygus-initial-term-width","{:s}" .format(str(init_term_width)),
+                    #                 "--find-environment-invariant","--show-invar","--promote-inputvars","--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(path_design)])
+                    subprocess.run(["./build/pono-env","--engine","{:s}" .format(engine),"--cex-reader","{:s}" .format(path_cex),"--find-environment-invariant",
+                                    "--num-of-itr","{:s}" .format(str(count)),"--bound","{:s}" .format("20"),"--sygus-initial-term-width","{:s}" .format(str(init_term_width)),
+                                    "--find-environment-invariant","--show-invar","--check-invar","--promote-inputvars","--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(path_design)])
                     count_file = try_open(inv_file)
                     # count_file = len(open(inv_file,'r').readlines()) 
                     count = count+1     
@@ -111,8 +129,10 @@ if __name__ == '__main__':
           while(count == count_file):
                # os.chdir(opts.ILA_path)
                # path = os.getcwd()
+               try_cp(path_cex)
                try_rm(path_cex)
-               subprocess.run(["./build/pono","--vcd","{:s}".format(path_cex),"-e","{:s}" .format("ind"), "--property-file", "{:s}" .format(inv_file),"{:s}" .format(opts.ILA_model)])
+               try_rm("/data/zhiyuany/cosa2/inductive_invariant/COI_variable.json")
+               subprocess.run(["./build/pono","--vcd", "{:s}" .format(path_cex),"-e","{:s}" .format("bmc"),"--coi_filter" ,"--coi_check","--bound","{:s}" .format("15"),"--smt-solver","btor","--property-file", "{:s}" .format(inv_file),"--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(opts.ILA_model)])
                if os.path.exists(path_cex) == False:
                     # print("The enviroment invariant is found")
                     logger.info("The enviroment invariant is found")
@@ -122,7 +142,7 @@ if __name__ == '__main__':
                # cex_file_cosa = os.path.join(path,path_cex)
                # print("The step is {:d}" .format(count))           
                logger.info("The step is {:d}" .format(count))
-               subprocess.run(["./build/pono-env","-e","{:s}" .format(engine),"--bound","{:s}" .format("5"),"--cex-reader","{:s}" .format(path_cex),
+               subprocess.run(["./build/pono-env","-e","{:s}" .format(engine),"--env_qed","--bound","{:s}" .format("20"),"--cex-reader","{:s}" .format(path_cex),
                "--num-of-itr","{:s}" .format(str(count)),"--sygus-initial-term-width","{:s}" .format(str(init_term_width)),
                "--find-environment-invariant","--show-invar","--check-invar","--promote-inputvars","--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(path_design)])
                count_file = try_open(inv_file)

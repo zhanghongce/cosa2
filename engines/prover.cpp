@@ -20,7 +20,7 @@
 #include <climits>
 #include <fstream>
 #include <functional>
-
+#include "json/json.hpp"
 #include "core/rts.h"
 #include "frontends/property_if.h"
 #include "modifiers/static_coi.h"
@@ -279,7 +279,43 @@ bool Prover::compute_witness()
         fout << " " << h_l.first << " " << h_l.second;
       fout << std::endl;
     }
+////////////////We also dump to json///////////////////////////////////////////////
+    smt::UnorderedTermMap varset_map;
+    for(const auto & v: varset){
+      auto v_time = unroller_.at_time(v.first,backtrack_to_step_n);
+      auto val = solver_->get_value(v_time);
+      varset_map[v.first] = val; 
+    }
+    nlohmann::json j;
+    // for(const auto v:varset){
+    //   auto name = v->to_string();
+    //   j["name"].push_back(name);
+    // }
+    std::string folderPath = options_.smt_path_;
+    std::string filename = folderPath + "/" + "COI_variable.json";
+    std::ofstream output(filename);    
+    for(auto v = varset_map.begin(); v != varset_map.end(); v++) {
+       std:: cout << v->first->to_string() << " : " << v->second->to_string() << std::endl;
+       auto name = v->first->to_string();
+      //  auto value_tansfer = transferer.transfer_term(v->second);
+       j["name"].push_back(name);
+       j["value"].push_back(v->second->to_string());
+    }
+    for(auto v: varset) {
+       auto width = v.first->get_sort()->get_width();
+       for(const auto width_pair: v.second){
+          if((width_pair.first-width_pair.second+1)==width){
+            std:: cout<< "The term: " << v.first->to_string()<< " cannot be extracted." << std::endl;
+          }
+          else{
+            std:: cout<< "The extracted term is: " << v.first->to_string()<< " : " << width_pair.first<<" "<<width_pair.second << std::endl;
+            j["name_to_extract"].push_back(v.first->to_string());
+            j["extract_width"].push_back(width_pair);
+          }
+       }
+    }
 
+    output<<j<<std::endl;
     // if (options_.dynamic_coi_check_) {
     //   UnorderedTermSet all_inputs = ts_.inputvars();
     //   for (const auto & inpv : ts_.statevars()) {

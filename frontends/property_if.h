@@ -24,7 +24,7 @@
 // #endif 
 
 #include <iostream>
-
+#include "options/options.h"
 #include "assert.h"
 #include "core/rts.h"
 #include "smt-switch/smt.h"
@@ -40,7 +40,7 @@ namespace pono {
 class PropertyInterface : public smt::SmtLibReader
 {
  public:
-  PropertyInterface(std::string filename, TransitionSystem & ts, int step);
+  // PropertyInterface(std::string filename, TransitionSystem & ts, int step);
   PropertyInterface(std::string filename, TransitionSystem & ts);
   typedef SmtLibReader super;
 
@@ -95,20 +95,34 @@ class PropertyInterfacecex : public CexExtractor
   ////Build the Constructor//////
   std::vector<int> get_width;
   typedef std::function<bool(const std::string &n)> filter_t;
-  typedef std::function<bool(const smt::Term &n)> filter_r;
-    PropertyInterfacecex(const std::string& vcd_file_name,
-                           const std::string& scope,
-                           bool reg_only, TransitionSystem & ts);
-    smt::Term cex_parse_to_pono_property(filter_t filter);
-    smt::Term cex_parse_to_pono_property(filter_r filter_re);
-    smt::Term cex_parse_to_pono_property(filter_t filter,filter_r filter_re);
+  typedef AntFilter filter_r;
+    PropertyInterfacecex(const PonoOptions pono_options,
+                           const std::string filter,
+                           bool reg_only, TransitionSystem & ts);                      
+    void get_COI_variable(PonoOptions pono_options_);
+    smt::Term cex_parse_to_pono_property(filter_t filter,bool filter_en,filter_r filter_re,bool filter_re_en);
     smt::Term cex_parse_to_pono_property();
     int get_reg_width();
+    int get_reg_min_width();
+    smt::Term get_extract_from_coi(const std::string val_string, const smt::Term var, std::string var_name,filter_r filter,bool filter_re_en);
+    bool is_extracted(const std::string & var_name, std::vector<std::pair<int,int>> & extract_info);
+    void get_info(const std::pair<int,int> & out, int & idx0, int & idx1);
   protected:
     TransitionSystem & ts_;
-
+    std::vector<std::string> name_terms;
+    std::vector<std::string> qed_name_terms;
+    std::vector<std::string> value_terms;
+    std::vector<std::string> new_name_terms;
+    std::vector<std::string> new_value_terms;
+    std::vector<std::string> name_extract;
+    std::vector<std::pair<int,int>> extract_val;
+    PonoOptions pono_options_;
+    bool having_extract;
     is_reg_t is_reg;
+    bool is_parse_concat_;
+    int startsfrom;
 };
+
 
 
 class QedCexParser : public SelectiveExtractor  
