@@ -100,7 +100,7 @@ if __name__ == '__main__':
                     try_cp(path_cex)
                     try_rm(path_cex)
                     # try_rm("/data/zhiyuany/cosa2/inductive_invariant/COI_variable.json")
-                    subprocess.run(["./build/pono","--vcd", "{:s}" .format(path_cex),"-e","{:s}" .format("bmc"),"--bound","{:s}" .format("10"),"--coi_filter" ,"--coi_check","--smt-solver","btor","--property-file", "{:s}" .format(inv_file),"--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(opts.ILA_model)])
+                    subprocess.run(["./build/pono","--vcd", "{:s}" .format(path_cex),"-e","{:s}" .format("bmc"),"--bound","{:s}" .format("10"),"--smt-solver","btor","--property-file", "{:s}" .format(inv_file),"--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(opts.ILA_model)])
                     if os.path.exists(path_cex) == False:
                          logger.info("The enviroment invariant is found")
                          break
@@ -110,7 +110,7 @@ if __name__ == '__main__':
                     #                 "--cex-reader","{:s}" .format(path_cex),"--num-of-itr","{:s}" .format(str(count)),"--bound","{:s}" .format("15"),"--sygus-initial-term-width","{:s}" .format(str(init_term_width)),
                     #                 "--find-environment-invariant","--show-invar","--promote-inputvars","--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(path_design)])
                     subprocess.run(["./build/pono-env","--engine","{:s}" .format(engine),"--cex-reader","{:s}" .format(path_cex),"--find-environment-invariant",
-                                    "--num-of-itr","{:s}" .format(str(count)),"--bound","{:s}" .format("20"),"--sygus-initial-term-width","{:s}" .format(str(init_term_width)),
+                                    "--num-of-itr","{:s}" .format(str(count)),"--bound","{:s}" .format("15"),"--sygus-initial-term-width","{:s}" .format(str(init_term_width)),
                                     "--find-environment-invariant","--show-invar","--check-invar","--promote-inputvars","--smtlib-path","{:s}" .format(inv_path),"{:s}" .format(path_design)])
                     count_file = try_open(inv_file)
                     # count_file = len(open(inv_file,'r').readlines()) 

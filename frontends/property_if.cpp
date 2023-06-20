@@ -338,12 +338,16 @@ bool PropertyInterfacecex::is_extracted(const std::string & var_name, std::vecto
   auto count = 1;
   auto count_pos = 0;
   for(auto name_ext: name_extract){
+    
     auto pos_1 = name_ext.rfind("RTL.");
     if(pos_1!=std::string::npos){
       name_ext = name_ext.substr(pos_1+4);
     }
-    else
+    else{
+      count_pos = count_pos + 1;
       continue;
+    }
+
     if(name_ext == var_name){
       std::cout<<"The COI variable: "<< var_name<<" can be extracted "<< count << " times"<<std::endl; 
       count = count + 1;
