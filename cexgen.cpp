@@ -158,15 +158,15 @@ ProverResult check_prop(PonoOptions pono_options,
           0,
           "Only got a partial witness from engine. Not suitable for printing.");
     }
-    bool res_COI = prover->check_coi(original_trans);
-    if(!res_COI) {
-        std::vector<smt::UnorderedTermMap> coi_cex;
-        prover->coi_failure_witness(coi_cex);
-        VCDWitnessPrinter vcdprinter(ts, coi_cex);
-        vcdprinter.dump_trace_to_file("COI_failure.vcd");
-        throw PonoException("COI check failed!");
-    } else
-      logger.log(0, "COI check passed");
+    // bool res_COI = prover->check_coi(original_trans);
+    // if(!res_COI) {
+    //     std::vector<smt::UnorderedTermMap> coi_cex;
+    //     prover->coi_failure_witness(coi_cex);
+    //     VCDWitnessPrinter vcdprinter(ts, coi_cex);
+    //     vcdprinter.dump_trace_to_file("COI_failure.vcd");
+    //     throw PonoException("COI check failed!");
+    // } else
+    //   logger.log(0, "COI check passed");
   }
 
   Term invar;

@@ -61,7 +61,7 @@ class Prover
     const slice_t &ranges, int k,
     var_in_coi_t & init_state_variables,
     var_in_coi_t & input_state_variables,
-    int backtrack_frame);
+    int backtrack_frame,std::ofstream  & fout);
 
   void get_var_in_COI(const var_in_coi_t & input_asts,
                             var_in_coi_t & varset_slice);

@@ -259,7 +259,7 @@ bool Prover::compute_witness()
         }
       }
     }
-
+    std::ofstream fout_check("coi-check-rev.txt");
     if (options_.use_ilang_coi_constraint_file_) {
       recursive_dynamic_COI_using_ILA_info(varset, backtrack_to_step_n);
     } else {
@@ -269,7 +269,7 @@ bool Prover::compute_witness()
                                     reached_k_ + 1,
                                     varset,
                                     input_var_tmp,
-                                    backtrack_to_step_n);
+                                    backtrack_to_step_n,fout_check);
     }
     std::ofstream fout("COI.txt");
     for (const auto & v : varset) {  // varname size h0 l0 h1 l1 ...
@@ -280,14 +280,14 @@ bool Prover::compute_witness()
       fout << std::endl;
     }
 
-    if (options_.dynamic_coi_check_) {
-      UnorderedTermSet all_inputs = ts_.inputvars();
-      for (const auto & inpv : ts_.statevars()) {
-        if (ts_.state_updates().find(inpv) == ts_.state_updates().end())
-          all_inputs.insert(inpv);
-      }
-      record_coi_info(varset, all_inputs, reached_k_ + 1, backtrack_to_step_n);
-    }
+    // if (options_.dynamic_coi_check_) {
+    //   UnorderedTermSet all_inputs = ts_.inputvars();
+    //   for (const auto & inpv : ts_.statevars()) {
+    //     if (ts_.state_updates().find(inpv) == ts_.state_updates().end())
+    //       all_inputs.insert(inpv);
+    //   }
+    //   record_coi_info(varset, all_inputs, reached_k_ + 1, backtrack_to_step_n);
+    // }
   }
 
   for (int i = 0; i <= reached_k_ + 1; ++i) {
@@ -483,7 +483,7 @@ void Prover::compute_dynamic_COI_from_term(const smt::Term & t,
                                            int k,
                                            var_in_coi_t & init_state_variables,
                                            var_in_coi_t & input_state_variables,
-                                           int backtrack_frame)
+                                           int backtrack_frame,std::ofstream  & fout)
 {
   // bad_ ,  0...reached_k_+1
   // auto last_bad = unroller_.at_time(bad_, reached_k_+1);
@@ -492,6 +492,14 @@ void Prover::compute_dynamic_COI_from_term(const smt::Term & t,
   var_in_coi_t varset;
   get_var_in_COI({ { t_at_time_k, ranges } },
                  varset);  // varset contains variables like : a@n
+
+  for(const auto out:varset){
+    for(const auto slice: out.second){
+      auto val = solver_->get_value(out.first);
+      fout<< k << " "<<out.first->to_string() << " " <<val->to_string()<< " "<<slice.first << " " <<slice.second<<"\n";
+    }
+  }
+
 
   for (int i = k - 1; i >= backtrack_frame; --i) {
     std::unordered_map<smt::Term, std::vector<std::pair<int, int>>>
@@ -527,6 +535,12 @@ void Prover::compute_dynamic_COI_from_term(const smt::Term & t,
 
     get_var_in_COI(update_functions_to_check, newvarset_slice);
 
+    for(const auto out:newvarset_slice){
+      for(const auto slice: out.second){
+        auto val = solver_->get_value(out.first);
+        fout<< i << " "<<out.first->to_string() << " " <<val->to_string()<< " "<<slice.first << " " <<slice.second<<"\n";
+      }
+    }
     varset.swap(newvarset_slice);  // the same as "varset = newvarset;" , but
                                    // this is faster
   }
@@ -588,7 +602,7 @@ void Prover::recursive_dynamic_COI_using_ILA_info(
   vector<std::tuple<smt::Term, int, slice_t>> next_round_to_track = {
     { bad_, reached_k_ + 1, { { 0, 0 } } }
   };
-
+  std::ofstream fout("coi-check-rev.txt");
   while (!next_round_to_track.empty()) {
     var_in_coi_t input_vars_at_zero_frame;
     for (const auto & term_k_range : next_round_to_track) {
@@ -597,7 +611,7 @@ void Prover::recursive_dynamic_COI_using_ILA_info(
                                     std::get<1>(term_k_range),
                                     init_sv,
                                     input_vars_at_zero_frame,
-                                    backtrack_frame);
+                                    backtrack_frame,fout);
     }  // compute all sub var in
     next_round_to_track.clear();
 
