@@ -167,7 +167,7 @@ ProverResult check_prop(PonoOptions pono_options,
                         const Term & original_trans)
 {
   Unroller unroller_(ts);
-  int bound = 7;
+  int bound = 6;
 
   std::vector<std::tuple<int, Term, Term>> coi_info;
   { // load variable assignment
