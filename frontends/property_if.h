@@ -144,4 +144,26 @@ class QedCexParser : public SelectiveExtractor
     is_reg_t is_reg;
 };
 
+class coireader 
+{
+  public:
+    typedef Filter filter_t;
+    typedef AntFilter filter_r;
+  ////Build the Constructor//////
+    coireader(std::unordered_map<std::string, std::vector<std::pair<int,int>>>  COI_to_consider,
+              std::unordered_map<std::string, std::string> COI_value,
+                 const std::string& filter,
+                 TransitionSystem & ts):COI_to_consider_(COI_to_consider),COI_value_(COI_value),filter_(filter),ts_(ts){};
+    smt::Term coi_cex2property(filter_t & filter) const;
+    smt::Term coi_cex2property_ant(filter_t & filter,filter_r & filter_re) const;
+  protected:
+    TransitionSystem & ts_;
+    std::unordered_map<std::string, std::vector<std::pair<int,int>>>  COI_to_consider_;
+    std::unordered_map<std::string, std::string>  COI_value_;
+    std::string filter_;
+};
+
+
+
+
 }  // namespace pono

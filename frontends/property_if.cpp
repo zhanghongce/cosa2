@@ -485,5 +485,91 @@ smt::Term QedCexParser::cex2property_ant(
     return prop;
 }
 
+smt::Term coireader::coi_cex2property_ant(filter_t & filter,filter_r & filter_ant) const
+{
+  smt::Term prop;
+  for(const auto & coi: COI_to_consider_){
+    const auto & var_name = coi.first;
+    if(!filter(var_name))
+      continue;
+    auto pos = ts_.named_terms().find(var_name);
+    assert(pos != ts_.named_terms().end());
+    auto var = pos->second;
 
+    auto sort = var->get_sort();
+    auto pos_1 = COI_value_.find(var_name);
+    assert(pos_1 != COI_value_.end());
+    auto value = pos_1->second;
+    assert(value.substr(0,2)=="#b");
+    value = value.substr(2);
+    auto val = ts_.make_term(value, sort, 2);
+    auto range = filter.range(var_name);
+    Term eq;
+    if (range.empty()) 
+      eq = ts_.make_term(Equal, var, val);
+    else {
+      for (const auto & slice : range) {
+        if((!filter_ant(var_name,value,slice.first,slice.second)))
+          continue;
+        auto extract_op = smt::Op(smt::PrimOp::Extract, slice.first, slice.second);
+        auto slice_eq = 
+          ts_.make_term(Equal, ts_.make_term(extract_op, var), ts_.make_term(extract_op, val));
+
+        if (eq == nullptr)
+          eq = slice_eq;
+        else
+          eq = ts_.make_term(And, eq, slice_eq);
+      }
+    }
+    if(eq==nullptr)
+      continue;
+    if (prop == nullptr)
+      prop = eq;
+    else
+      prop = ts_.make_term(And, prop, eq);
+  }
+}
+
+
+smt::Term coireader::coi_cex2property(filter_t & filter) const{
+  smt::Term prop;
+  for(const auto & coi: COI_to_consider_){
+    const auto & var_name = coi.first;
+    if(!filter(var_name))
+      continue;
+    auto pos = ts_.named_terms().find(var_name);
+    assert(pos != ts_.named_terms().end());
+    auto var = pos->second;
+
+    auto sort = var->get_sort();
+    auto pos_1 = COI_value_.find(var_name);
+    assert(pos_1 != COI_value_.end());
+    auto value = pos_1->second;
+    assert(value.substr(0,2)=="#b");
+    value = value.substr(2);
+    auto val = ts_.make_term(value, sort, 2);
+    auto range = filter.range(var_name);
+    Term eq;
+    if (range.empty()) 
+      eq = ts_.make_term(Equal, var, val);
+    else {
+      for (const auto & slice : range) {
+        auto extract_op = smt::Op(smt::PrimOp::Extract, slice.first, slice.second);
+        auto slice_eq = 
+          ts_.make_term(Equal, ts_.make_term(extract_op, var), ts_.make_term(extract_op, val));
+
+        if (eq == nullptr)
+          eq = slice_eq;
+        else
+          eq = ts_.make_term(And, eq, slice_eq);
+      }
+    }
+    if(eq==nullptr)
+      continue;
+    if (prop == nullptr)
+      prop = eq;
+    else
+      prop = ts_.make_term(And, prop, eq);
+  }
+}
 }  // namespace pono

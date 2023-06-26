@@ -524,7 +524,7 @@ int main(int argc, char ** argv)
   vector<UnorderedTermMap> cex;
   if(pono_options.step_>0){
     vector<UnorderedTermMap> cex;
-    AntFilter ant_filter("cex_ant.vcd",std::string("RTL"),fts);
+    AntFilter ant_filter("COI_ant.txt",std::string("RTL."),fts);
     prop = cexreader.cex2property_ant(filter,ant_filter);
     int switch_mode = 0;
     if(prop!=nullptr){

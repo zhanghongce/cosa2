@@ -31,8 +31,8 @@ if __name__ == '__main__':
      parser.add_argument('--path_cex', type=str,default='cex.vcd')
      parser.add_argument('--engine', type=str,default='sygus-pdr')
      # parser.add_argument('--ILA_path', type=str,default='/data/zhiyuany/ILA-Tools/test/unit-data/vpipe/verify_two/ADD/')
-     parser.add_argument('--path_design', type=str,default='/data/zhiyuany/EnvSynSamples/ILAng/AES/envinvsyn/design.btor')
-     parser.add_argument('--ILA_model', type=str,default='/data/zhiyuany/EnvSynSamples/ILAng/AES/verification/LOAD/problem.btor2')
+     parser.add_argument('--path_design', type=str,default='/data/zhiyuany/EnvSynSamples/EnvSynSamples/QED/PICO/envinvsyn/design_new.btor')
+     parser.add_argument('--ILA_model', type=str,default='/data/zhiyuany/EnvSynSamples/EnvSynSamples/QED/PICO/verification/pico.btor2')
      parser.add_argument('--inv_path', type=str,default='inductive_invariant')
      parser.add_argument('--init-term-width', type=int, default=4, metavar='N',
                     help='Initial terms width')
@@ -43,8 +43,8 @@ if __name__ == '__main__':
      opts = parser.parse_args(args=[
           '--path_cex','cex.vcd',
           '--engine','ic3bits',
-          '--path_design','/data/zhiyuany/EnvSynSamples/EnvSynSamples/ILAng/PICO-delay-start/envinvsyn/design.btor',
-          '--ILA_model' , '/data/zhiyuany/EnvSynSamples/EnvSynSamples/ILAng/PICO-delay-start/verification/ADD/problem.btor2',
+          '--path_design','/data/zhiyuany/EnvSynSamples/EnvSynSamples/QED/PICO/envinvsyn/design_new.btor',
+          '--ILA_model' , '/data/zhiyuany/EnvSynSamples/EnvSynSamples/QED/PICO/verification/pico.btor2',
           '--inv_path','inductive_invariant'
           # '--continue_from',
           # '--continue-file','inv.smt2',

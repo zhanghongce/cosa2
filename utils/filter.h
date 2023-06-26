@@ -14,12 +14,12 @@
 #include "cexreader/cex_extract.h"
 
 namespace pono {
-class AntFilter:public SelectiveExtractor {
+class AntFilter {
   public:  
     smt::UnorderedTermSet out;
     std::vector<smt::UnorderedTermSet> out_vec;
     AntFilter(const std::string filename, const std::string& filter, TransitionSystem &ts);
-    AntFilter(TransitionSystem & ts):SelectiveExtractor("RTL."),ts_(ts){};
+    AntFilter(TransitionSystem & ts)ts_(ts){};
     //  : filename_(filename),ts_(ts), step_(step){
     //     PropertyInterface prop_inv(filename_,ts_,step);
     //     auto assumption = prop_inv.assumption;
@@ -31,13 +31,9 @@ class AntFilter:public SelectiveExtractor {
     ~AntFilter() {}
   bool operator()(const std::string name_check, const std::string val_check,int idx0,int idx1) const;
   protected:
-    std::string filename_;
     TransitionSystem & ts_;
-    smt::Term assumption;
-    int step_ ;
-    int num_consider_;
-    int startsfrom_;
-    is_reg_t is_reg;
+    std::unordered_map<std::string, std::vector<std::pair<int,int>>> COI_to_consider_;
+    std::unordered_map<std::string, std::string> COI_value;
 };
 
 class Filter {

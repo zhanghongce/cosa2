@@ -30,7 +30,7 @@ struct CexInfoForEnvInvSyn {
   std::vector<std::string> datapath_elements_;
   // name to ranges
   std::unordered_map<std::string, std::vector<std::pair<int,int>>> COI_to_consider_;
-  
+  std::unordered_map<std::string, std::string> COI_value;
   CexInfoForEnvInvSyn(const std::string & json_fname, const std::string & COI_fname) {
     std::ifstream f(json_fname);
     if(!f.is_open() )
@@ -65,6 +65,9 @@ struct CexInfoForEnvInvSyn {
         vec_slices.push_back({msb,lsb});
       }
       
+      std::string val;
+      fCOI >> val;
+      COI_value.emplace(varname, val);
     } // end of File
 
     fCOI.close();
