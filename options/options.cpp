@@ -49,6 +49,7 @@ enum optionIndex
   NO_IC3_INDGEN,
   NO_IC3BITS_COI_PREGEN,
   NO_IC3_SORT_LEMMA,
+  IC3_SORT_LEMMA_ASCENDING,
   IC3_GEN_MAX_ITER,
   IC3_FUNCTIONAL_PREIMAGE,
   NO_IC3_UNSATCORE_GEN,
@@ -262,6 +263,12 @@ const option::Descriptor usage[] = {
     "ic3-no-sort-lemma",
     Arg::None,
     "  --ic3-no-sort-lemma \tDisable Lemma sorting in IC3 base." },
+  { IC3_SORT_LEMMA_ASCENDING,
+    0,
+    "",
+    "ic3-sort-lemma-ascending",
+    Arg::None,
+    "  --ic3-sort-lemma-ascending \tRemove wider lemma last (default: false)" },
     
   { IC3_GEN_MAX_ITER,
     0,
@@ -708,6 +715,7 @@ ProverResult PonoOptions::parse_and_set_options(int argc,
         case NO_IC3_PREGEN: ic3_pregen_ = false; break;
         case NO_IC3BITS_COI_PREGEN: ic3bits_coi_pregen = false; break;
         case NO_IC3_SORT_LEMMA: ic3base_sort_lemma = false; break;
+        case IC3_SORT_LEMMA_ASCENDING: ic3base_sort_lemma_descending = false; break;
         case NO_IC3_INDGEN: ic3_indgen_ = false; break;
         case IC3_GEN_MAX_ITER: ic3_gen_max_iter_ = atoi(opt.arg); break;
         case MBIC3_INDGEN_MODE:

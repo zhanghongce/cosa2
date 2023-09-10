@@ -103,6 +103,7 @@ class PonoOptions
         ic3_indgen_(default_ic3_indgen_),
         ic3bits_coi_pregen(default_ic3bits_coi_pregen),
         ic3base_sort_lemma(default_ic3base_sort_lemma),
+        ic3base_sort_lemma_descending(default_ic3base_sort_lemma_descending),
         ic3_gen_max_iter_(default_ic3_gen_max_iter_),
         mbic3_indgen_mode(default_mbic3_indgen_mode),
         ic3_functional_preimage_(default_ic3_functional_preimage_),
@@ -197,6 +198,7 @@ class PonoOptions
   bool ic3_indgen_;  ///< inductive generalization in IC3
   bool ic3bits_coi_pregen;   ///< inductive generalization in IC3
   bool ic3base_sort_lemma;  ///< sort lemma based on their width or not
+  bool ic3base_sort_lemma_descending; ///< sort lemma from widest to narrowest (will throw away wide first)
   unsigned int ic3_gen_max_iter_; ///< max iterations in ic3 generalization. 0
                                   ///means unbounded
   unsigned int mbic3_indgen_mode;  ///< inductive generalization mode [0,2]
@@ -315,6 +317,7 @@ private:
   static const bool default_ic3_indgen_ = true;
   static const bool default_ic3bits_coi_pregen = true;
   static const bool default_ic3base_sort_lemma = true;
+  static const bool default_ic3base_sort_lemma_descending = true;
   static const unsigned int default_ic3_gen_max_iter_ = 2;
   static const unsigned int default_mbic3_indgen_mode = 0;
   static const bool default_ic3_functional_preimage_ = false;

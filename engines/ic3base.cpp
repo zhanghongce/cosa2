@@ -262,7 +262,7 @@ static size_t TermScore(const smt::Term & t) {
   return w;
 }
 
-static void SortLemma(smt::TermVec & inout) {
+static void SortLemma(smt::TermVec & inout, bool descending) {
   // we don't want to sort the term themselves
   // we don't want to invoke TermScore function more than once for a term
   std::vector<std::pair<size_t,size_t>> complexity_index_pair;
@@ -273,7 +273,11 @@ static void SortLemma(smt::TermVec & inout) {
   }
   // sort in descending order (the `first` is compared first), so term-index with 
   // the highest score will rank first
-  std::sort(complexity_index_pair.begin(), complexity_index_pair.end(), std::greater<>());
+  if(descending)
+    std::sort(complexity_index_pair.begin(), complexity_index_pair.end(), std::greater<>());
+  else
+    std::sort(complexity_index_pair.begin(), complexity_index_pair.end(), std::less<>());
+    
   // now map back to termvec
   smt::TermVec sorted_term;
   for (const auto & cpl_idx_pair : complexity_index_pair) {
@@ -304,7 +308,7 @@ IC3Formula IC3Base::inductive_generalization(size_t i, const IC3Formula & c)
   IC3Formula gen = c;
   // HZ: let's sort gen.children based on the width of the variable
   if(options_.ic3base_sort_lemma)
-    SortLemma(gen.children);
+    SortLemma(gen.children, options_.ic3base_sort_lemma_descending);
 
   IC3Formula out;
   Term dropped;
