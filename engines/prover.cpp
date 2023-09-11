@@ -276,7 +276,9 @@ bool Prover::compute_witness()
       fout << v.first->to_string();
       fout << " " << v.second.size();
       for (const auto & h_l : v.second)
-        fout << " " << h_l.first << " " << h_l.second<<" "<<solver_->get_value(v.first)->to_string();
+        fout << " " << h_l.first << " " << h_l.second;
+      auto var_time =  unroller_.at_time(v.first, backtrack_to_step_n);
+      fout <<" "<<solver_->get_value(var_time)->to_string();
       fout << std::endl;
     }
     // if (options_.dynamic_coi_check_) {
@@ -472,7 +474,7 @@ void Prover::get_var_in_COI(const var_in_coi_t & input_asts,
   partial_model_getter.GetVarListForAsts_in_bitlevel(input_asts, varset_slice);
   std::cout << "[get var in COI] in:\n";
   std::cout << " (Omitted). \n";
-  // Print(input_asts);
+  Print(input_asts);
   std::cout << "[get var in COI] out:\n";
   Print(varset_slice);
 }

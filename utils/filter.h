@@ -19,7 +19,7 @@ class AntFilter {
     smt::UnorderedTermSet out;
     std::vector<smt::UnorderedTermSet> out_vec;
     AntFilter(const std::string filename, const std::string& filter, TransitionSystem &ts);
-    AntFilter(TransitionSystem & ts)ts_(ts){};
+    AntFilter(TransitionSystem & ts):ts_(ts){};
     //  : filename_(filename),ts_(ts), step_(step){
     //     PropertyInterface prop_inv(filename_,ts_,step);
     //     auto assumption = prop_inv.assumption;

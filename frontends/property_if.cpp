@@ -528,6 +528,10 @@ smt::Term coireader::coi_cex2property_ant(filter_t & filter,filter_r & filter_an
     else
       prop = ts_.make_term(And, prop, eq);
   }
+  if(prop!=nullptr)
+    return ts_.make_term(Not, prop);
+  else
+    return prop;
 }
 
 
@@ -571,5 +575,9 @@ smt::Term coireader::coi_cex2property(filter_t & filter) const{
     else
       prop = ts_.make_term(And, prop, eq);
   }
+  if(prop!=nullptr)
+    return ts_.make_term(Not, prop);
+  else
+    return prop;
 }
 }  // namespace pono

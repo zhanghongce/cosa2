@@ -484,9 +484,9 @@ int main(int argc, char ** argv)
   if(btor_enc.propvec().size() != 0)
     logger.log(0, "Ignoring existing property in BTOR2.");
 
-  QedCexParser cexreader(
-    cexinfo.cex_path_, 
-    cexinfo.module_name_filter_,  // will only keep var with this as the prefix
+  coireader cexreader(
+    cexinfo.COI_to_consider_, 
+    cexinfo.COI_value,  // will only keep var with this as the prefix
     cexinfo.module_name_removal_, // will remove this prefix
     fts);
   
@@ -498,12 +498,12 @@ int main(int argc, char ** argv)
   // filter.filters.push_back(std::make_shared<NameFilter>(cexinfo.datapath_elements_, fts, false));
   filter.filters.push_back(std::make_shared<MaxWidthFilter>(max_width, fts));
 
-  prop = cexreader.cex2property(filter);
+  prop = cexreader.coi_cex2property(filter);
   bool inductiveness;
   while( (inductiveness = check_for_inductiveness(prop, fts)) == true && max_width > 1 ) {
     max_width /= 2;
     filter.filters.push_back(std::make_shared<MaxWidthFilter>(max_width, fts));
-    prop = cexreader.cex2property(filter);
+    prop = cexreader.coi_cex2property(filter);
     cout << "Reducing w: " << max_width << " F:" << filter.to_string() << endl;
   }
 
@@ -525,7 +525,7 @@ int main(int argc, char ** argv)
   if(pono_options.step_>0){
     vector<UnorderedTermMap> cex;
     AntFilter ant_filter("COI_ant.txt",std::string("RTL."),fts);
-    prop = cexreader.cex2property_ant(filter,ant_filter);
+    prop = cexreader.coi_cex2property_ant(filter,ant_filter);
     int switch_mode = 0;
     if(prop!=nullptr){
       cout << "PROPERTY:" << prop->to_string()<< ", with open Ant filter." << endl;
@@ -533,7 +533,7 @@ int main(int argc, char ** argv)
     }
     else{
       cout << "Ant filter cannot be used in this stage." << endl;
-      prop = cexreader.cex2property(filter);
+      prop = cexreader.coi_cex2property(filter);
       cout << "PROPERTY:" << prop->to_string() << ", without open Ant filter."<<endl;
       switch_mode = 2;
     }
@@ -547,14 +547,14 @@ int main(int argc, char ** argv)
         cout << "Reachable, removing filter, after: " << filter.to_string() << endl;
         switch_mode = 0;
       }
-      if((switch_mode == 1)||((prop = cexreader.cex2property_ant(filter,ant_filter))==nullptr)){
+      if((switch_mode == 1)||((prop = cexreader.coi_cex2property_ant(filter,ant_filter))==nullptr)){
         cout << "Reachable, removing Ant filter" << endl;
-        prop = cexreader.cex2property(filter);
+        prop = cexreader.coi_cex2property(filter);
         cout << "Now work on PROPERTY:" << prop->to_string() <<", without open Ant filter." << endl;
         switch_mode = 2;
       }
       else{
-        prop = cexreader.cex2property_ant(filter,ant_filter);
+        prop = cexreader.coi_cex2property_ant(filter,ant_filter);
         cout << "Now work on PROPERTY:" << prop->to_string() <<", with open Ant filter." << endl;
         switch_mode = 1;
       }
@@ -570,14 +570,14 @@ int main(int argc, char ** argv)
         cout << "Reachable, removing filter, after: " << filter.to_string() << endl;
         switch_mode = 0;
       }
-      if((switch_mode == 1)||((prop = cexreader.cex2property_ant(filter,ant_filter))==nullptr)){
+      if((switch_mode == 1)||((prop = cexreader.coi_cex2property_ant(filter,ant_filter))==nullptr)){
         cout << "Reachable, removing Ant filter" << endl;
-        prop = cexreader.cex2property(filter);
+        prop = cexreader.coi_cex2property(filter);
         cout << "Now work on PROPERTY:" << prop->to_string() <<", without open Ant filter." << endl;
         switch_mode = 2;
       }
       else{
-        prop = cexreader.cex2property_ant(filter,ant_filter);
+        prop = cexreader.coi_cex2property_ant(filter,ant_filter);
         cout << "Now work on PROPERTY:" << prop->to_string() <<", with open Ant filter." << endl;
         switch_mode = 1;
       }
@@ -595,7 +595,7 @@ int main(int argc, char ** argv)
         throw PonoException("Removing COI filter! Something is wrong here!");
         filter.filters.pop_back();
         cout << "Reachable, removing filter, after: " << filter.to_string() << endl;
-        prop = cexreader.cex2property(filter);
+        prop = cexreader.coi_cex2property(filter);
         cout << "Now work on PROPERTY:" << prop->to_string() <<", without open Ant filter." << endl;
       cex_bmc.clear();      
     }
@@ -607,7 +607,7 @@ int main(int argc, char ** argv)
           throw PonoException("Removing COI filter! Something is wrong here!");
         filter.filters.pop_back();
         cout << "Reachable, removing filter, after: " << filter.to_string() << endl;
-        prop = cexreader.cex2property(filter);
+        prop = cexreader.coi_cex2property(filter);
         cex.clear();
         cout << "Now work on PROPERTY:" << prop->to_string() << endl;
         // TODO: s->reset();

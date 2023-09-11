@@ -276,10 +276,12 @@ int main(int argc, char ** argv)
 
   PonoOptions pono_options;
   ProverResult res = pono_options.parse_and_set_options(argc, argv);
-  if (pono_options.vcd_name_.empty())
-    pono_options.vcd_name_ = "cex.vcd";
+  // if (pono_options.vcd_name_.empty())
+  //   pono_options.vcd_name_ = "cex.vcd";
+
+
   // in this case, we are only interested in the first state
-  pono_options.witness_ = true;
+  pono_options.witness_ = false;
   pono_options.witness_first_state_only_ = false;
   pono_options.compute_dynamic_coi_upon_cex_ = true;
   pono_options.dynamic_coi_check_ = true;
