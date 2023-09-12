@@ -14,6 +14,7 @@
 **        However, the transition system itself still uses bitvectors
 **/
 
+<<<<<<< HEAD
 // #include "engines/ic3bits.h"
 
 // using namespace smt;
@@ -189,6 +190,8 @@
 **        However, the transition system itself still uses bitvectors
 **/
 
+=======
+>>>>>>> cex-read-qed-temp
 #include "utils/logger.h"
 #include "engines/ic3bits.h"
 #include "utils/container_shortcut.h"

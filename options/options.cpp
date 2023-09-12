@@ -16,6 +16,7 @@
 
 #include "options/options.h"
 #include <iostream>
+#include <string>
 #include <vector>
 #include "optionparser.h"
 #include "utils/exceptions.h"
@@ -279,6 +280,10 @@ const option::Descriptor usage[] = {
     "ic3-no-sort-lemma",
     Arg::None,
     "  --ic3-no-sort-lemma \tDisable Lemma sorting in IC3 base." },
+<<<<<<< HEAD
+=======
+    
+>>>>>>> cex-read-qed-temp
   { IC3_GEN_MAX_ITER,
     0,
     "",
@@ -788,6 +793,8 @@ ProverResult PonoOptions::parse_and_set_options(int argc,
         case RESET_BND: reset_bnd_ = atoi(opt.arg); break;
         case CLK: clock_name_ = opt.arg; break;
         case NO_IC3_PREGEN: ic3_pregen_ = false; break;
+        case NO_IC3BITS_COI_PREGEN: ic3bits_coi_pregen = false; break;
+        case NO_IC3_SORT_LEMMA: ic3base_sort_lemma = false; break;
         case NO_IC3_INDGEN: ic3_indgen_ = false; break;
         case NO_IC3BITS_COI_PREGEN: ic3bits_coi_pregen = false; break;
         case NO_IC3_SORT_LEMMA: ic3base_sort_lemma = false; break;

@@ -1,6 +1,11 @@
 
 #pragma once
+// #ifndef FILTER_H
+// #define FILTER_H
 
+// #include "frontends/property_if.cpp"
+
+// #endif /* B_H */
 #include <string>
 #include <list>
 #include <vector>
@@ -9,7 +14,11 @@
 #include "cexreader/cex_extract.h"
 
 namespace pono {
+<<<<<<< HEAD
 class AntFilter:public CexExtractor {
+=======
+class AntFilter {
+>>>>>>> cex-read-qed-temp
   public:  
     smt::UnorderedTermSet out;
     std::vector<smt::UnorderedTermSet> out_vec;
@@ -26,6 +35,7 @@ class AntFilter:public CexExtractor {
     ~AntFilter() {}
   bool operator()(const std::string name_check, const std::string val_check,int idx0,int idx1) const;
   protected:
+<<<<<<< HEAD
     std::string filename_;
     TransitionSystem & ts_;
     smt::Term assumption;
@@ -33,6 +43,11 @@ class AntFilter:public CexExtractor {
     int num_consider_;
     int startsfrom_;
     is_reg_t is_reg;
+=======
+    TransitionSystem & ts_;
+    std::unordered_map<std::string, std::vector<std::pair<int,int>>> COI_to_consider_;
+    std::unordered_map<std::string, std::string> COI_value;
+>>>>>>> cex-read-qed-temp
 };
 
 class Filter {
@@ -104,6 +119,7 @@ public:
     return {};
   }
 };
+
 
 
 class SliceFilter : public Filter{
@@ -180,6 +196,5 @@ struct FilterConcat : public Filter{
     return {};
   }
 };
-
 }
 

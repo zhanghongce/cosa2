@@ -31,8 +31,8 @@ if __name__ == '__main__':
      parser.add_argument('--path_cex', type=str,default='cex.vcd')
      parser.add_argument('--engine', type=str,default='sygus-pdr')
      # parser.add_argument('--ILA_path', type=str,default='/data/zhiyuany/ILA-Tools/test/unit-data/vpipe/verify_two/ADD/')
-     parser.add_argument('--path_design', type=str,default='/data/zhiyuany/EnvSynSamples/ILAng/AES/envinvsyn/design.btor')
-     parser.add_argument('--ILA_model', type=str,default='/data/zhiyuany/EnvSynSamples/ILAng/AES/verification/LOAD/problem.btor2')
+     parser.add_argument('--path_design', type=str,default='/data/zhiyuany/EnvSynSamples/EnvSynSamples/QED/PICO/envinvsyn/design_new.btor')
+     parser.add_argument('--ILA_model', type=str,default='/data/zhiyuany/EnvSynSamples/EnvSynSamples/QED/PICO/verification/pico.btor2')
      parser.add_argument('--inv_path', type=str,default='inductive_invariant')
      parser.add_argument('--init-term-width', type=int, default=4, metavar='N',
                     help='Initial terms width')

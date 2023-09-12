@@ -16,24 +16,36 @@
 **/
 
 #pragma once
+// #ifndef PROPERTY_IF_H
+// #define PROPERTY_IF_H
+
+
+
+// #endif 
 
 #include <iostream>
-
+#include "options/options.h"
 #include "assert.h"
 #include "core/rts.h"
 #include "smt-switch/smt.h"
 #include "smt-switch/smtlib_reader.h"
 #include "utils/exceptions.h"
+<<<<<<< HEAD
 #include "options/options.h"
 #include "utils/filter.h"
+=======
+
+>>>>>>> cex-read-qed-temp
 #include "cexreader/cex_extract.h"
 
+
+#include "utils/filter.h"
 
 namespace pono {
 class PropertyInterface : public smt::SmtLibReader
 {
  public:
-  PropertyInterface(std::string filename, TransitionSystem & ts, int step);
+  // PropertyInterface(std::string filename, TransitionSystem & ts, int step);
   PropertyInterface(std::string filename, TransitionSystem & ts);
   typedef SmtLibReader super;
 
@@ -90,6 +102,7 @@ class PropertyInterfacecex : public CexExtractor
   typedef std::function<bool(const std::string &n)> filter_t;
   typedef AntFilter filter_r;
     PropertyInterfacecex(const PonoOptions pono_options,
+<<<<<<< HEAD
                            const std::string& scope,
                            bool reg_only, bool is_qed,TransitionSystem & ts);
     PropertyInterfacecex(const PonoOptions pono_options,
@@ -98,6 +111,12 @@ class PropertyInterfacecex : public CexExtractor
     void get_COI_variable(PonoOptions pono_options_);
     smt::Term cex_parse_to_pono_property(filter_t filter,bool filter_en,filter_r filter_re,bool filter_re_en);
     smt::Term cex_parse_to_pono_property(bool is_concat);
+=======
+                           const std::string filter,
+                           bool reg_only, TransitionSystem & ts);                      
+    void get_COI_variable(PonoOptions pono_options_);
+    smt::Term cex_parse_to_pono_property(filter_t filter,bool filter_en,filter_r filter_re,bool filter_re_en);
+>>>>>>> cex-read-qed-temp
     smt::Term cex_parse_to_pono_property();
     int get_reg_width();
     int get_reg_min_width();
@@ -121,17 +140,19 @@ class PropertyInterfacecex : public CexExtractor
 };
 
 
-class QedCexParser : public SelectiveExtractor 
+
+class QedCexParser : public SelectiveExtractor  
 {
   public:
     typedef Filter filter_t;
+    typedef AntFilter filter_r;
   ////Build the Constructor//////
     QedCexParser(const std::string& vcd_file_name,
                  const std::string& filter,
                  const std::string& name_removal,
                  TransitionSystem & ts);
     smt::Term cex2property(filter_t & filter) const;
-
+    smt::Term cex2property_ant(filter_t & filter,filter_r & filter_re) const;
     void get_remaining_var(filter_t & filter, std::vector<std::string> & out) const;
   protected:
     TransitionSystem & ts_;
@@ -139,6 +160,7 @@ class QedCexParser : public SelectiveExtractor
     is_reg_t is_reg;
 };
 
+<<<<<<< HEAD
 class JsonCexParser: public CexExtractor 
 {
   public:
@@ -175,4 +197,28 @@ class JsonCexParser: public CexExtractor
     is_reg_t is_reg;
 };
 
+=======
+class coireader 
+{
+  public:
+    typedef Filter filter_t;
+    typedef AntFilter filter_r;
+  ////Build the Constructor//////
+    coireader(std::unordered_map<std::string, std::vector<std::pair<int,int>>>  COI_to_consider,
+              std::unordered_map<std::string, std::string> COI_value,
+                 const std::string& filter,
+                 TransitionSystem & ts):COI_to_consider_(COI_to_consider),COI_value_(COI_value),filter_(filter),ts_(ts){};
+    smt::Term coi_cex2property(filter_t & filter) const;
+    smt::Term coi_cex2property_ant(filter_t & filter,filter_r & filter_re) const;
+  protected:
+    TransitionSystem & ts_;
+    std::unordered_map<std::string, std::vector<std::pair<int,int>>>  COI_to_consider_;
+    std::unordered_map<std::string, std::string>  COI_value_;
+    std::string filter_;
+};
+
+
+
+
+>>>>>>> cex-read-qed-temp
 }  // namespace pono

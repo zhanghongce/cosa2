@@ -633,7 +633,10 @@ unsigned TermLearner::concat_to_extract(/*INOUT*/  PerVarsetInfo & varset_info) 
     } // end of for each term
     // okay, now, we will add the extract there
     for (const auto & t : terms) {
+      auto term_width = t->get_sort()->get_sort_kind() == smt::SortKind::BV ? t->get_sort()->get_width() : 1;
       for (const auto & pos : extract_positions) {
+        if (pos.first >= term_width)
+          continue;
         auto new_term = solver_->make_term(smt::Op(smt::PrimOp::Extract, pos.first, pos.second), t);
         parent_extractor_.RegisterNewParentRelation(t, new_term);
         nterm += varset_info.TermLearnerInsertTerm(new_term) ? 1 : 0;

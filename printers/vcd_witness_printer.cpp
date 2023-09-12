@@ -67,7 +67,7 @@ static std::string width2range(uint64_t w) {
 // so that we don't need to include
 // because its header contains also 
 // implementation, this creates troubles
-static std::string as_bits(std::string val)
+static std::string as_bits(const std::string & val)
 {
   // TODO: this makes assumptions on format of value from boolector
   //       to support other solvers, we need to be more general
@@ -76,6 +76,11 @@ static std::string as_bits(std::string val)
   if (val.length() < 2) {
     throw PonoException("Don't know how to interpret value: " + val);
   }
+
+  if (res == "true")
+    return "1";
+  if (res == "false")
+    return "0";
 
   if (res.substr(0, 2) == "#b") {
     // #b prefix -> b
@@ -113,7 +118,7 @@ static std::string as_bits(std::string val)
 }
 
 // convert boolector value to decimal
-static std::string as_decimal(std::string val)
+static std::string as_decimal(const std::string & val)
 {
   // TODO: this makes assumptions on format of value from boolector
   //       to support other solvers, we need to be more general
@@ -295,15 +300,8 @@ void VCDWitnessPrinter::check_insert_scope(std::string full_name,
     }
   } // at the end of this loop, we are at the scope to insert our variable
   const auto & short_name = scopes.back();
-  // if(full_name=="RTL.sqed"){
-  //   std::cout<< " check !"<<std::endl;
-  // }
-  uint64_t width = ast->get_sort()->get_width();
-  // uint64_t width;
-  // if(ast->get_sort()->get_sort_kind()==smt::BOOL)
-  //   width = 0;
-  // else
-  //   uint64_t width = ast->get_sort()->get_width();
+  uint64_t width = ast->get_sort()->get_sort_kind() == smt::SortKind::BOOL ? 1 : ast->get_sort()->get_width();
+
   std::map<std::string, VCDSignal> & signal_set = is_reg ? root->regs : root->wires;
 
   if (signal_set.find(short_name) != signal_set.end()) {

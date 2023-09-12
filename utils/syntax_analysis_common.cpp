@@ -131,12 +131,13 @@ bool PerVarsetInfo::TermLearnerInsertTerm(const smt::Term & new_term) {
     return false;
 
   unsigned width = get_width(new_term);
-  assert (IN(width, terms)); // concat -> extract does not change this
+  // assert (IN(width, terms)); // concat -> extract does not change this // NO. this is a wrong assertion!
+
   bool is_val = (new_term->is_value());
   if(is_val)
-    terms.at(width).constants.push_back(new_term);
+    terms[width].constants.push_back(new_term);
   else
-    terms.at(width).terms.push_back(new_term);
+    terms[width].terms.push_back(new_term);
   all_terms.insert(new_term);
 
   return true;

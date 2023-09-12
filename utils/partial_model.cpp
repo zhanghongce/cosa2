@@ -25,6 +25,8 @@
 #include <fstream>
 #define UNIFIED_WIDTH(ast) ((ast)->get_sort()->get_sort_kind() == smt::SortKind::BOOL) ? 1 : (ast)->get_sort()->get_width();
 
+#define UNIFIED_WIDTH(ast) ((ast)->get_sort()->get_sort_kind() == smt::SortKind::BOOL) ? 1 : (ast)->get_sort()->get_width();
+
 namespace pono {
 
 IC3Formula PartialModelGen::GetPartialModel(const smt::Term & ast) {
@@ -806,7 +808,7 @@ void PartialModelGen::dfs_walk_bitlevel(const smt::Term & input_ast, int high, i
         ARG1(back);
         auto width_back = back->get_sort()->get_width();
         // auto count = 0;
-        auto width_extend = op.idx0;
+        // auto width_extend = op.idx0;
         auto msb = extracted_bit.first;
         auto lsb = extracted_bit.second;
         if (lsb < width_back) {

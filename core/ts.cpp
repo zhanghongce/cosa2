@@ -244,7 +244,6 @@ void TransitionSystem::add_constraint(const Term & constraint,
   // constraints can make it so not every state has a next state
   // TODO: revisit this and possibly rename functional/deterministic
   deterministic_ = false;
-
   if (only_curr(constraint)) {
     trans_ = solver_->make_term(And, trans_, constraint);
 

@@ -16,7 +16,7 @@
 
 #include "bmc.h"
 #include "utils/logger.h"
-
+#include <fstream>
 using namespace smt;
 
 namespace pono {
@@ -72,6 +72,8 @@ ProverResult Bmc::check_until(int k)
     if (!step(i)) {
       std::cout<< " The BMC bug is found in the step: " << i <<std::endl;
       compute_witness();
+      std::ofstream bound("bound.txt");
+      bound<< i <<std::endl;
       return ProverResult::FALSE;
     }
   }

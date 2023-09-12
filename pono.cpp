@@ -172,6 +172,8 @@ ProverResult check_prop(PonoOptions pono_options,
         logger.log(0, "COI check passed");
   }
   }
+  }
+
 
 
   Term invar;
@@ -478,15 +480,27 @@ int main(int argc, char ** argv)
 
   PonoOptions pono_options;
   ProverResult res = pono_options.parse_and_set_options(argc, argv);
+  pono_options.witness_ = true;
+  pono_options.witness_first_state_only_ = false;
+  pono_options.compute_dynamic_coi_upon_cex_ = true;
+  pono_options.dynamic_coi_check_ = true;
   if (res == ERROR) return res;
   // expected result returned by option parsing and setting is
   // 'pono::UNKNOWN', indicating that options were correctly set and
   // 'ERROR' otherwise, e.g. wrong command line options or
   // incompatible options were passed
   assert(res == pono::UNKNOWN);
+<<<<<<< HEAD
   std::ifstream fin("/data/zhiyuany/cosa2/asmpt-ila.smt2");
   if(fin.is_open())
     pono_options.use_ilang_coi_constraint_file_ = true;
+=======
+ { // dynamically check if asmpt-ila.smt2 is available or not
+    std::ifstream fin("asmpt-ila.smt2");
+    pono_options.use_ilang_coi_constraint_file_ = fin.is_open();
+  }
+  pono_options.logging_smt_solver_ = true; // it seems that logging solver helps with COI
+>>>>>>> cex-read-qed-temp
   // set logger verbosity -- can only be set once
   logger.set_verbosity(pono_options.verbosity_);
 
