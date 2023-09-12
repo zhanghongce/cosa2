@@ -17,10 +17,7 @@
 
 #include "frontends/property_if.h"
 #include "cexreader/cex_extract.h"
-<<<<<<< HEAD
-=======
 #include "json/json.hpp"
->>>>>>> cex-read-qed-temp
 #include <fstream>
 #include <numeric>
 #include <cmath>
@@ -41,16 +38,6 @@ int findElement(vector<std::string> v, std::string key){
 	return -1;
 }
 
-<<<<<<< HEAD
-void make_init(const smt::Term in,smt::Term & out, TransitionSystem &ts_){
-      if (out == nullptr)
-        out = in;
-      else
-        out = ts_.make_term(And, out, in);
-}
-
-=======
->>>>>>> cex-read-qed-temp
 PropertyInterface::PropertyInterface(std::string filename, TransitionSystem & ts)
     : super(ts.get_solver()), filename_(filename), ts_(ts)
 {
@@ -67,32 +54,6 @@ PropertyInterface::PropertyInterface(std::string filename, TransitionSystem & ts
   }
 }
 
-<<<<<<< HEAD
-PropertyInterface::PropertyInterface(std::string filename, TransitionSystem & ts, int step)
-    : super(ts.get_solver()), filename_(filename), ts_(ts), step_(step)
-{
-  set_logic_all();
-  int res = parse(filename_);
-  assert(!res);  // 0 means success
-
-  for(const auto & n_prop : defs_){
-      if(n_prop.first.find("assertion.") == 0)
-        assertions_.push_back(n_prop.second);
-      if(n_prop.first.find("assumption.") == 0)
-        assumptions_.push_back(n_prop.second);
-        // for(int i=1;i<=num_consider_;i++){
-        //   if(con_assumption.size()==num_consider_)
-        //     break;
-          auto position = n_prop.first.find(std::to_string(step_-1));
-          if (position!=std::string::npos){
-            // con_assumption.push_back(n_prop.second);
-            assumption = n_prop.second;
-            // break;
-          }
-        // }
-  }
-}
-=======
 // PropertyInterface::PropertyInterface(std::string filename, TransitionSystem & ts, int step)
 //     : super(ts.get_solver()), filename_(filename), ts_(ts), step_(step)
 // {
@@ -117,7 +78,6 @@ PropertyInterface::PropertyInterface(std::string filename, TransitionSystem & ts
 //         // }
 //   }
 // }
->>>>>>> cex-read-qed-temp
 
 
 smt::Term PropertyInterface::register_arg(const std::string & name, const smt::Sort & sort) {
@@ -198,13 +158,8 @@ smt::Term AssumptionRelationReader::GetConditionInAssumption(const std::string &
 // --------------------------------------------------------------------------
 
 PropertyInterfacecex::PropertyInterfacecex(const PonoOptions pono_options,
-<<<<<<< HEAD
-                           const std::string& scope,
-                           bool reg_only, bool is_qed, TransitionSystem & ts):
-=======
                             const std::string filter,
                            bool reg_only, TransitionSystem & ts):
->>>>>>> cex-read-qed-temp
 pono_options_(pono_options),ts_(ts), is_reg([this](const std::string & check_name) -> bool{ 
   auto pos = ts_.named_terms().find(check_name);
   if(pos == ts_.named_terms().end())
@@ -215,93 +170,8 @@ pono_options_(pono_options),ts_(ts), is_reg([this](const std::string & check_nam
  } )
   {
     const std::string& vcd_file_name = pono_options.cex_reader_;
-<<<<<<< HEAD
-    if(is_qed)
-      //parse_from_qed(vcd_file_name, scope, is_reg, reg_only);
-      //Now we use the delay start, so QED has a start signal
-      parse_from(vcd_file_name, scope, is_reg, reg_only);
-    else
-      parse_from(vcd_file_name, scope, is_reg, reg_only);
-    get_COI_variable(pono_options_);
-  }
-
-PropertyInterfacecex::PropertyInterfacecex(const PonoOptions pono_options,
-                           const std::string& scope,
-                           bool reg_only, TransitionSystem & ts,bool is_parse_concat):
-pono_options_(pono_options),ts_(ts), is_reg([this](const std::string & check_name) -> bool{ 
-  auto pos = ts_.named_terms().find(check_name);
-  // std::cout<< check_name<<std::endl;
-  if(pos == ts_.named_terms().end())
-    return false;
-  auto a = ts_.is_curr_var(pos->second);
-  auto b = (ts_.state_updates().find(pos->second)!=ts_.state_updates().end());
-  return a&&b;
- } ) , is_parse_concat_(is_parse_concat)
-  {
-    const std::string& vcd_file_name = pono_options.cex_reader_;
-    if(is_parse_concat_)
-      parse_from_final_value(vcd_file_name, scope, is_reg, reg_only);
-  }
-
-void PropertyInterfacecex::get_COI_variable(PonoOptions pono_options_){
-      const std::string& vcd_file_name = pono_options_.cex_reader_;
-      // parse_from(vcd_file_name, scope, is_reg, true);
-      const std::string json_name = pono_options_.smt_path_ + "/" + "COI_variable.json";
-      const std::string qed_name = pono_options_.smt_path_ + "/" + "qed_signal.json";
-      std::ifstream f(json_name);
-      std::ifstream f1(qed_name);
-      if(!f.is_open() )
-          return ;
-      nlohmann::json data = nlohmann::json::parse(f);
-      if(f.is_open()){
-        nlohmann::json data_qed = nlohmann::json::parse(f1);
-        data_qed.at("name").get_to(qed_name_terms);
-      }
-       
-      data.at("name").get_to(name_terms); 
-      data.at("value").get_to(value_terms); 
-
-      having_extract = data.find("name_to_extract")!=data.end();
-      if(having_extract){
-        data.at("name_to_extract").get_to(name_extract);
-        data.at("extract_width").get_to(extract_val);
-      }
-
-      auto count = 0;
-      for(const auto var: name_terms) {
-      std::cout<<"The COI variable is: "<<var<<endl;
-      auto pos_qed = var.rfind("qed");
-      if(pos_qed!=std::string::npos){
-        std::cout<<"The COI variable is in the QED module. "<<var<<endl;
-        count = count + 1;
-        continue;
-      }
-      if(!qed_name_terms.empty()&&(std::find(qed_name_terms.begin(), qed_name_terms.end(), var) != qed_name_terms.end())){
-        std::cout<<"The COI variable is for the SQED test. "<<var<<endl;
-        count = count + 1;
-        continue;
-      }
-      auto var_copy = var;
-      if (var_copy.length() > 2 && var_copy.front() == var_copy.back() &&
-        var_copy.front() == '|') // remove extra | pair
-        var_copy = var_copy.substr(1,var_copy.length()-2);
-      auto pos_1 = var_copy.rfind("RTL.");
-      if(pos_1!=std::string::npos){
-        var_copy = var_copy.substr(pos_1+4);
-      }
-      else{
-        count = count + 1;
-        continue;
-      }
-      auto origin_val  = value_terms.at(count);
-      origin_val = origin_val.substr(2);
-      new_name_terms.push_back(var_copy);
-      new_value_terms.push_back(origin_val);
-      count = count +1;
-=======
     parse_from(vcd_file_name, filter, is_reg, true);
     get_COI_variable(pono_options_);
->>>>>>> cex-read-qed-temp
   }
 }
 
@@ -483,24 +353,16 @@ bool PropertyInterfacecex::is_extracted(const std::string & var_name, std::vecto
   auto count = 1;
   auto count_pos = 0;
   for(auto name_ext: name_extract){
-<<<<<<< HEAD
-=======
     
->>>>>>> cex-read-qed-temp
     auto pos_1 = name_ext.rfind("RTL.");
     if(pos_1!=std::string::npos){
       name_ext = name_ext.substr(pos_1+4);
     }
-<<<<<<< HEAD
-    else
-      continue;
-=======
     else{
       count_pos = count_pos + 1;
       continue;
     }
 
->>>>>>> cex-read-qed-temp
     if(name_ext == var_name){
       std::cout<<"The COI variable: "<< var_name<<" can be extracted "<< count << " times"<<std::endl; 
       count = count + 1;
@@ -517,47 +379,6 @@ bool PropertyInterfacecex::is_extracted(const std::string & var_name, std::vecto
 void PropertyInterfacecex::get_info(const std::pair<int,int> & out, int & idx0, int & idx1){
   idx0 = out.first;
   idx1 = out.second;
-<<<<<<< HEAD
-}
-
-
-
-
-
-smt::Term PropertyInterfacecex::cex_parse_to_pono_property(bool is_concat)
-{
-  assert(is_concat);
-  std::string filename =  "/data/zhiyuany/cosa2/init_origin_new_yosys_without_assume_design.txt"; 
-  ofstream change_init(filename.c_str());
-  const auto name_terms = ts_.named_terms();
-  const auto init_terms = ts_.init();
-  // smt::UnorderedTermSet init_presicates;
-  // get_predicates(ts_.get_solver(),init_terms, init_presicates, true,false,true);
-  smt::Term init;
-  if(is_concat){
-    for (const auto & var_val_pair : GetCex() ) {
-      const auto & var_name = var_val_pair.first;
-      // if(var_name.find("cpuregs") != std::string::npos){
-      //   continue;
-      // }
-      auto pos = ts_.named_terms().find(var_name);
-      /////QED do not in the problem.btor
-
-        auto var = pos->second;
-        auto sort = var->get_sort();
-        auto width = sort->get_width();
-        change_init<<var_name<<" "<<std::to_string(width)<<"'b"<<var_val_pair.second<<std::endl;
-        auto val = ts_.make_term(var_val_pair.second, sort, 2);
-        auto eq = ts_.make_term(Equal, var, val);
-        make_init(eq,init,ts_);
-        
-      // }
-
-    }
-  }
-  return init;
-=======
->>>>>>> cex-read-qed-temp
 }
 
 
@@ -633,7 +454,6 @@ smt::Term QedCexParser::cex2property(
   return ts_.make_term(Not, prop);
 }
 
-<<<<<<< HEAD
 
 
 JsonCexParser::JsonCexParser(PonoOptions & pono_options,const std::string& scope,TransitionSystem & ts):
@@ -1225,7 +1045,6 @@ int JsonCexParser::get_reg_min_width(){
 
 
 
-=======
 smt::Term QedCexParser::cex2property_ant(
   filter_t & filter,filter_r & filter_ant) const
 {
@@ -1369,5 +1188,4 @@ smt::Term coireader::coi_cex2property(filter_t & filter) const{
   else
     return prop;
 }
->>>>>>> cex-read-qed-temp
 }  // namespace pono

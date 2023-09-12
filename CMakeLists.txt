@@ -276,12 +276,7 @@ target_link_libraries(pono-lib PUBLIC "${PROJECT_SOURCE_DIR}/deps/btor2tools/bui
 target_link_libraries(pono-lib PUBLIC "${GMPXX_LIBRARIES}")
 target_link_libraries(pono-lib PUBLIC "${GMP_LIBRARIES}")
 target_link_libraries(pono-lib PUBLIC pthread)
-<<<<<<< HEAD
-target_link_libraries(pono-lib PUBLIC y)
-target_link_libraries(pono-lib PUBLIC Boost::regex)
-=======
 #target_link_libraries(pono-lib PUBLIC y)
->>>>>>> cex-read-qed-temp
 
 if (LIBRT)
   target_link_libraries(pono-lib PUBLIC ${LIBRT})
