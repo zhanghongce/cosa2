@@ -209,8 +209,12 @@ smt::Term name_changed(const smt::Term & input, const smt::UnorderedTermSet & va
     if (var_middle.length() > 2 && var_middle.front() == var_middle.back() &&
         var_middle.front() == '|') // remove extra | pair
       var_middle = var_middle.substr(1,var_middle.length()-2);
-
-    std::string new_name = prefix + var_middle;
+    
+    std::string new_name; 
+    if (var_middle.find("[")!=std::string::npos)
+      new_name = "|" + prefix + var_middle + "|";
+    else
+      new_name = prefix + var_middle;
     auto new_var = slv->make_symbol(new_name, sort);
     substitute_map.emplace(var, new_var);
   }

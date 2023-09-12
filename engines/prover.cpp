@@ -281,14 +281,14 @@ bool Prover::compute_witness()
       fout <<" "<<solver_->get_value(var_time)->to_string();
       fout << std::endl;
     }
-    // if (options_.dynamic_coi_check_) {
-    //   UnorderedTermSet all_inputs = ts_.inputvars();
-    //   for (const auto & inpv : ts_.statevars()) {
-    //     if (ts_.state_updates().find(inpv) == ts_.state_updates().end())
-    //       all_inputs.insert(inpv);
-    //   }
-    //   record_coi_info(varset, all_inputs, reached_k_ + 1, backtrack_to_step_n);
-    // }
+    if (options_.dynamic_coi_check_) {
+      UnorderedTermSet all_inputs = ts_.inputvars();
+      for (const auto & inpv : ts_.statevars()) {
+        if (ts_.state_updates().find(inpv) == ts_.state_updates().end())
+          all_inputs.insert(inpv);
+      }
+      record_coi_info(varset, all_inputs, reached_k_ + 1, backtrack_to_step_n);
+    }
   }
 ///////////////////////If we want to have the vcd file, just uncomment this///////////////////
   // for (int i = 0; i <= reached_k_ + 1; ++i) {

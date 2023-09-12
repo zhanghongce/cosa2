@@ -131,8 +131,8 @@ def run_cegar(n_iteration, qedbtor, dutbtor):
 if __name__ == '__main__':
      parser = argparse.ArgumentParser()
      parser.add_argument('--iter', type=int,default=0)
-     parser.add_argument('--qedbtor', type=str,default='/data/zhiyuany/EnvSynSamples/EnvSynSamples/ILAng/SP/verify/ADD/problem.btor2')
-     parser.add_argument('--dutbtor', type=str,default='/data/zhiyuany/EnvSynSamples/EnvSynSamples/ILAng/SP/envinvsyn/design.btor')
+     parser.add_argument('--qedbtor', type=str,default='/data/zhiyuany/EnvSynSamples/EnvSynSamples/ILAng/PICO-delay-start/verification/ADD/problem.btor2')
+     parser.add_argument('--dutbtor', type=str,default='/data/zhiyuany/EnvSynSamples/EnvSynSamples/ILAng/PICO-delay-start/envinvsyn/design.btor')
      
      opts = parser.parse_args()
      run_cegar(opts.iter, opts.qedbtor, opts.dutbtor)
