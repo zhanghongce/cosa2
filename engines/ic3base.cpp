@@ -258,10 +258,6 @@ IC3Formula IC3Base::ic3formula_negate(const IC3Formula & u) const
   return IC3Formula(term, neg_children, !is_clause);
 }
 
-<<<<<<< HEAD
-=======
-
->>>>>>> cex-read-qed-temp
 static size_t TermScore(const smt::Term & t) {
   unsigned w = 0;
   for(auto pos = t->begin(); pos != t->end(); ++pos)
@@ -311,15 +307,9 @@ IC3Formula IC3Base::inductive_generalization(size_t i, const IC3Formula & c)
 
   IC3Formula gen = c;
   // HZ: let's sort gen.children based on the width of the variable
-<<<<<<< HEAD
-  // std::sort(gen.children.begin(), gen.children.end(), term_width_gt);
-  if(options_.ic3base_sort_lemma)
-    SortLemma(gen.children);
-=======
   if(options_.ic3base_sort_lemma)
     SortLemma(gen.children);
 
->>>>>>> cex-read-qed-temp
   IC3Formula out;
   Term dropped;
   size_t j = 0;
