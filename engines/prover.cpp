@@ -471,7 +471,7 @@ void Prover::get_var_in_COI(const var_in_coi_t & input_asts,
                             var_in_coi_t & varset_slice)
 {
   PartialModelGen partial_model_getter(solver_);
-  partial_model_getter.GetVarListForAsts_in_bitlevel_sqed(input_asts, varset_slice,filename);
+  partial_model_getter.GetVarListForAsts_in_bitlevel(input_asts, varset_slice);
   std::cout << "[get var in COI] in:\n";
   std::cout << " (Omitted). \n";
   Print(input_asts);

@@ -30,12 +30,6 @@
 #include "smt-switch/smt.h"
 #include "smt-switch/smtlib_reader.h"
 #include "utils/exceptions.h"
-<<<<<<< HEAD
-#include "options/options.h"
-#include "utils/filter.h"
-=======
-
->>>>>>> cex-read-qed-temp
 #include "cexreader/cex_extract.h"
 
 
@@ -102,21 +96,10 @@ class PropertyInterfacecex : public CexExtractor
   typedef std::function<bool(const std::string &n)> filter_t;
   typedef AntFilter filter_r;
     PropertyInterfacecex(const PonoOptions pono_options,
-<<<<<<< HEAD
-                           const std::string& scope,
-                           bool reg_only, bool is_qed,TransitionSystem & ts);
-    PropertyInterfacecex(const PonoOptions pono_options,
-                           const std::string& scope,
-                           bool reg_only, TransitionSystem & ts,bool is_parse_concat);                       
-    void get_COI_variable(PonoOptions pono_options_);
-    smt::Term cex_parse_to_pono_property(filter_t filter,bool filter_en,filter_r filter_re,bool filter_re_en);
-    smt::Term cex_parse_to_pono_property(bool is_concat);
-=======
                            const std::string filter,
                            bool reg_only, TransitionSystem & ts);                      
     void get_COI_variable(PonoOptions pono_options_);
     smt::Term cex_parse_to_pono_property(filter_t filter,bool filter_en,filter_r filter_re,bool filter_re_en);
->>>>>>> cex-read-qed-temp
     smt::Term cex_parse_to_pono_property();
     int get_reg_width();
     int get_reg_min_width();
@@ -160,44 +143,6 @@ class QedCexParser : public SelectiveExtractor
     is_reg_t is_reg;
 };
 
-<<<<<<< HEAD
-class JsonCexParser: public CexExtractor 
-{
-  public:
-    typedef std::function<bool(const std::string &n)> filter_t;
-    typedef AntFilter filter_r;
-  ////Build the Constructor//////
-    JsonCexParser(PonoOptions & pono_options,const std::string& scope,TransitionSystem & ts);
-    smt::Term json_cex_parse_to_pono_property(filter_r filter_re,filter_t filter);
-    smt::Term json_cex_parse_to_pono_property(filter_r filter_re);
-    smt::Term json_cex_parse_to_pono_property(filter_t filter);
-    smt::Term json_cex_parse_to_pono_property();
-    smt::Term json_cex_vcd_parse_to_pono_property(filter_r filter_re);
-    smt::Term json_cex_vcd_parse_to_pono_property(filter_t filter);
-    smt::Term json_cex_vcd_parse_to_pono_property();
-    int get_reg_width();
-    int get_reg_min_width();
-    std::vector<int> get_width;
-  protected:
-    bool is_extracted(const std::string & var_name, std::vector<std::pair<int,int>> & extract_info,std::vector<std::pair<int,int>> & extract_val_info);
-    void get_info(const std::pair<int,int> & out, int & idx0, int & idx1);
-    bool fix_varname(std::string & var_name,std::vector<std::pair<int,int>> & extracted_out,std::vector<std::pair<int,int>> & extract_val_info);
-    TransitionSystem & ts_;
-    std::vector<std::string> name_terms;
-    std::vector<std::string> qed_name_terms;
-    std::vector<std::string> value_terms;
-    std::vector<std::string> new_name_terms;
-    std::vector<std::string> new_value_terms;
-    std::vector<std::string> name_extract;
-    std::vector<std::pair<int,int>> extract_val;
-    // std::vector<std::string> extract_val;
-    // std::array<int> extract_val_arr;
-    PonoOptions pono_options_;
-    bool having_extract;
-    is_reg_t is_reg;
-};
-
-=======
 class coireader 
 {
   public:
@@ -220,5 +165,4 @@ class coireader
 
 
 
->>>>>>> cex-read-qed-temp
 }  // namespace pono
