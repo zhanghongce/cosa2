@@ -22,7 +22,7 @@
 #include "core/unroller.h"
 #include "options/options.h"
 #include "smt-switch/smt.h"
-
+#include <fstream>
 namespace pono {
 
 /** enum for communicating result of a refinement step
@@ -35,9 +35,21 @@ enum RefineResult
   REFINE_FAIL       // failed to refine
 };
 
+struct pair_hash {
+	template<class T1, class T2>
+	std::size_t operator() (const std::pair<T1, T2>& p) const {
+		auto h1 = std::hash<T1>{}(p.first);
+		auto h2 = std::hash<T2>{}(p.second);
+		return h1 ^ h2;
+	}
+};
+
+
 class Prover
 {
  public:
+  typedef std::vector<std::pair<int,int>> slice_t;
+  typedef std::unordered_map <smt::Term,slice_t> var_in_coi_t;
   Prover(const Property & p, const TransitionSystem & ts,
          const smt::SmtSolver & s,
          PonoOptions opt = PonoOptions());
@@ -51,6 +63,20 @@ class Prover
   virtual ProverResult check_until(int k) = 0;
 
   virtual bool witness(std::vector<smt::UnorderedTermMap> & out);
+  void compute_dynamic_COI_from_term(
+    const smt::Term & t, 
+    const slice_t &ranges, int k,
+    var_in_coi_t & init_state_variables,
+    var_in_coi_t & input_state_variables,
+    int backtrack_frame,std::ofstream  & fout);
+  void get_var_in_COI(const var_in_coi_t & input_asts,
+                            var_in_coi_t & varset_slice);
+
+  void record_coi_info(const var_in_coi_t &sv, const smt::UnorderedTermSet &inp, int k, int start_bnd);
+  smt::UnorderedTermMap all_coi_values;
+  bool check_coi(const smt::Term & original_trans);
+  std::vector<smt::UnorderedTermMap> coi_failure_witness_; 
+  virtual bool coi_failure_witness(std::vector<smt::UnorderedTermMap> & out);
 
   /** Returns length of the witness
    *  this can be cheaper than actually computing the witness
@@ -67,6 +93,11 @@ class Prover
   smt::Term invar();
 
  protected:
+  std::vector<std::tuple<std::string, int, std::string>> coi_trace_k;
+  void register_coi_trace_k(const std::string & s, int k, const std::string & v) {
+    coi_trace_k.push_back({s,k,v});
+  }
+
   /** Take a term from the Prover's solver
    *  to the original transition system's solver
    *  as a particular SortKind
