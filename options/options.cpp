@@ -95,7 +95,8 @@ enum optionIndex
   KIND_ONE_TIME_BASE_CHECK,
   KIND_BOUND_STEP,
   DYNAMIC_COI_UP_CEX,
-  COI_CHECK
+  COI_CHECK,
+  PIVOT_INPUT
 };
 
 struct Arg : public option::Arg
@@ -624,6 +625,13 @@ const option::Descriptor usage[] = {
     Arg::None,
     "  --coi_check, \tWe can check whether the COI we get it right "
     },  
+  { PIVOT_INPUT,
+    0,
+    "",
+    "pivot_input",
+    Arg::None,
+    "  --pivot_input, \tWe can find the pivot input for a given counterexample "
+    },
   { 0, 0, 0, 0, 0, 0 }
 };
 /*********************************** end Option Handling setup
@@ -817,6 +825,7 @@ ProverResult PonoOptions::parse_and_set_options(int argc,
 	    throw PonoException("--kind-bound-step must be greater than 0");
 	  break;
         case COI_CHECK: dynamic_coi_check_ = true; break;
+        case PIVOT_INPUT: pivot_input_ = true; break;
         case DYNAMIC_COI_UP_CEX: compute_dynamic_coi_upon_cex_ = true; break;
         case UNKNOWN_OPTION:
           // not possible because Arg::Unknown returns ARG_ILLEGAL

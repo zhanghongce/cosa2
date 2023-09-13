@@ -99,6 +99,7 @@ class PonoOptions
         compute_dynamic_coi_upon_cex_(default_compute_dynamic_coi_upon_cex_),
         dynamic_coi_check_(default_dynamic_coi_check_),
         static_coi_(default_static_coi_),
+        pivot_input_(default_pivot_input_),
         show_invar_(default_show_invar_),
         check_invar_(default_check_invar_),
         ic3_pregen_(default_ic3_pregen_),
@@ -195,6 +196,7 @@ class PonoOptions
   bool compute_dynamic_coi_upon_cex_;  ///< will generate a COI.txt along with cex.vcd
   bool dynamic_coi_check_; ///< will check the COI generated
   bool static_coi_;
+  bool pivot_input_;
   bool show_invar_;   ///< display invariant when running from command line
   bool check_invar_;  ///< check invariants (if available) when run through CLI
   // ic3 options
@@ -312,6 +314,7 @@ private:
   static const bool default_compute_dynamic_coi_upon_cex_ = false;
   static const bool default_dynamic_coi_check_ = false;
   static const bool default_static_coi_ = false;
+  static const bool default_pivot_input_  = false;
   static const bool default_show_invar_ = false;
   static const bool default_check_invar_ = false;
   static const size_t default_reset_bnd_ = 1;

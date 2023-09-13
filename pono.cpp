@@ -44,7 +44,7 @@
 #include "utils/timestamp.h"
 #include "utils/make_provers.h"
 #include "utils/ts_analysis.h"
-
+#include "refiners/cex_generalizer.h"
 using namespace pono;
 using namespace smt;
 using namespace std;
@@ -297,9 +297,9 @@ int main(int argc, char ** argv)
       logger.log(2, "Parsing BTOR2 file: {}", pono_options.filename_);
       FunctionalTransitionSystem fts(s);
       BTOR2Encoder btor_enc(pono_options.filename_, fts);
-      for(const auto constraint: fts.constraints()){
-        std::cout<<constraint.first->to_string() << " " <<constraint.second << std::endl;
-      }
+      // for(const auto constraint: fts.constraints()){
+      //   std::cout<<constraint.first->to_string() << " " <<constraint.second << std::endl;
+      // }
       const TermVec & propvec = btor_enc.propvec();
       unsigned int num_props = propvec.size();
       if (pono_options.prop_idx_ >= num_props) {
@@ -322,11 +322,16 @@ int main(int argc, char ** argv)
         cout << "b" << pono_options.prop_idx_ << endl;
         assert(pono_options.witness_ || !cex.size());
         if (cex.size()) {
+          if (pono_options.pivot_input_) {
+            CexGeneralizer cex_reducer(fts, btor_enc, cex);
+            cex_reducer.print_witness_btor(btor_enc, cex_reducer.get_cex_trace());
+          } else {
           print_witness_btor(btor_enc, cex, fts);
           if (!pono_options.vcd_name_.empty()) {
             VCDWitnessPrinter vcdprinter(fts, cex);
             vcdprinter.dump_trace_to_file(pono_options.vcd_name_);
           }
+        }
         }
       } else if (res == TRUE) {
         cout << "unsat" << endl;
