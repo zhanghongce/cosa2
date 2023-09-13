@@ -472,11 +472,11 @@ void Prover::get_var_in_COI(const var_in_coi_t & input_asts,
 {
   PartialModelGen partial_model_getter(solver_);
   partial_model_getter.GetVarListForAsts_in_bitlevel(input_asts, varset_slice);
-  std::cout << "[get var in COI] in:\n";
-  std::cout << " (Omitted). \n";
-  Print(input_asts);
-  std::cout << "[get var in COI] out:\n";
-  Print(varset_slice);
+  // std::cout << "[get var in COI] in:\n";
+  // std::cout << " (Omitted). \n";
+  // Print(input_asts);
+  // std::cout << "[get var in COI] out:\n";
+  // Print(varset_slice);
 }
 
 void Prover::compute_dynamic_COI_from_term(const smt::Term & t,

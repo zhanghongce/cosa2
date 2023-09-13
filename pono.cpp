@@ -172,7 +172,7 @@ ProverResult check_prop(PonoOptions pono_options,
         logger.log(0, "COI check passed");
   }
   }
-  }
+
 
 
 
@@ -490,17 +490,11 @@ int main(int argc, char ** argv)
   // 'ERROR' otherwise, e.g. wrong command line options or
   // incompatible options were passed
   assert(res == pono::UNKNOWN);
-<<<<<<< HEAD
-  std::ifstream fin("/data/zhiyuany/cosa2/asmpt-ila.smt2");
-  if(fin.is_open())
-    pono_options.use_ilang_coi_constraint_file_ = true;
-=======
  { // dynamically check if asmpt-ila.smt2 is available or not
     std::ifstream fin("asmpt-ila.smt2");
     pono_options.use_ilang_coi_constraint_file_ = fin.is_open();
   }
   pono_options.logging_smt_solver_ = true; // it seems that logging solver helps with COI
->>>>>>> cex-read-qed-temp
   // set logger verbosity -- can only be set once
   logger.set_verbosity(pono_options.verbosity_);
 
@@ -580,7 +574,7 @@ int main(int argc, char ** argv)
       res = TRUE;
 
 
-      PropertyInterfacecex prop_cex(pono_options, std::string("RTL"), true, pono_options.env_qed_ , fts);
+      PropertyInterfacecex prop_cex(pono_options, std::string("RTL"), true, fts);
       prop = prop_cex.cex_parse_to_pono_property();
       std::cout << prop->to_raw_string() << std::endl;
       vector<UnorderedTermMap> cex;
@@ -637,7 +631,7 @@ int main(int argc, char ** argv)
       }
       //////TODO: Add the transformation of the vcd at here!!!!//////////
       if(!pono_options.cex_reader_.empty()){
-        PropertyInterfacecex prop_cex(pono_options, std::string("RTL"), true, pono_options.env_qed_,fts);
+        PropertyInterfacecex prop_cex(pono_options, std::string("RTL"), true, fts);
         prop = prop_cex.cex_parse_to_pono_property();
         std::cout << prop->to_raw_string() << std::endl;
       }

@@ -50,10 +50,7 @@
 #include <filesystem>
 #include <queue>
 #include "utils/filter.h"
-<<<<<<< HEAD
-=======
 #include "frontends/cex_info_json.h"
->>>>>>> cex-read-qed-temp
 using namespace pono;
 using namespace smt;
 using namespace std;
@@ -82,15 +79,6 @@ void profiling_sig_handler(int sig)
   signal(sig, SIG_DFL);
   raise(sig);
 }
-<<<<<<< HEAD
-
-
-
-
-
-
-=======
->>>>>>> cex-read-qed-temp
 
 bool check_for_inductiveness(const Term & prop, const TransitionSystem & ts) {
   Term init = ts.init();
@@ -540,159 +528,159 @@ ProverResult check_prop(PonoOptions pono_options,
 
 //   return r;
 // }
-ProverResult check_prop_new(PonoOptions pono_options,
-                        Term & prop,
-                        TransitionSystem & ts,
-                        const SmtSolver & s,
-                        std::vector<UnorderedTermMap> & cex)
-{
-  // create a solver for this
-  auto new_solver = create_solver_for(se, e, true,false);
-  TermTranslator to_new_solver(new_solver);
-  TermTranslator to_old_solver(solver_old);
-  FunctionalTransitionSystem new_fts(original_ts,to_new_solver);
-  std::vector<UnorderedTermMap> local_cex;
-  std::string filename_origin = pono_options.smt_path_ + "/" + "inv_origin.smt2";
-  if ((pono_options.add_assuption_in_origin_ == true)&&(step>0))
-      {       
-        PropertyInterface add_to_frame(filename_origin, new_fts);
-        add_to_frame.AddAssumptionsToTS();
-      }
-  Term prop = to_new_solver.transfer_term(prop_old);
+// ProverResult check_prop_new(PonoOptions pono_options,
+//                         Term & prop,
+//                         TransitionSystem & ts,
+//                         const SmtSolver & s,
+//                         std::vector<UnorderedTermMap> & cex)
+// {
+//   // create a solver for this
+//   auto new_solver = create_solver_for(se, e, true,false);
+//   TermTranslator to_new_solver(new_solver);
+//   TermTranslator to_old_solver(solver_old);
+//   FunctionalTransitionSystem new_fts(original_ts,to_new_solver);
+//   std::vector<UnorderedTermMap> local_cex;
+//   std::string filename_origin = pono_options.smt_path_ + "/" + "inv_origin.smt2";
+//   if ((pono_options.add_assuption_in_origin_ == true)&&(step>0))
+//       {       
+//         PropertyInterface add_to_frame(filename_origin, new_fts);
+//         add_to_frame.AddAssumptionsToTS();
+//       }
+//   Term prop = to_new_solver.transfer_term(prop_old);
 
-  // get property name before it is rewritten
-  const string prop_name = new_fts.get_name(prop);
-  logger.log(1, "Solving property: {}", prop_name);
-  logger.log(3, "INIT:\n{}", new_fts.init());
-  logger.log(3, "TRANS:\n{}", new_fts.trans());
+//   // get property name before it is rewritten
+//   const string prop_name = new_fts.get_name(prop);
+//   logger.log(1, "Solving property: {}", prop_name);
+//   logger.log(3, "INIT:\n{}", new_fts.init());
+//   logger.log(3, "TRANS:\n{}", new_fts.trans());
 
-  // modify the transition system and property based on options
-  if (!pono_options.clock_name_.empty()) {
-    Term clock_symbol = new_fts.lookup(pono_options.clock_name_);
-    toggle_clock(new_fts, clock_symbol);
-  }
-  if (!pono_options.reset_name_.empty()) {
-    std::string reset_name = pono_options.reset_name_;
-    bool negative_reset = false;
-    if (reset_name.at(0) == '~') {
-      reset_name = reset_name.substr(1, reset_name.length() - 1);
-      negative_reset = true;
-    }
-    Term reset_symbol = new_fts.lookup(reset_name);
-    if (negative_reset) {
-      SortKind sk = reset_symbol->get_sort()->get_sort_kind();
-      reset_symbol = (sk == BV) ? new_solver->make_term(BVNot, reset_symbol)
-                                : new_solver->make_term(Not, reset_symbol);
-    }
-    Term reset_done = add_reset_seq(new_fts, reset_symbol, pono_options.reset_bnd_);
-    // guard the property with reset_done
-    prop = new_fts.solver()->make_term(Implies, reset_done, prop);
-  }
-
-
-  if (pono_options.static_coi_) {
-    /* Compute the set of state/input variables related to the
-       bad-state property. Based on that information, rebuild the
-       transition relation of the transition system. */
-    StaticConeOfInfluence coi(new_fts, { prop }, pono_options.verbosity_);
-  }
-
-  if (pono_options.pseudo_init_prop_) {
-    new_fts = pseudo_init_and_prop(new_fts, prop);
-  }
-
-  if (pono_options.promote_inputvars_) {
-    new_fts = promote_inputvars(new_fts);
-    assert(!new_fts.inputvars().size());
-  }
-
-  if (!new_fts.only_curr(prop)) {
-    logger.log(1,
-               "Got next state or input variables in property. "
-               "Generating a monitor state.");
-    prop = add_prop_monitor(new_fts, prop);
-  }
-
-  if (pono_options.assume_prop_) {
-    // NOTE: crucial that pseudo_init_prop and add_prop_monitor passes are
-    // before this pass. Can't assume the non-delayed prop and also
-    // delay it
-    prop_in_trans(new_fts, prop);
-  }
-
-  Property p(new_solver, prop, prop_name);
-
-  // end modification of the transition system and property
-
-  Engine eng = pono_options.engine_;
-
-  std::shared_ptr<Prover> prover;
-  if (pono_options.cegp_abs_vals_) {
-    prover = make_cegar_values_prover(eng, p, new_fts, new_solver, pono_options);
-  } else if (pono_options.ceg_bv_arith_) {
-    prover = make_cegar_bv_arith_prover(eng, p, new_fts, new_solver, pono_options);
-  } else if (pono_options.ceg_prophecy_arrays_) {
-    prover = make_ceg_proph_prover(eng, p, new_fts, new_solver, pono_options);
-  } else {
-    prover = make_prover(eng, p, new_fts, new_solver, pono_options);
-  }
-  assert(prover);
-
-  // TODO: handle this in a more elegant way in the future
-  //       consider calling prover for CegProphecyArrays (so that underlying
-  //       model checker runs prove unbounded) or possibly, have a command line
-  //       flag to pick between the two
-  ProverResult r;
-  if (pono_options.engine_ == MSAT_IC3IA)
-  {
-    // HACK MSAT_IC3IA does not support check_until
-    r = prover->prove();
-  }
-  else
-  {
-    r = prover->check_until(pono_options.bound_);
-  }
-
-  // if (r == FALSE && pono_options.witness_) {
-  //   bool success = prover->witness(local_cex);
-  //   if (!success) {
-  //     logger.log(
-  //         0,
-  //         "Only got a partial witness from engine. Not suitable for printing.");
-  //   }
-  // }
+//   // modify the transition system and property based on options
+//   if (!pono_options.clock_name_.empty()) {
+//     Term clock_symbol = new_fts.lookup(pono_options.clock_name_);
+//     toggle_clock(new_fts, clock_symbol);
+//   }
+//   if (!pono_options.reset_name_.empty()) {
+//     std::string reset_name = pono_options.reset_name_;
+//     bool negative_reset = false;
+//     if (reset_name.at(0) == '~') {
+//       reset_name = reset_name.substr(1, reset_name.length() - 1);
+//       negative_reset = true;
+//     }
+//     Term reset_symbol = new_fts.lookup(reset_name);
+//     if (negative_reset) {
+//       SortKind sk = reset_symbol->get_sort()->get_sort_kind();
+//       reset_symbol = (sk == BV) ? new_solver->make_term(BVNot, reset_symbol)
+//                                 : new_solver->make_term(Not, reset_symbol);
+//     }
+//     Term reset_done = add_reset_seq(new_fts, reset_symbol, pono_options.reset_bnd_);
+//     // guard the property with reset_done
+//     prop = new_fts.solver()->make_term(Implies, reset_done, prop);
+//   }
 
 
-  Term invar;
-  if (r == TRUE && (pono_options.show_invar_ || pono_options.check_invar_)) {
-    try {
-      invar = prover->invar();
+//   if (pono_options.static_coi_) {
+//     /* Compute the set of state/input variables related to the
+//        bad-state property. Based on that information, rebuild the
+//        transition relation of the transition system. */
+//     StaticConeOfInfluence coi(new_fts, { prop }, pono_options.verbosity_);
+//   }
 
-      // write_inv_to_file(invar, outf,outf_origin, step, "RTL.");
-    }
-    catch (PonoException & e) {
-      std::cout << "Engine " << pono_options.engine_
-                << " does not support getting the invariant." << std::endl;
-      // outf << "(noinvar)" << endl;      
-    }
-  }
+//   if (pono_options.pseudo_init_prop_) {
+//     new_fts = pseudo_init_and_prop(new_fts, prop);
+//   }
+
+//   if (pono_options.promote_inputvars_) {
+//     new_fts = promote_inputvars(new_fts);
+//     assert(!new_fts.inputvars().size());
+//   }
+
+//   if (!new_fts.only_curr(prop)) {
+//     logger.log(1,
+//                "Got next state or input variables in property. "
+//                "Generating a monitor state.");
+//     prop = add_prop_monitor(new_fts, prop);
+//   }
+
+//   if (pono_options.assume_prop_) {
+//     // NOTE: crucial that pseudo_init_prop and add_prop_monitor passes are
+//     // before this pass. Can't assume the non-delayed prop and also
+//     // delay it
+//     prop_in_trans(new_fts, prop);
+//   }
+
+//   Property p(new_solver, prop, prop_name);
+
+//   // end modification of the transition system and property
+
+//   Engine eng = pono_options.engine_;
+
+//   std::shared_ptr<Prover> prover;
+//   if (pono_options.cegp_abs_vals_) {
+//     prover = make_cegar_values_prover(eng, p, new_fts, new_solver, pono_options);
+//   } else if (pono_options.ceg_bv_arith_) {
+//     prover = make_cegar_bv_arith_prover(eng, p, new_fts, new_solver, pono_options);
+//   } else if (pono_options.ceg_prophecy_arrays_) {
+//     prover = make_ceg_proph_prover(eng, p, new_fts, new_solver, pono_options);
+//   } else {
+//     prover = make_prover(eng, p, new_fts, new_solver, pono_options);
+//   }
+//   assert(prover);
+
+//   // TODO: handle this in a more elegant way in the future
+//   //       consider calling prover for CegProphecyArrays (so that underlying
+//   //       model checker runs prove unbounded) or possibly, have a command line
+//   //       flag to pick between the two
+//   ProverResult r;
+//   if (pono_options.engine_ == MSAT_IC3IA)
+//   {
+//     // HACK MSAT_IC3IA does not support check_until
+//     r = prover->prove();
+//   }
+//   else
+//   {
+//     r = prover->check_until(pono_options.bound_);
+//   }
+
+//   // if (r == FALSE && pono_options.witness_) {
+//   //   bool success = prover->witness(local_cex);
+//   //   if (!success) {
+//   //     logger.log(
+//   //         0,
+//   //         "Only got a partial witness from engine. Not suitable for printing.");
+//   //   }
+//   // }
+
+
+//   Term invar;
+//   if (r == TRUE && (pono_options.show_invar_ || pono_options.check_invar_)) {
+//     try {
+//       invar = prover->invar();
+
+//       // write_inv_to_file(invar, outf,outf_origin, step, "RTL.");
+//     }
+//     catch (PonoException & e) {
+//       std::cout << "Engine " << pono_options.engine_
+//                 << " does not support getting the invariant." << std::endl;
+//       // outf << "(noinvar)" << endl;      
+//     }
+//   }
     
 
-  if (r == TRUE && pono_options.show_invar_ && invar) {
-    logger.log(0, "INVAR: {}", invar);
-  }
+//   if (r == TRUE && pono_options.show_invar_ && invar) {
+//     logger.log(0, "INVAR: {}", invar);
+//   }
 
-  if (r == TRUE && pono_options.check_invar_ && invar) {
-    bool invar_passes = check_invar(new_fts, p.prop(), invar);
-    std::cout << "Invariant Check " << (invar_passes ? "PASSED" : "FAILED")
-              << std::endl;
-    if (!invar_passes) {
-      // shouldn't return true if invariant is incorrect
-      throw PonoException("Invariant Check FAILED");
-    }
-  }
-  return r;
-}
+//   if (r == TRUE && pono_options.check_invar_ && invar) {
+//     bool invar_passes = check_invar(new_fts, p.prop(), invar);
+//     std::cout << "Invariant Check " << (invar_passes ? "PASSED" : "FAILED")
+//               << std::endl;
+//     if (!invar_passes) {
+//       // shouldn't return true if invariant is incorrect
+//       throw PonoException("Invariant Check FAILED");
+//     }
+//   }
+//   return r;
+// }
 
 ProverResult check_for_inductiveness_bmc(PonoOptions pono_options,
                         const Term & prop_old,
@@ -835,12 +823,8 @@ ProverResult get_prop_inv(PonoOptions pono_options,
       ProverResult res;
       ProverResult res_bmc;
       // TODO: Transfer the PropertyInterfacecex to JsonCexParser
-<<<<<<< HEAD
-      PropertyInterfacecex prop_cex_vcd(pono_options, std::string("RTL"), true, pono_options.env_qed_ ,fts);
-=======
       CexInfoForEnvInvSyn cexinfo("invsyn-config.json", "COI.txt");
       PropertyInterfacecex prop_cex_vcd(pono_options,std::string("RTL"), true,fts);
->>>>>>> cex-read-qed-temp
       // JsonCexParser prop_cex(pono_options, std::string("RTL"),fts);
       UnorderedTermSet prop_check;
       pono_options.sygus_initial_term_width_= prop_cex_vcd.get_reg_width();
@@ -866,7 +850,7 @@ ProverResult get_prop_inv(PonoOptions pono_options,
       
       
       if(step>0){       
-          AntFilter filter_re("cex_ant.vcd",std::string("RTL"),fts);
+          AntFilter filter_re("COI_ant.txt",std::string("RTL"),fts);
           
           // To begin with, we try to use the coi-repeat,coi-width filter
           auto width = min_width;
@@ -928,15 +912,9 @@ ProverResult get_prop_inv(PonoOptions pono_options,
           }
         }
         else{
-<<<<<<< HEAD
-          MaxWidthFilter filter_wid(pono_options.sygus_initial_term_width_,fts);
-          // prop_filter = prop_cex.cex_parse_to_pono_property_coi(filter_wid);
-          AntFilter filter_re(fts);
-          prop_filter = prop_cex_vcd.cex_parse_to_pono_property(filter_wid ,true, filter_re, false);
-=======
           filter.filters.push_back(std::make_shared<MaxWidthFilter>(pono_options.sygus_initial_term_width_, fts));
+          AntFilter filter_re(fts);
           prop_filter = cexreader.cex2property(filter);
->>>>>>> cex-read-qed-temp
           if(prop_filter!=nullptr){
             std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
           }
@@ -946,7 +924,7 @@ ProverResult get_prop_inv(PonoOptions pono_options,
             prop_check.insert(prop_filter);
           }
           // prop_filter = prop_cex.cex_parse_to_pono_property_coi();
-          prop_filter = prop_cex_vcd.cex_parse_to_pono_property(filter_wid ,false, filter_re, false);
+          prop_filter = prop_cex_vcd.cex_parse_to_pono_property(filter ,false, filter_re, false);
           if(prop_filter!=nullptr){
             std::cout <<"The property: "<< prop_filter->to_raw_string() <<" "<<" is formed. Now we try to insert. "<<std::endl;
           }
@@ -1177,7 +1155,7 @@ int main(int argc, char ** argv)
       }
       //////TODO: Add the transformation of the vcd at here!!!!//////////
       if(!pono_options.cex_reader_.empty()){
-        PropertyInterfacecex prop_cex(pono_options, std::string("RTL"), true, pono_options.env_qed_,fts);
+        PropertyInterfacecex prop_cex(pono_options, std::string("RTL"), true,fts);
         prop = prop_cex.cex_parse_to_pono_property();
         std::cout << prop->to_raw_string() << std::endl;
       }
