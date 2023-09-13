@@ -173,7 +173,6 @@ pono_options_(pono_options),ts_(ts), is_reg([this](const std::string & check_nam
     parse_from(vcd_file_name, filter, is_reg, true);
     get_COI_variable(pono_options_);
   }
-}
 
 
 void PropertyInterfacecex::get_COI_variable(PonoOptions pono_options_){

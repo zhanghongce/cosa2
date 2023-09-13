@@ -97,7 +97,7 @@ class PropertyInterfacecex : public CexExtractor
   typedef AntFilter filter_r;
     PropertyInterfacecex(const PonoOptions pono_options,
                            const std::string filter,
-                           bool reg_only, TransitionSystem & ts){};                      
+                           bool reg_only, TransitionSystem & ts);                 
     void get_COI_variable(PonoOptions pono_options_);
     smt::Term cex_parse_to_pono_property(filter_t filter,bool filter_en,filter_r filter_re,bool filter_re_en);
     smt::Term cex_parse_to_pono_property();
