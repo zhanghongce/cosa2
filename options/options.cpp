@@ -94,7 +94,7 @@ enum optionIndex
   KIND_NO_IND_CHECK_PROPERTY,
   KIND_ONE_TIME_BASE_CHECK,
   KIND_BOUND_STEP,
-  DYNAMIIC_COI_UP_CEX,
+  DYNAMIC_COI_UP_CEX,
   COI_CHECK
 };
 
@@ -610,12 +610,12 @@ const option::Descriptor usage[] = {
     "  --kind-bound-step \tAmount by which bound (unrolling depth) "
     "is increased in k-induction (default: 1)"
     },
-  { DYNAMIIC_COI_UP_CEX,
+  { DYNAMIC_COI_UP_CEX,
     0,
     "",
-    "coi_check",
+    "dynamic_coi_up_cex",
     Arg::None,
-    "  --coi_check, \tWe can check whether the COI we get it right "
+    "  --dynamic_coi_up_cex, \tWe can find the precise counterexample via COI "
     }, 
   { COI_CHECK,
     0,
@@ -817,7 +817,7 @@ ProverResult PonoOptions::parse_and_set_options(int argc,
 	    throw PonoException("--kind-bound-step must be greater than 0");
 	  break;
         case COI_CHECK: dynamic_coi_check_ = true; break;
-        case DYNAMIIC_COI_UP_CEX: compute_dynamic_coi_upon_cex_ = true; break;
+        case DYNAMIC_COI_UP_CEX: compute_dynamic_coi_upon_cex_ = true; break;
         case UNKNOWN_OPTION:
           // not possible because Arg::Unknown returns ARG_ILLEGAL
           // which aborts the parse with an error

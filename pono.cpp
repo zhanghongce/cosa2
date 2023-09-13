@@ -156,6 +156,17 @@ ProverResult check_prop(PonoOptions pono_options,
           0,
           "Only got a partial witness from engine. Not suitable for printing.");
     }
+    // if(pono_options.dynamic_coi_check_){
+    //   bool res_COI = prover->check_coi(ts.trans());
+    //   if(!res_COI) {
+    //       std::vector<smt::UnorderedTermMap> coi_cex;
+    //       prover->coi_failure_witness(coi_cex);
+    //       VCDWitnessPrinter vcdprinter(ts, coi_cex);
+    //       vcdprinter.dump_trace_to_file("COI_failure.vcd");
+    //       throw PonoException("COI check failed!");
+    //   } else
+    //     logger.log(0, "COI check passed");
+    // }
   }
 
   Term invar;
@@ -286,6 +297,9 @@ int main(int argc, char ** argv)
       logger.log(2, "Parsing BTOR2 file: {}", pono_options.filename_);
       FunctionalTransitionSystem fts(s);
       BTOR2Encoder btor_enc(pono_options.filename_, fts);
+      for(const auto constraint: fts.constraints()){
+        std::cout<<constraint.first->to_string() << " " <<constraint.second << std::endl;
+      }
       const TermVec & propvec = btor_enc.propvec();
       unsigned int num_props = propvec.size();
       if (pono_options.prop_idx_ >= num_props) {

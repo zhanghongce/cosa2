@@ -225,14 +225,14 @@ bool Prover::compute_witness()
     var_in_coi_t varset;
 
     int backtrack_to_step_n = 0;
-    std::ofstream fout_check("coi-check-rev.txt");
+    
     var_in_coi_t input_var_tmp;
     compute_dynamic_COI_from_term(bad_,
                                     { { 0, 0 } },
                                     reached_k_ + 1,
                                     varset,
                                     input_var_tmp,
-                                    backtrack_to_step_n,fout_check);
+                                    backtrack_to_step_n);
     
     std::ofstream fout("COI.txt");
     for (const auto & v : varset) {  // varname size h0 l0 h1 l1 ...
@@ -354,78 +354,78 @@ bool Prover::check_coi(const smt::Term & original_trans)
   return true;
 }
 
-// bool static keep_this_name(const std::string & n)
-// {
-//   const static std::unordered_set<std::string> keep = {
-//     "__START__",    "__STARTED__", "__ENDED__",
-//     "__2ndENDED__", "__RESETED__", "__CYCLE_CNT__"
-//   };
-//   const static std::unordered_set<std::string> partial_keep = {
-//     "__delay_d", "__recorder_sn_condmet"
-//   };
-//   const static std::string aux_var_ends = "__recorder";
+bool static keep_this_name(const std::string & n)
+{
+  const static std::unordered_set<std::string> keep = {
+    "__START__",    "__STARTED__", "__ENDED__",
+    "__2ndENDED__", "__RESETED__", "__CYCLE_CNT__"
+  };
+  const static std::unordered_set<std::string> partial_keep = {
+    "__delay_d", "__recorder_sn_condmet"
+  };
+  const static std::string aux_var_ends = "__recorder";
 
-//   if (keep.find(n) != keep.end()) return true;
-//   if (n.find("ILA.") == 0) return false;
-//   if (n.find("RTL.") == 0) return true;
-//   for (const auto & sub : partial_keep)
-//     if (n.find(sub) != n.npos) return true;
+  if (keep.find(n) != keep.end()) return true;
+  if (n.find("ILA.") == 0) return false;
+  if (n.find("RTL.") == 0) return true;
+  for (const auto & sub : partial_keep)
+    if (n.find(sub) != n.npos) return true;
 
-//   if (n.find("__auxvar") == 0 && n.length() >= aux_var_ends.length()
-//       && n.compare(n.length() - aux_var_ends.length(),
-//                    aux_var_ends.length(),
-//                    aux_var_ends)
-//              == 0)
-//     return false;
-//   if (n.find("__VLG_I_") == 0 || n.find("__ILA_I_") == 0 || n == "dummy_reset"
-//       || n == "reset" || n == "rst")
-//     return false;
-//   if (n.find("ppl_stage_") == 0) return true;
-//   throw PonoException("Unknown how to handle: " + n);
-//   return false;
-//   //
-// }
+  if (n.find("__auxvar") == 0 && n.length() >= aux_var_ends.length()
+      && n.compare(n.length() - aux_var_ends.length(),
+                   aux_var_ends.length(),
+                   aux_var_ends)
+             == 0)
+    return false;
+  if (n.find("__VLG_I_") == 0 || n.find("__ILA_I_") == 0 || n == "dummy_reset"
+      || n == "reset" || n == "rst")
+    return false;
+  if (n.find("ppl_stage_") == 0) return true;
+  throw PonoException("Unknown how to handle: " + n);
+  return false;
+  //
+}
 
-// void Prover::record_coi_info(const var_in_coi_t & sv,
-//                              const smt::UnorderedTermSet & inp,
-//                              int bnd,
-//                              int start_bnd)
-// {
-//   // store all values on sv @ 0 , and all inp vars @ 0...k
-//   for (const auto & v : sv) {
-//     auto sv_name = v.first->to_string();
-//     if (restrict_RTL_vars_only_in_ILA_RTL_rfcheck) {
-//       if (!keep_this_name(sv_name)) {
-//         logger.log(0, "[COI check] removing sv {}", sv_name);
-//         continue;
-//       }
-//     }
-//     auto timed_v = unroller_.at_time(v.first, start_bnd);
-//     auto value = solver_->get_value(timed_v);
-//     for (const auto & range : v.second) {
-//       auto extracted_v = solver_->make_term(
-//           smt::Op(smt::PrimOp::Extract, range.first, range.second), timed_v);
-//       auto extracted_val = solver_->make_term(
-//           smt::Op(smt::PrimOp::Extract, range.first, range.second), value);
-//       all_coi_values.emplace(extracted_v, extracted_val);
-//       logger.log(0,
-//                  "[COI check] sv {} is locked as {}",
-//                  extracted_v->to_string(),
-//                  extracted_val->to_string());
-//     }
-//   }
-//   for (int k = start_bnd; k <= bnd + 1; ++k) {
-//     for (const auto & inpv : inp) {
-//       auto timed_v = unroller_.at_time(inpv, k);
-//       auto value = solver_->get_value(timed_v);
-//       all_coi_values.emplace(timed_v, value);
-//       logger.log(0,
-//                  "[COI check] input {} is locked as {}",
-//                  timed_v->to_string(),
-//                  value->to_string());
-//     }
-//   }
-// }  // end of record_coi_info
+void Prover::record_coi_info(const var_in_coi_t & sv,
+                             const smt::UnorderedTermSet & inp,
+                             int bnd,
+                             int start_bnd)
+{
+  // store all values on sv @ 0 , and all inp vars @ 0...k
+  for (const auto & v : sv) {
+    auto sv_name = v.first->to_string();
+    if (restrict_RTL_vars_only_in_ILA_RTL_rfcheck) {
+      if (!keep_this_name(sv_name)) {
+        logger.log(0, "[COI check] removing sv {}", sv_name);
+        continue;
+      }
+    }
+    auto timed_v = unroller_.at_time(v.first, start_bnd);
+    auto value = solver_->get_value(timed_v);
+    for (const auto & range : v.second) {
+      auto extracted_v = solver_->make_term(
+          smt::Op(smt::PrimOp::Extract, range.first, range.second), timed_v);
+      auto extracted_val = solver_->make_term(
+          smt::Op(smt::PrimOp::Extract, range.first, range.second), value);
+      all_coi_values.emplace(extracted_v, extracted_val);
+      logger.log(0,
+                 "[COI check] sv {} is locked as {}",
+                 extracted_v->to_string(),
+                 extracted_val->to_string());
+    }
+  }
+  for (int k = start_bnd; k <= bnd + 1; ++k) {
+    for (const auto & inpv : inp) {
+      auto timed_v = unroller_.at_time(inpv, k);
+      auto value = solver_->get_value(timed_v);
+      all_coi_values.emplace(timed_v, value);
+      logger.log(0,
+                 "[COI check] input {} is locked as {}",
+                 timed_v->to_string(),
+                 value->to_string());
+    }
+  }
+}  // end of record_coi_info
 
 void Prover::get_var_in_COI(const var_in_coi_t & input_asts,
                             var_in_coi_t & varset_slice)
@@ -444,7 +444,7 @@ void Prover::compute_dynamic_COI_from_term(const smt::Term & t,
                                            int k,
                                            var_in_coi_t & init_state_variables,
                                            var_in_coi_t & input_state_variables,
-                                           int backtrack_frame,std::ofstream  & fout)
+                                           int backtrack_frame)
 {
   // bad_ ,  0...reached_k_+1
   // auto last_bad = unroller_.at_time(bad_, reached_k_+1);
@@ -453,7 +453,7 @@ void Prover::compute_dynamic_COI_from_term(const smt::Term & t,
   var_in_coi_t varset;
   get_var_in_COI({ { t_at_time_k, ranges } },
                  varset);  // varset contains variables like : a@n
-
+  std::ofstream fout("coi-check-rev.txt");
   for(const auto out:varset){
     for(const auto slice: out.second){
       auto val = solver_->get_value(out.first);
@@ -547,5 +547,82 @@ std::string static remove_vertical_bar(const std::string & in)
   if (in.length() > 2 && in.front() == '|' && in.back() == '|')
     return in.substr(1, in.length() - 2);
   return in;
+}
+bool Prover::coi_failure_witness(std::vector<UnorderedTermMap> & out)
+{
+  if (!coi_failure_witness_.size()) {
+    throw PonoException(
+        "Recovering witness failed. Make sure that there was "
+        "a counterexample and that the engine supports witness generation.");
+  }
+
+  function<Term(const Term &, SortKind)> transfer_to_prover_as;
+  function<Term(const Term &, SortKind)> transfer_to_orig_ts_as;
+  TermTranslator to_orig_ts_solver(orig_ts_.solver());
+  if (solver_ == orig_ts_.solver()) {
+    // don't need to transfer terms if the solvers are the same
+    transfer_to_prover_as = [](const Term & t, SortKind sk) { return t; };
+    transfer_to_orig_ts_as = [](const Term & t, SortKind sk) { return t; };
+  } else {
+    // need to add symbols to cache
+    UnorderedTermMap & cache = to_orig_ts_solver.get_cache();
+    for (const auto & v : orig_ts_.statevars()) {
+      cache[to_prover_solver_.transfer_term(v)] = v;
+    }
+    for (const auto & v : orig_ts_.inputvars()) {
+      cache[to_prover_solver_.transfer_term(v)] = v;
+    }
+
+    transfer_to_prover_as = [this](const Term & t, SortKind sk) {
+      return to_prover_solver_.transfer_term(t, sk);
+    };
+    transfer_to_orig_ts_as = [&to_orig_ts_solver](const Term & t, SortKind sk) {
+      return to_orig_ts_solver.transfer_term(t, sk);
+    };
+  }
+
+  bool success = true;
+
+  // Some backends don't support full witnesses
+  // it will still populate state variables, but will return false instead of
+  // true
+  for (const auto & wit_map : coi_failure_witness_) {
+    out.push_back(UnorderedTermMap());
+    UnorderedTermMap & map = out.back();
+
+    for (const auto & v : orig_ts_.statevars()) {
+      const SortKind & sk = v->get_sort()->get_sort_kind();
+      const Term & pv = transfer_to_prover_as(v, sk);
+      map[v] = transfer_to_orig_ts_as(wit_map.at(pv), sk);
+    }
+
+    for (const auto & v : orig_ts_.inputvars()) {
+      const SortKind & sk = v->get_sort()->get_sort_kind();
+      const Term & pv = transfer_to_prover_as(v, sk);
+      try {
+        map[v] = transfer_to_orig_ts_as(wit_map.at(pv), sk);
+      }
+      catch (std::exception & e) {
+        success = false;
+        break;
+      }
+    }
+
+    if (success) {
+      for (const auto & elem : orig_ts_.named_terms()) {
+        const SortKind & sk = elem.second->get_sort()->get_sort_kind();
+        const Term & pt = transfer_to_prover_as(elem.second, sk);
+        try {
+          map[elem.second] = transfer_to_orig_ts_as(wit_map.at(pt), sk);
+        }
+        catch (std::exception & e) {
+          success = false;
+          break;
+        }
+      }
+    }
+  }
+
+  return success;
 }
 }  // namespace pono

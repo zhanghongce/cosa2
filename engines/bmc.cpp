@@ -47,7 +47,8 @@ void Bmc::initialize()
   // future we can use solver_->reset_assertions(), but it is not currently
   // supported in boolector
   logger.log(2, "BMC adding init constraint for step 0");
-  solver_->assert_formula(unroller_.at_time(ts_.init(), 0));
+  auto init = unroller_.at_time(ts_.init(), 0);
+  solver_->assert_formula(init);
 }
 
 ProverResult Bmc::check_until(int k)
