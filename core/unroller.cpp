@@ -39,12 +39,12 @@ Term Unroller::at_time(const Term & t, unsigned int k)
 {
   UnorderedTermMap & cache = var_cache_at_time(k);
 
-    for(auto term:cache){
-      std::cout<<" The Term in the UnorderedTermMap is: "<<std::endl;
-      std::cout<<"    "<<std::endl;
-      std::cout<<"---------------------"<<"The first: "<<term.first->to_string()<<". The second: "<<term.second->to_string()<<std::endl;
-      std::cout<<"    "<<std::endl;
-    }
+    // for(auto term:cache){
+    //   std::cout<<" The Term in the UnorderedTermMap is: "<<std::endl;
+    //   std::cout<<"    "<<std::endl;
+    //   std::cout<<"---------------------"<<"The first: "<<term.first->to_string()<<". The second: "<<term.second->to_string()<<std::endl;
+    //   std::cout<<"    "<<std::endl;
+    // }
   // if t is a variable, it will be cached
   auto it = cache.find(t);
   if (it != cache.end()) {

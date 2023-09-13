@@ -279,7 +279,7 @@ bool Prover::compute_witness()
 }
 
 
-static const bool restrict_RTL_vars_only_in_ILA_RTL_rfcheck = true;
+static const bool restrict_RTL_vars_only_in_ILA_RTL_rfcheck = false;
 
 bool Prover::check_coi(const smt::Term & original_trans)
 {
