@@ -97,6 +97,8 @@ ProverResult check_prop(PonoOptions pono_options,
     ts = pseudo_init_and_prop(ts, prop);
   }
 
+
+  
   if (pono_options.promote_inputvars_) {
     ts = promote_inputvars(ts);
     assert(!ts.inputvars().size());
@@ -310,7 +312,9 @@ int main(int argc, char ** argv)
       }
 
       Term prop = propvec[pono_options.prop_idx_];
-
+      if (!fts.only_curr(prop)) {
+        pono_options.promote_inputvars_ = true;
+      }
       vector<UnorderedTermMap> cex;
       res = check_prop(pono_options, prop, fts, s, cex);
       // we assume that a prover never returns 'ERROR'
@@ -323,7 +327,7 @@ int main(int argc, char ** argv)
         assert(pono_options.witness_ || !cex.size());
         if (cex.size()) {
           if (pono_options.pivot_input_) {
-            CexGeneralizer cex_reducer(fts, btor_enc, cex);
+            CexGeneralizer cex_reducer(fts, btor_enc, cex,pono_options.promote_inputvars_);
             cex_reducer.print_witness_btor(btor_enc, cex_reducer.get_cex_trace());
           } else {
           print_witness_btor(btor_enc, cex, fts);

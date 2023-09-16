@@ -25,7 +25,7 @@
 #include "smt/available_solvers.h"
 #include "utils/logger.h"
 #include "utils/partial_model.h"
-
+#include "assert.h"
 using namespace smt;
 using namespace std;
 
@@ -312,7 +312,7 @@ bool Prover::check_coi(const smt::Term & original_trans)
   };
 
   // add_formula(unroller_.at_time(ts_.init(), 0));
-  for (int k = 0; k <= reached_k_ + 1; ++k) {
+  for (int k = 0; k <= reached_k_; ++k) {
     // add_formula(unroller_.at_time(ts_.trans(), k));
     add_formula(unroller_.at_time(original_trans, k));
   }
@@ -414,7 +414,7 @@ void Prover::record_coi_info(const var_in_coi_t & sv,
                  extracted_val->to_string());
     }
   }
-  for (int k = start_bnd; k <= bnd + 1; ++k) {
+  for (int k = start_bnd; k <= bnd; ++k) {
     for (const auto & inpv : inp) {
       auto timed_v = unroller_.at_time(inpv, k);
       auto value = solver_->get_value(timed_v);
@@ -493,7 +493,25 @@ void Prover::compute_dynamic_COI_from_term(const smt::Term & t,
       update_functions_to_check.emplace(timed_update_function,
                                         var_ranges_pair.second);
     }  // for each variable in varset
-
+    
+    auto constraints = ts_.constraints();
+    if(constraints.empty()==false){
+      Term constraint_all;
+      for(const auto constraint: constraints){
+        assert(constraint.second);
+        if(constraint_all==nullptr)
+          constraint_all = constraint.first;
+        else
+          constraint_all = ts_.make_term(And,constraint_all, constraint.first);
+      }
+      auto constraint_update_function =
+            unroller_.at_time(constraint_all, i);  // i ?
+      slice_t range;
+      range.push_back(std::make_pair(0, 0));
+      update_functions_to_check.emplace(constraint_update_function,range);  
+    }
+  
+    
     get_var_in_COI(update_functions_to_check, newvarset_slice);
 
     for(const auto out:newvarset_slice){
@@ -505,6 +523,7 @@ void Prover::compute_dynamic_COI_from_term(const smt::Term & t,
     varset.swap(newvarset_slice);  // the same as "varset = newvarset;" , but
                                    // this is faster
   }
+  
 
   // varset at this point: a@0 ,  b@0 , ...
   for (const auto & timed_var : varset) {

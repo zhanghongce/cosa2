@@ -45,7 +45,8 @@ protected:
 public:
   CexGeneralizer(const TransitionSystem & ts,
                  const BTOR2Encoder & btor_enc,
-                 const CexTraceType & cex);
+                 const CexTraceType & cex,
+                 bool promote_invar);
   
   const CexTraceType & get_cex_trace() const { return generalized_cex; }
 

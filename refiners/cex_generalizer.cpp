@@ -19,7 +19,7 @@
 #include "cex_generalizer.h"
 
 #include "gmpxx.h"
-
+#include "assert.h"
 
 namespace pono {
 
@@ -48,11 +48,13 @@ void CexGeneralizer::cex_trace_insert(size_t k, const Term & var, const Term & v
 CexGeneralizer::CexGeneralizer(
     const TransitionSystem & ts,
     const BTOR2Encoder & btor_enc,
-    const CexTraceType & cex) {
+    const CexTraceType & cex,
+    bool promote_invar) {
 
   if (cex.empty())
     throw PonoException("No CEX trace to generalize.");
 
+  // TODO: add your code here
   // Assemble the formula: init(@0) /\ T@0 /\ T@1 /\ ... /\ T@k-1 /\ P@k-1
   //                         v0 @ 0 == ?? 
   //                      /\ v1 @ 0 == ??
@@ -61,8 +63,7 @@ CexGeneralizer::CexGeneralizer(
   //                      /\ ...
   //                      /\ i0 @ 1 == ??
   //                         ...
-  //   the above should be unsat, and then reduce UNSAT core
-  //   map the formula left in the core back to the individual variable, value pair at some cycle
+  //   the above should be unsat, and then ReduceUNSATCore
 
   // make a new (local) trans
   SmtSolver ts_new_slv = create_solver_for(BTOR, BMC, true);
@@ -77,49 +78,56 @@ CexGeneralizer::CexGeneralizer(
   // only handle the first property
   assert (btor_enc.propvec().size() == 1);
   auto prop = translate_term(btor_enc.propvec().at(0));
-
+  
+  // auto prop_new = translate_term(prop);
   TransitionSystem ts_(ts, termtrans);
-  const auto & sv = ts_.statevars(); // get the state variables/input variables in the transition system
+  const auto & sv = ts_.statevars();
   const auto & inpv = ts_.inputvars();
 
-  Unroller unroller_(ts_); // an unroller transfers variables to their timed version
+  Unroller unroller_(ts_);
 
   auto init_conj_trans = unroller_.at_time(ts_.init(), 0);
   unordered_map<Term, k_var_val> expr2cex;
   TermVec all_eq_expr;
-
   auto cex_length = cex.size();
   for (size_t k = 0; k < cex_length; ++k) {
     // EDAthon code starts here.
-    // TODO: please complete this loop body.
-    // you need to maintain three variables: init_conj_trans, expr2cex, all_eq_expr
-    // when exiting the loop, `init_conj_trans` will be: init(@0) /\ T@0 /\ T@1 /\ ... /\ T@k-1 
-    // `all_eq_expr` is a vector of "v0 @ 0 == ??", "i1 @ 0 == ??", ...
-    // `expr2cex` is a map from the term in all_eq_expr to the tuple of (#cycle, variable, value) in cex
-    init_conj_trans = ts_.make_term(And,init_conj_trans,unroller_.at_time(ts_.trans(),k));
-    for(const auto var_val: cex.at(k)){
-      auto var = translate_term(var_val.first);
+    init_conj_trans = ts_.make_term(And, init_conj_trans,
+      unroller_.at_time(ts_.trans(), k));
 
-      auto val = translate_term(var_val.second);
-      auto term_val_eq = ts_.make_term(Equal, var, val);
+    const auto & state_at_cycle_k = cex.at(k);
+    for (const auto & term_val_pair : state_at_cycle_k) {
+      auto var = translate_term(term_val_pair.first);
+      auto input_update = var->to_string() + ".next";
+      // check if var is statevar or inputvar or none of the above
       if (sv.find(var) == sv.end() && inpv.find(var) == inpv.end())
         continue; // we don't care about wires
       
-      if (k > 0 && inpv.find(var) == inpv.end())
-        continue; // for all later steps svs are not needed
+      if(!promote_invar){
+        if (k > 0 && inpv.find(var) == inpv.end())
+          continue; // for all later steps svs are not needed
+      }
+      else{
+        auto pos = ts_.state_updates().find(var);
+        if (k > 0 && pos!= ts_.state_updates().end())
+          continue; // If we use promote variable, we need to check whether the state is in the state_update
+      }
+      auto val = translate_term(term_val_pair.second);
+      
+      auto term_val_eq = ts_.make_term(Equal, var, val);
+      // set unroller
       auto term_val_eq_k = unroller_.at_time(term_val_eq, k);
+      // store it, and make sure we can later map it back
       expr2cex.emplace(term_val_eq_k,
-        k_var_val(k, var_val.first, var_val.second));
-      all_eq_expr.push_back(term_val_eq_k); 
+        k_var_val(k, term_val_pair.first, term_val_pair.second));
+      all_eq_expr.push_back(term_val_eq_k);
     }
 
+  } // end for each clock cycle
+  // init_conj_trans := init_conj_trans /\ prop
+  init_conj_trans = ts_.make_term(And, init_conj_trans, unroller_.at_time(prop, cex_length-1));
 
-    
-  } // end for each clock cycle in the counterexample trace
-  // init_conj_trans := init_conj_trans /\ prop@k
-  init_conj_trans = ts_.make_term(And, init_conj_trans, unroller_.at_time(prop, cex_length));
-
-  { // a sanity check to make sure  init_conj_trans/\all_eq_expr  is UNSAT
+  { // a sanity check
     ts_new_slv->push();
       ts_new_slv->assert_formula(init_conj_trans);
       auto res = ts_new_slv->check_sat_assuming(all_eq_expr);
@@ -137,11 +145,10 @@ CexGeneralizer::CexGeneralizer(
     ts_new_slv->pop();
   } // end of sanity check
 
-  // to get the unsatcore, and minimize the unsat core
+  // to reduce the unsatcore using two methods
   TermVec reduced_all_eq_expr;
   reducer.reduce_assump_unsatcore(init_conj_trans, all_eq_expr, reduced_all_eq_expr);
 
-  // to further minimize the unsat core
   TermVec final_reduction;
   reducer.linear_reduce_assump_unsatcore(init_conj_trans, reduced_all_eq_expr, final_reduction);
 
