@@ -40,13 +40,14 @@ protected:
   void print_btor_vals_at_time(
     const smt::TermVec & variable_ordering,
     const smt::UnorderedTermMap & valmap,
-    unsigned int time);
+    unsigned int time,
+    std::ofstream & fout);
 
 public:
   CexGeneralizer(const TransitionSystem & ts,
                  const BTOR2Encoder & btor_enc,
                  const CexTraceType & cex,
-                 bool promote_invar);
+                 const PonoOptions opt);
   
   const CexTraceType & get_cex_trace() const { return generalized_cex; }
 

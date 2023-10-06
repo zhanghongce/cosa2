@@ -48,6 +48,7 @@ enum optionIndex
   NO_IC3_PREGEN,
   NO_IC3_INDGEN,
   NO_IC3BITS_COI_PREGEN,
+  NO_ENHANCED_IC3BITS_COI_PREGEN,
   NO_IC3_SORT_LEMMA,
   IC3_SORT_LEMMA_ASCENDING,
   IC3_GEN_MAX_ITER,
@@ -96,7 +97,10 @@ enum optionIndex
   KIND_BOUND_STEP,
   DYNAMIC_COI_UP_CEX,
   COI_CHECK,
-  PIVOT_INPUT
+  PIVOT_INPUT,
+  LOGGING_COI,
+  LOGGING_PIVOT_INPUT,
+  COVERAGE_ANALYZE
 };
 
 struct Arg : public option::Arg
@@ -260,6 +264,12 @@ const option::Descriptor usage[] = {
     "ic3bits-no-coi",
     Arg::None,
     "  --ic3bits-no-coi \tDisable COI-based predecessor generalization in ic3bits." },
+  { NO_ENHANCED_IC3BITS_COI_PREGEN,
+    0,
+    "",
+    "ic3bits-no-enhanced-coi",
+    Arg::None,
+    "  --ic3bits-no-coi \tDisable enhanced-COI-based predecessor generalization in ic3bits." },
   { NO_IC3_SORT_LEMMA,
     0,
     "",
@@ -632,6 +642,27 @@ const option::Descriptor usage[] = {
     Arg::None,
     "  --pivot_input, \tWe can find the pivot input for a given counterexample "
     },
+  { LOGGING_COI,
+    0,
+    "",
+    "logging_coi",
+    Arg::NonEmpty,
+    "  --logging_coi, \tThe COI logging file of the given btor "
+    },
+  { LOGGING_PIVOT_INPUT,
+    0,
+    "",
+    "logging_pivot_input",
+    Arg::NonEmpty,
+    "  --logging_pivot_input, \tThe pivot input logging file of the given btor "
+    },
+  { COVERAGE_ANALYZE,
+    0,
+    "",
+    "coverage_alalyze",
+    Arg::None,
+    "  --coverage_alalyze, \tAnalyze the the coverage for the given assertion "
+    },
   { 0, 0, 0, 0, 0, 0 }
 };
 /*********************************** end Option Handling setup
@@ -650,6 +681,8 @@ const std::unordered_set<Engine> ic3_variants_set({ IC3_BOOL,
 const std::unordered_set<Engine> & ic3_variants() { return ic3_variants_set; }
 
 const std::string PonoOptions::default_profiling_log_filename_ = "";
+const std::string PonoOptions::default_logging_coi_ = "";
+const std::string PonoOptions::default_logging_pivot_input_ = "";
 
 Engine PonoOptions::to_engine(std::string s)
 {
@@ -738,6 +771,7 @@ ProverResult PonoOptions::parse_and_set_options(int argc,
         case CLK: clock_name_ = opt.arg; break;
         case NO_IC3_PREGEN: ic3_pregen_ = false; break;
         case NO_IC3BITS_COI_PREGEN: ic3bits_coi_pregen = false; break;
+        case NO_ENHANCED_IC3BITS_COI_PREGEN: ic3bits_enhanced_coi_pregen = false; break;
         case NO_IC3_SORT_LEMMA: ic3base_sort_lemma = false; break;
         case IC3_SORT_LEMMA_ASCENDING: ic3base_sort_lemma_descending = false; break;
         case NO_IC3_INDGEN: ic3_indgen_ = false; break;
@@ -827,6 +861,9 @@ ProverResult PonoOptions::parse_and_set_options(int argc,
         case COI_CHECK: dynamic_coi_check_ = true; break;
         case PIVOT_INPUT: pivot_input_ = true; break;
         case DYNAMIC_COI_UP_CEX: compute_dynamic_coi_upon_cex_ = true; break;
+        case LOGGING_COI: logging_coi_ = opt.arg; break;
+        case LOGGING_PIVOT_INPUT: logging_pivot_input_ = opt.arg; break;
+        case COVERAGE_ANALYZE: check_coverage = true; break;
         case UNKNOWN_OPTION:
           // not possible because Arg::Unknown returns ARG_ILLEGAL
           // which aborts the parse with an error

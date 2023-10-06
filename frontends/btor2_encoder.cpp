@@ -18,7 +18,7 @@
 
 #include "btor2_encoder.h"
 #include "utils/logger.h"
-
+#include "modifiers/prophecy_modifier.h"
 #include <iostream>
 #include "assert.h"
 
@@ -738,6 +738,16 @@ void BTOR2Encoder::parse(const std::string filename)
         terms_[l_->id] = solver_->make_term(bvopmap.at(l_->tag), termargs_);
       }
     }
+
+    if(is_coverage_analyze_){
+      if (l_->symbol) {
+        std::string comment(l_->symbol);
+        if ( comment.find("###UF##") == 0 ) {
+          terms_.at(l_->id) = abstract_op(  terms_.at(l_->id),solver_ );//smt expression ,replacement part in ops_mod_abstractor
+        }
+      }
+    }
+
 
     // use the symbol to name the term (if applicable)
     // input, output, and state already named

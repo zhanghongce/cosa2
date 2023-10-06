@@ -246,7 +246,7 @@ void IC3Bits::predecessor_generalization(size_t i, const Term & cterm, IC3Formul
   // no need to pop (pop in rel_ind_check)
   // return the model and build IC3FormulaModel
   if (options_.ic3bits_coi_pregen) {
-    pred = ExtractPartialModel(cterm);
+      pred = ExtractPartialModel(cterm);
   }
 } // generalize_predecessor
 

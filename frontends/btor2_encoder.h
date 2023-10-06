@@ -37,13 +37,18 @@ namespace pono {
 class BTOR2Encoder
 {
  public:
-  BTOR2Encoder(std::string filename, TransitionSystem & ts)
-      : ts_(ts), solver_(ts.solver())
+  BTOR2Encoder(std::string filename, TransitionSystem & ts ,bool is_coverage_analyze = false)
+      : ts_(ts), solver_(ts.solver()), is_coverage_analyze_(is_coverage_analyze)
   {
     preprocess(filename);
     parse(filename);
   };
-
+  // BTOR2Encoder(std::string filename, TransitionSystem & ts)
+  //     : ts_(ts), solver_(ts.solver())
+  // {
+  //   preprocess(filename);
+  //   parse(filename);
+  // };
   const smt::TermVec & propvec() const { return propvec_; };
   const smt::TermVec & justicevec() const { return justicevec_; };
   const smt::TermVec & fairvec() const { return fairvec_; };
@@ -86,6 +91,8 @@ class BTOR2Encoder
   std::unordered_map<int, smt::Sort> sorts_;
   std::unordered_map<int, smt::Term> terms_;
   std::string symbol_;
+  
+  bool is_coverage_analyze_;
 
   smt::TermVec propvec_;
   smt::TermVec justicevec_;

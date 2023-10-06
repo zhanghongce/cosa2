@@ -15,12 +15,12 @@
 #include "core/unroller.h"
 #include "smt/available_solvers.h"
 #include "smt-switch/utils.h"
-
+#include <iomanip>
 #include "cex_generalizer.h"
 
 #include "gmpxx.h"
 #include "assert.h"
-
+#include <fstream>
 namespace pono {
 
 using namespace std;
@@ -49,7 +49,7 @@ CexGeneralizer::CexGeneralizer(
     const TransitionSystem & ts,
     const BTOR2Encoder & btor_enc,
     const CexTraceType & cex,
-    bool promote_invar) {
+    const PonoOptions opt) {
 
   if (cex.empty())
     throw PonoException("No CEX trace to generalize.");
@@ -78,8 +78,7 @@ CexGeneralizer::CexGeneralizer(
   // only handle the first property
   assert (btor_enc.propvec().size() == 1);
   auto prop = translate_term(btor_enc.propvec().at(0));
-  
-  // auto prop_new = translate_term(prop);
+  // auto prop_new =  translate_term(prop);
   TransitionSystem ts_(ts, termtrans);
   const auto & sv = ts_.statevars();
   const auto & inpv = ts_.inputvars();
@@ -98,20 +97,23 @@ CexGeneralizer::CexGeneralizer(
     const auto & state_at_cycle_k = cex.at(k);
     for (const auto & term_val_pair : state_at_cycle_k) {
       auto var = translate_term(term_val_pair.first);
-      auto input_update = var->to_string() + ".next";
       // check if var is statevar or inputvar or none of the above
       if (sv.find(var) == sv.end() && inpv.find(var) == inpv.end())
         continue; // we don't care about wires
       
-      if(!promote_invar){
-        if (k > 0 && inpv.find(var) == inpv.end())
-          continue; // for all later steps svs are not needed
-      }
-      else{
-        auto pos = ts_.state_updates().find(var);
-        if (k > 0 && pos!= ts_.state_updates().end())
-          continue; // If we use promote variable, we need to check whether the state is in the state_update
-      }
+      auto pos = ts_.state_updates().find(var);
+      if (k > 0 && pos!= ts_.state_updates().end())
+        continue; // If we use promote variable, we need to check whether the state is in the state_update
+
+      // if(!promote_invar){
+      //   if (k > 0 && inpv.find(var) == inpv.end())
+      //     continue; // for all later steps svs are not needed
+      // }
+      // else{
+      //   auto pos = ts_.state_updates().find(var);
+      //   if (k > 0 && pos!= ts_.state_updates().end())
+      //     continue; // If we use promote variable, we need to check whether the state is in the state_update
+      // }
       auto val = translate_term(term_val_pair.second);
       
       auto term_val_eq = ts_.make_term(Equal, var, val);
@@ -151,12 +153,26 @@ CexGeneralizer::CexGeneralizer(
 
   TermVec final_reduction;
   reducer.linear_reduce_assump_unsatcore(init_conj_trans, reduced_all_eq_expr, final_reduction);
+  
 
   // translate it back to CexTraceType
   for (const auto & eq : final_reduction) {
     const auto & var_val_pair = expr2cex.at(eq);
     cex_trace_insert(var_val_pair.k, var_val_pair.var, var_val_pair.val);
   }
+  std::ofstream summary_of_pivot_input( opt.logging_pivot_input_, std::ios::app);
+  assert(!ts_.inputvars().size());
+
+    float num_state_float = static_cast<float>(ts_.statevars().size());
+    float bound_float = static_cast<float>(cex_length);
+    float pivot_float = static_cast<float>(final_reduction.size());
+
+  summary_of_pivot_input<< opt.filename_ << " | " << "state: " << ts_.statevars().size()<< " | " << "trace length: "
+                  << cex_length << " | " << "total: " << ts_.statevars().size()*cex_length << " | " << "after reduction: "
+                  << final_reduction.size() << " | " << "reduction: " <<  std::setprecision(2)
+                  << pivot_float / (num_state_float*bound_float) 
+                  << std::endl;
+  summary_of_pivot_input.close(); 
 } // end of CexGeneralizer::CexGeneralizer
 
 
@@ -208,7 +224,8 @@ std::string CexGeneralizer::as_bits(std::string val)
 void CexGeneralizer::print_btor_vals_at_time(
   const smt::TermVec & vec,
   const smt::UnorderedTermMap & valmap,
-  unsigned int time)
+  unsigned int time,
+  std::ofstream & fout)
 {
   smt::SortKind sk;
   smt::TermVec store_children(3);
@@ -217,6 +234,7 @@ void CexGeneralizer::print_btor_vals_at_time(
     if (valmap.find(vec.at(i)) == valmap.end())
       continue;
     sk = vec[i]->get_sort()->get_sort_kind();
+    fout<< "@"<<time<<std::endl;
     if (sk == smt::BV) {
       // this makes assumptions on format of value from boolector
       logger.log(0,
@@ -225,6 +243,7 @@ void CexGeneralizer::print_btor_vals_at_time(
                  as_bits(valmap.at(vec[i])->to_string()),
                  vec[i],
                  time);
+      fout<< i << " "<<as_bits(valmap.at(vec[i])->to_string())<< " " << vec[i] << "@"<<time<<std::endl;
     } else if (sk == smt::ARRAY) {
       smt::Term tmp = valmap.at(vec[i]);
       while (tmp->get_op() == smt::Store) {
@@ -242,6 +261,8 @@ void CexGeneralizer::print_btor_vals_at_time(
                    vec[i],
                    time);
         tmp = store_children[0];
+        fout<< i << " "<<"["<<as_bits(store_children[1]->to_string())<<"]"<<" "<< as_bits(store_children[2]->to_string()) 
+        << " " << vec[i] << "@"<<time<<std::endl;
       }
 
       if (tmp->get_op().is_null()
@@ -270,6 +291,7 @@ void CexGeneralizer::print_witness_btor(
   const smt::TermVec inputs = btor_enc.inputsvec();
   const smt::TermVec states = btor_enc.statesvec();
   
+
   smt::TermVec no_next_states;
   for (const auto & n_s_pair : btor_enc.no_next_statevars()) {
     no_next_states.push_back(n_s_pair.second);
@@ -277,21 +299,24 @@ void CexGeneralizer::print_witness_btor(
   bool has_states_without_next = no_next_states.size();
 
   logger.log(0, "#0");
-  print_btor_vals_at_time(states, cex.at(0), 0);
+  std::ofstream fout("pivot_input.txt");
+  print_btor_vals_at_time(states, cex.at(0), 0,fout);
 
   for (size_t k = 0, cex_size = cex.size(); k < cex_size; ++k) {
     // states without next
     if (k && has_states_without_next) {
       logger.log(0, "#{}", k);
-      print_btor_vals_at_time(no_next_states, cex.at(k), k);
+
+      print_btor_vals_at_time(no_next_states, cex.at(k), k, fout);
     }
 
     // inputs
     if (k < cex_size) {
       logger.log(0, "@{}", k);
-      print_btor_vals_at_time(inputs, cex.at(k), k);
+      print_btor_vals_at_time(inputs, cex.at(k), k, fout);
     }
   }
+  fout.close();
 
   logger.log(0, ".");
 } // end of print_witness_btor

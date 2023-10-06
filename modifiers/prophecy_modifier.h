@@ -50,5 +50,5 @@ class ProphecyModifier
   // where the index corresponds to the delay of the target (-1)
   std::unordered_map<smt::Term, smt::TermVec> proph_vars_;
 };
-
+smt::Term abstract_op(const smt::Term & in ,const smt::SmtSolver & solver_);
 }  // namespace pono

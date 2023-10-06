@@ -140,6 +140,11 @@ ProverResult check_prop(PonoOptions pono_options,
   //       consider calling prover for CegProphecyArrays (so that underlying
   //       model checker runs prove unbounded) or possibly, have a command line
   //       flag to pick between the two
+  if(pono_options.check_coverage){
+    auto is_covered = UninterpretedFuncCOICover(ts, p, pono_options.bound_);
+    std::cout << "is_covered: " << is_covered << std::endl;
+  }
+
   ProverResult r;
   if (pono_options.engine_ == MSAT_IC3IA)
   {
@@ -150,6 +155,7 @@ ProverResult check_prop(PonoOptions pono_options,
   {
     r = prover->check_until(pono_options.bound_);
   }
+
 
   if (r == FALSE && pono_options.witness_) {
     bool success = prover->witness(cex);
@@ -298,7 +304,7 @@ int main(int argc, char ** argv)
     if (file_ext == "btor2" || file_ext == "btor") {
       logger.log(2, "Parsing BTOR2 file: {}", pono_options.filename_);
       FunctionalTransitionSystem fts(s);
-      BTOR2Encoder btor_enc(pono_options.filename_, fts);
+      BTOR2Encoder btor_enc(pono_options.filename_, fts,pono_options.check_coverage);
       // for(const auto constraint: fts.constraints()){
       //   std::cout<<constraint.first->to_string() << " " <<constraint.second << std::endl;
       // }
@@ -311,9 +317,13 @@ int main(int argc, char ** argv)
             + pono_options.filename_ + " (" + to_string(num_props) + ")");
       }
 
-      Term prop = propvec[pono_options.prop_idx_];
-      if (!fts.only_curr(prop)) {
-        pono_options.promote_inputvars_ = true;
+      // Term prop = propvec[pono_options.prop_idx_];
+      Term prop;
+      if ( propvec.size() >= 2){
+        prop = s->make_term(And, propvec);
+      }
+      else if (propvec.size() == 1){
+        prop = propvec[pono_options.prop_idx_];
       }
       vector<UnorderedTermMap> cex;
       res = check_prop(pono_options, prop, fts, s, cex);
@@ -327,7 +337,7 @@ int main(int argc, char ** argv)
         assert(pono_options.witness_ || !cex.size());
         if (cex.size()) {
           if (pono_options.pivot_input_) {
-            CexGeneralizer cex_reducer(fts, btor_enc, cex,pono_options.promote_inputvars_);
+            CexGeneralizer cex_reducer(fts, btor_enc, cex,pono_options);
             cex_reducer.print_witness_btor(btor_enc, cex_reducer.get_cex_trace());
           } else {
           print_witness_btor(btor_enc, cex, fts);

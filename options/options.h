@@ -98,13 +98,17 @@ class PonoOptions
         logging_smt_solver_(default_logging_smt_solver_),
         compute_dynamic_coi_upon_cex_(default_compute_dynamic_coi_upon_cex_),
         dynamic_coi_check_(default_dynamic_coi_check_),
+        logging_coi_(default_logging_coi_),
+        logging_pivot_input_(default_logging_pivot_input_),
         static_coi_(default_static_coi_),
         pivot_input_(default_pivot_input_),
+        check_coverage(default_check_coverage_),
         show_invar_(default_show_invar_),
         check_invar_(default_check_invar_),
         ic3_pregen_(default_ic3_pregen_),
         ic3_indgen_(default_ic3_indgen_),
         ic3bits_coi_pregen(default_ic3bits_coi_pregen),
+        ic3bits_enhanced_coi_pregen(default_ic3bits_enhanced_coi_pregen),
         ic3base_sort_lemma(default_ic3base_sort_lemma),
         ic3base_sort_lemma_descending(default_ic3base_sort_lemma_descending),
         ic3_gen_max_iter_(default_ic3_gen_max_iter_),
@@ -195,14 +199,18 @@ class PonoOptions
   bool logging_smt_solver_;
   bool compute_dynamic_coi_upon_cex_;  ///< will generate a COI.txt along with cex.vcd
   bool dynamic_coi_check_; ///< will check the COI generated
+  std::string logging_coi_;
+  std::string logging_pivot_input_;
   bool static_coi_;
   bool pivot_input_;
+  bool check_coverage;
   bool show_invar_;   ///< display invariant when running from command line
   bool check_invar_;  ///< check invariants (if available) when run through CLI
   // ic3 options
   bool ic3_pregen_;  ///< generalize counterexamples in IC3
   bool ic3_indgen_;  ///< inductive generalization in IC3
   bool ic3bits_coi_pregen;   ///< inductive generalization in IC3
+  bool ic3bits_enhanced_coi_pregen;   ///< more accurate inductive generalization in IC3
   bool ic3base_sort_lemma;  ///< sort lemma based on their width or not
   bool ic3base_sort_lemma_descending; ///< sort lemma from widest to narrowest (will throw away wide first)
   unsigned int ic3_gen_max_iter_; ///< max iterations in ic3 generalization. 0
@@ -313,8 +321,11 @@ private:
   static const bool default_witness_ = false;
   static const bool default_compute_dynamic_coi_upon_cex_ = false;
   static const bool default_dynamic_coi_check_ = false;
+  static const std::string default_logging_coi_;
+  static const std::string default_logging_pivot_input_;
   static const bool default_static_coi_ = false;
   static const bool default_pivot_input_  = false;
+  static const bool default_check_coverage_ = false;
   static const bool default_show_invar_ = false;
   static const bool default_check_invar_ = false;
   static const size_t default_reset_bnd_ = 1;
@@ -325,6 +336,7 @@ private:
   static const bool default_ic3_pregen_ = true;
   static const bool default_ic3_indgen_ = true;
   static const bool default_ic3bits_coi_pregen = true;
+  static const bool default_ic3bits_enhanced_coi_pregen = true;
   static const bool default_ic3base_sort_lemma = true;
   static const bool default_ic3base_sort_lemma_descending = true;
   static const unsigned int default_ic3_gen_max_iter_ = 2;

@@ -19,7 +19,7 @@
 #include <cassert>
 #include <climits>
 #include <functional>
-
+#include <iomanip>
 #include "core/rts.h"
 #include "modifiers/static_coi.h"
 #include "smt/available_solvers.h"
@@ -227,12 +227,14 @@ bool Prover::compute_witness()
     int backtrack_to_step_n = 0;
     
     var_in_coi_t input_var_tmp;
+    int num_coi = 0;
     compute_dynamic_COI_from_term(bad_,
                                     { { 0, 0 } },
                                     reached_k_ + 1,
                                     varset,
                                     input_var_tmp,
-                                    backtrack_to_step_n);
+                                    backtrack_to_step_n,
+                                    num_coi);
     
     std::ofstream fout("COI.txt");
     for (const auto & v : varset) {  // varname size h0 l0 h1 l1 ...
@@ -244,6 +246,18 @@ bool Prover::compute_witness()
       fout <<" "<<solver_->get_value(var_time)->to_string();
       fout << std::endl;
     }
+    
+    float num_state_float = static_cast<float>(ts_.statevars().size());
+    float bound_float = static_cast<float>(reached_k_ + 2);
+    float coi_float = static_cast<float>(num_coi);
+    std::ofstream summary_of_COI(options_.logging_coi_, std::ios::app);
+    assert(!ts_.inputvars().size());
+    summary_of_COI<< options_.filename_ << " | " << "state: " << ts_.statevars().size()<< " | " << "trace length: "
+                  << reached_k_ + 2 << " | " << "total: " << ts_.statevars().size()*(reached_k_ + 2) << " | " << "after COI: "
+                  << num_coi << " | " << "reduction: " << std::setprecision(2)
+                  <<coi_float / (num_state_float * bound_float) <<std::endl;
+    summary_of_COI.close(); 
+    
     if (options_.dynamic_coi_check_) {
       UnorderedTermSet all_inputs = ts_.inputvars();
       for (const auto & inpv : ts_.statevars()) {
@@ -444,7 +458,8 @@ void Prover::compute_dynamic_COI_from_term(const smt::Term & t,
                                            int k,
                                            var_in_coi_t & init_state_variables,
                                            var_in_coi_t & input_state_variables,
-                                           int backtrack_frame)
+                                           int backtrack_frame,
+                                           int & num_coi)
 {
   // bad_ ,  0...reached_k_+1
   // auto last_bad = unroller_.at_time(bad_, reached_k_+1);
@@ -460,7 +475,7 @@ void Prover::compute_dynamic_COI_from_term(const smt::Term & t,
       fout<< k << " "<<out.first->to_string() << " " <<val->to_string()<< " "<<slice.first << " " <<slice.second<<"\n";
     }
   }
-
+  num_coi = varset.size();
 
   for (int i = k - 1; i >= backtrack_frame; --i) {
     std::unordered_map<smt::Term, std::vector<std::pair<int, int>>>
@@ -522,9 +537,10 @@ void Prover::compute_dynamic_COI_from_term(const smt::Term & t,
     }
     varset.swap(newvarset_slice);  // the same as "varset = newvarset;" , but
                                    // this is faster
+    num_coi = num_coi + varset.size();
   }
   
-
+  fout.close();
   // varset at this point: a@0 ,  b@0 , ...
   for (const auto & timed_var : varset) {
     auto untimed_var = unroller_.untime(timed_var.first);
