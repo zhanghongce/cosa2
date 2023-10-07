@@ -269,7 +269,7 @@ const option::Descriptor usage[] = {
     "",
     "ic3bits-no-enhanced-coi",
     Arg::None,
-    "  --ic3bits-no-coi \tDisable enhanced-COI-based predecessor generalization in ic3bits." },
+    "  --ic3bits-no-enhanced-coi \tDisable enhanced-COI-based predecessor generalization in ic3bits." },
   { NO_IC3_SORT_LEMMA,
     0,
     "",

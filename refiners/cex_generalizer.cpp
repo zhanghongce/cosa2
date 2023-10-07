@@ -170,7 +170,7 @@ CexGeneralizer::CexGeneralizer(
   summary_of_pivot_input<< opt.filename_ << " | " << "state: " << ts_.statevars().size()<< " | " << "trace length: "
                   << cex_length << " | " << "total: " << ts_.statevars().size()*cex_length << " | " << "after reduction: "
                   << final_reduction.size() << " | " << "reduction: " <<  std::setprecision(2)
-                  << pivot_float / (num_state_float*bound_float) 
+                  << 1 - pivot_float / (num_state_float*bound_float) 
                   << std::endl;
   summary_of_pivot_input.close(); 
 } // end of CexGeneralizer::CexGeneralizer

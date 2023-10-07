@@ -238,6 +238,8 @@ bool Prover::compute_witness()
     
     std::ofstream fout("COI.txt");
     for (const auto & v : varset) {  // varname size h0 l0 h1 l1 ...
+      if(ts_.state_updates().find(v.first) == ts_.state_updates().end())
+        continue;
       fout << v.first->to_string();
       fout << " " << v.second.size();
       for (const auto & h_l : v.second)
@@ -255,7 +257,7 @@ bool Prover::compute_witness()
     summary_of_COI<< options_.filename_ << " | " << "state: " << ts_.statevars().size()<< " | " << "trace length: "
                   << reached_k_ + 2 << " | " << "total: " << ts_.statevars().size()*(reached_k_ + 2) << " | " << "after COI: "
                   << num_coi << " | " << "reduction: " << std::setprecision(2)
-                  <<coi_float / (num_state_float * bound_float) <<std::endl;
+                  <<1 - coi_float / (num_state_float * bound_float) <<std::endl;
     summary_of_COI.close(); 
     
     if (options_.dynamic_coi_check_) {
@@ -306,13 +308,13 @@ bool Prover::check_coi(const smt::Term & original_trans)
     return true;
   }
 
-  {
-    std::ofstream fout("coi-check.txt");
-    for (const auto & item : coi_trace_k) {
-      fout << std::get<1>(item) << " " << std::get<0>(item) << " "
-           << std::get<2>(item) << "\n";
-    }
-  }
+  // {
+  //   std::ofstream fout("coi-check.txt");
+  //   for (const auto & item : coi_trace_k) {
+  //     fout << std::get<1>(item) << " " << std::get<0>(item) << " "
+  //          << std::get<2>(item) << "\n";
+  //   }
+  // }
 
   auto another_solver_ = create_solver(BTOR, true, false, true);
   TermTranslator tt_(another_solver_);
@@ -472,7 +474,7 @@ void Prover::compute_dynamic_COI_from_term(const smt::Term & t,
   for(const auto out:varset){
     for(const auto slice: out.second){
       auto val = solver_->get_value(out.first);
-      fout<< k << " "<<out.first->to_string() << " " <<val->to_string()<< " "<<slice.first << " " <<slice.second<<"\n";
+      fout<< k << " "<<out.first->to_string() << " "<<slice.first << " " <<slice.second << " " <<val->to_string()<<"\n";
     }
   }
   num_coi = varset.size();

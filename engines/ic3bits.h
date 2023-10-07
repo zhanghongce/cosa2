@@ -52,6 +52,7 @@ class IC3Bits : public IC3
   smt::UnorderedTermMap nxt_state_updates_; // a map from prime var -> next
   smt::UnorderedTermSet no_next_vars_; //  the inputs that appear to be state variables
   std::unordered_map<smt::Term,std::vector<std::pair<int,int>>> constraints_curr_var_; // constraints (mapped to the current variables)
+  smt::TermVec vanilla_constraints_curr_var_;
   // virtual method overrides
 
   IC3Formula get_model_ic3formula() const override;
@@ -66,6 +67,7 @@ class IC3Bits : public IC3
 
   IC3Formula ExtractPartialModel(const smt::Term & p);
 
+  IC3Formula ExtractPartialModel_vanilla(const smt::Term & p);
 };
 
 }  // namespace pono
