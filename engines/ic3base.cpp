@@ -190,7 +190,7 @@ ProverResult IC3Base::check_until(int k)
 }
 
 
-bool IC3Base::refine_property(const TermVec & multiprop) {
+bool IC3Base::refine_property(const TermVec & multiprop, std::vector<ProverResult> & results) {
   // reconstruct from cex_, use unroller
   solver_->push();
   solver_->assert_formula( unroller_.at_time(ts_.init(), 0) );
@@ -211,12 +211,26 @@ bool IC3Base::refine_property(const TermVec & multiprop) {
   }
 
   auto new_prop = orig_property_.prop();
-  for (const auto & p : multiprop) {
+  std::cout << "refine prop (to remove): " ;
+  size_t idx = 0;
+  size_t prop_to_remove = 0;
+  for (; idx < multiprop.size(); ++idx) {
+    if (results.at(idx) != ProverResult::UNKNOWN) 
+      continue;
+    const auto & p = multiprop.at(idx);
+
     auto val = solver_->get_value(unroller_.at_time(p, bnd))->to_int();
     if (val)  {
       new_prop = solver_->make_term(smt::And, new_prop, p);
+    } else {
+      results.at(idx) = ProverResult::FALSE;
+      prop_to_remove++;
+      std::cout << idx << " ";
     }
   }
+  assert(prop_to_remove);
+
+  std::cout << "\n";
 
   // update bad
   bad_ = solver_->make_term(smt::Not, new_prop);
@@ -226,12 +240,14 @@ bool IC3Base::refine_property(const TermVec & multiprop) {
   return true;
 }
 
-ProverResult IC3Base::check_until_multi_property(int k, const TermVec & multiprop)
+ProverResult IC3Base::check_until_multi_property(int k, const TermVec & multiprop, std::vector<ProverResult> & results)
 {
   //  change bad to original_property /\ multiprop
   auto new_prop = orig_property_.prop();
-  for (const auto & p: multiprop)
+  for (const auto & p: multiprop) {
     new_prop = solver_->make_term(smt::And, new_prop, p);
+    results.push_back(ProverResult::UNKNOWN);
+  }
   bad_ = solver_->make_term(smt::Not, new_prop);
 
   initialize();
@@ -257,8 +273,10 @@ ProverResult IC3Base::check_until_multi_property(int k, const TermVec & multipro
         // this is a real counterexample
         assert(cex_.size());
         // TODO: if success, recheck with new property
-        if ( refine_property(multiprop) ) 
+        if ( refine_property(multiprop, results) ) {
+          std::cout << "refine property at step " << i << std::endl;
           continue;
+        }
 
         return ProverResult::FALSE;
       } else {
@@ -601,6 +619,8 @@ bool IC3Base::rel_ind_check(size_t i,
   solver_->assert_formula(solver_->make_term(Not, c.term));
   // Trans
   assert_trans_label();
+
+  assert(check_sat().is_sat());
 
   // use assumptions for c' so we can get cheap initial
   // generalization if the check is unsat

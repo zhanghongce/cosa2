@@ -50,7 +50,9 @@ class Prover
 
   virtual ProverResult check_until(int k) = 0;
 
-  virtual ProverResult check_until_multi_property(int k, const smt::TermVec & multiproperty) {
+  virtual ProverResult check_until_multi_property(int k, const smt::TermVec & multiproperty, std::vector<ProverResult> & results) {
+    for (size_t idx = 0; idx < multiproperty.size(); idx ++)
+      results.push_back(ProverResult::UNKNOWN);
     return ProverResult::UNKNOWN;
   }
 

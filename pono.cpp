@@ -151,8 +151,10 @@ ProverResult check_prop(PonoOptions pono_options,
   { 
     if (multiprop.empty())
       r = prover->check_until(pono_options.bound_);
-    else
-      r = prover->check_until_multi_property(pono_options.bound_, multiprop);
+    else {
+      std::vector<ProverResult> results;
+      r = prover->check_until_multi_property(pono_options.bound_, multiprop, results);
+    }
   }
 
   if (r == FALSE && pono_options.witness_) {
@@ -310,7 +312,7 @@ int main(int argc, char ** argv)
 
         for (const auto& dirEntry : std::filesystem::recursive_directory_iterator(pono_options.assertion_foler_)) {
           if(dirEntry.is_regular_file()) {
-            PropertyInterface pif(dirEntry.path().filename(), fts);
+            PropertyInterface pif(dirEntry.path(), fts);
             additional_properties.push_back(pif.get_assertion());
           }
         }
