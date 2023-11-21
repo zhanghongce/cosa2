@@ -27,7 +27,7 @@ extern "C" {
 #include <string>
 #include <unordered_map>
 #include "assert.h"
-
+#include "modifiers/prophecy_modifier.h"
 #include "core/ts.h"
 #include "utils/exceptions.h"
 
@@ -37,7 +37,7 @@ namespace pono {
 class BTOR2Encoder
 {
  public:
-  BTOR2Encoder(std::string filename, TransitionSystem & ts)
+  BTOR2Encoder(std::string filename, TransitionSystem & ts ,bool is_coverage_analyze = false)
       : ts_(ts), solver_(ts.solver())
   {
     preprocess(filename);
@@ -87,6 +87,7 @@ class BTOR2Encoder
   std::unordered_map<int, smt::Term> terms_;
   std::string symbol_;
 
+  bool is_coverage_analyze_;
   smt::TermVec propvec_;
   smt::TermVec justicevec_;
   smt::TermVec fairvec_;

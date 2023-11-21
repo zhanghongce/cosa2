@@ -291,30 +291,30 @@ bool Prover::compute_witness()
     }
   }
 ///////////////////////If we want to have the vcd file, just uncomment this///////////////////
-  // for (int i = 0; i <= reached_k_ + 1; ++i) {
-  //   witness_.push_back(UnorderedTermMap());
-  //   UnorderedTermMap & map = witness_.back();
+  for (int i = 0; i <= reached_k_ + 1; ++i) {
+    witness_.push_back(UnorderedTermMap());
+    UnorderedTermMap & map = witness_.back();
 
-  //   for (const auto & v : ts_.statevars()) {
-  //     Term vi = unroller_.at_time(v, i);
-  //     Term r = solver_->get_value(vi);
-  //     map[v] = r;
-  //   }
+    for (const auto & v : ts_.statevars()) {
+      Term vi = unroller_.at_time(v, i);
+      Term r = solver_->get_value(vi);
+      map[v] = r;
+    }
 
-  //   // early stop
-  //   if (options_.witness_first_state_only_) return true;
+    // early stop
+    if (options_.witness_first_state_only_) return true;
 
-  //   for (const auto & v : ts_.inputvars()) {
-  //     Term vi = unroller_.at_time(v, i);
-  //     Term r = solver_->get_value(vi);
-  //     map[v] = r;
-  //   }
+    for (const auto & v : ts_.inputvars()) {
+      Term vi = unroller_.at_time(v, i);
+      Term r = solver_->get_value(vi);
+      map[v] = r;
+    }
 
-  //   for (const auto & elem : ts_.named_terms()) {
-  //     Term ti = unroller_.at_time(elem.second, i);
-  //     map[elem.second] = solver_->get_value(ti);
-  //   }
-  // }
+    for (const auto & elem : ts_.named_terms()) {
+      Term ti = unroller_.at_time(elem.second, i);
+      map[elem.second] = solver_->get_value(ti);
+    }
+  }
 
   return true;
 }

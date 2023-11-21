@@ -17,7 +17,9 @@
 #pragma once
 
 #include "core/ts.h"
+#include "core/prop.h"
 #include "utils/fcoi.h"
+
 
 namespace pono {
 class StaticConeOfInfluence
@@ -44,4 +46,8 @@ class StaticConeOfInfluence
   unsigned int orig_num_statevars_;
   unsigned int orig_num_inputvars_;
 };
+
+
+bool UninterpretedFuncCOICover(const TransitionSystem & ts, const Property & prop, unsigned bound);
+ // UninterpretedFuncCOICover
 }  // namespace pono

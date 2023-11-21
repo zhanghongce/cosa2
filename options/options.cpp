@@ -102,7 +102,8 @@ enum optionIndex
   ADD_ASSUMP_IN_ORIGIN,
   COI_Filter,
   COI_CHECK,
-  ENV_QED
+  ENV_QED,
+  COVERAGE_ANALYZE
 
 };
 
@@ -683,6 +684,13 @@ const option::Descriptor usage[] = {
     Arg::None,
     "  --env_qed, \tWe find the environment invariant for qed model "
     },
+  { COVERAGE_ANALYZE,
+    0,
+    "",
+    "coverage_alalyze",
+    Arg::None,
+    "  --coverage_alalyze, \tAnalyze the the coverage for the given assertion "
+    },
   { 0, 0, 0, 0, 0, 0 }
 };
 /*********************************** end Option Handling setup
@@ -886,6 +894,7 @@ ProverResult PonoOptions::parse_and_set_options(int argc,
         case COI_Filter: coi_filter_ = true; break;
         case COI_CHECK: dynamic_coi_check_ = true; break;
         case ENV_QED: env_qed_ = true; break;
+        case COVERAGE_ANALYZE: check_coverage = true; break;
         case UNKNOWN_OPTION:
         
           // not possible because Arg::Unknown returns ARG_ILLEGAL

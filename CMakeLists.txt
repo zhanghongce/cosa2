@@ -176,6 +176,7 @@ set(SOURCES
   "${PROJECT_SOURCE_DIR}/modifiers/op_abstractor.cpp"
   "${PROJECT_SOURCE_DIR}/printers/vcd_witness_printer.cpp"
   "${PROJECT_SOURCE_DIR}/refiners/array_axiom_enumerator.cpp"
+  # "${PROJECT_SOURCE_DIR}/refiners/cex_generalizer.cpp"
   "${PROJECT_SOURCE_DIR}/smt/available_solvers.cpp"
   "${PROJECT_SOURCE_DIR}/utils/fcoi.cpp"
   "${PROJECT_SOURCE_DIR}/utils/logger.cpp"

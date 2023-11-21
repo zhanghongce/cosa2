@@ -1128,7 +1128,7 @@ int main(int argc, char ** argv)
         cout << "unknown" << endl;
         cout << "b" << pono_options.prop_idx_ << endl;
       }
-    }else{
+    } else{
       Term prop;
       if ((pono_options.cex_reader_.empty())&(pono_options.property_file_.empty())){
         const TermVec & propvec = btor_enc.propvec();

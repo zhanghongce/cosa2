@@ -68,9 +68,9 @@ ProverResult Bmc::check_until(int k)
 
   for (int i = bound_start_; i <= k;
        i = exp_step ? (i == 0 ? 1 : i << 1) : (i + bound_step_)) {
-      std::cout<< " The BMC is in the step: " << i <<std::endl;
+      // std::cout<< " The BMC is in the step: " << i <<std::endl;
     if (!step(i)) {
-      std::cout<< " The BMC bug is found in the step: " << i <<std::endl;
+      // std::cout<< " The BMC bug is found in the step: " << i <<std::endl;
       compute_witness();
       std::ofstream bound("bound.txt");
       bound<< i <<std::endl;

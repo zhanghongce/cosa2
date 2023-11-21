@@ -102,6 +102,7 @@ class PonoOptions
         env_qed_(default_env_qed_),
         use_ilang_coi_constraint_file_(default_use_ilang_coi_constraint_file_),
         static_coi_(default_static_coi_),
+        check_coverage(),
         show_invar_(default_show_invar_),
         check_invar_(default_check_invar_),
         ic3_pregen_(default_ic3_pregen_),
@@ -205,6 +206,7 @@ class PonoOptions
   bool env_qed_;
   bool use_ilang_coi_constraint_file_; ///< will read asmpt-ila.smt2 when generate COI.txt
   bool static_coi_;
+  bool check_coverage;
   bool show_invar_;   ///< display invariant when running from command line
   bool check_invar_;  ///< check invariants (if available) when run through CLI
   // ic3 options
@@ -329,6 +331,7 @@ private:
   static const bool default_env_qed_ = false;
   static const bool default_use_ilang_coi_constraint_file_ = false;
   static const bool default_static_coi_ = false;
+  static const bool default_check_coverage_ = false;
   static const bool default_show_invar_ = false;
   static const bool default_check_invar_ = false;
   static const size_t default_reset_bnd_ = 1;

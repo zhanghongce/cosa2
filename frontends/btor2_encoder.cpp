@@ -739,6 +739,14 @@ void BTOR2Encoder::parse(const std::string filename)
       }
     }
 
+    if(is_coverage_analyze_){
+      if (l_->symbol) {
+        std::string comment(l_->symbol);
+        if ( comment.find("###UF##") == 0 ) {
+          terms_.at(l_->id) = abstract_op(  terms_.at(l_->id),solver_ );//smt expression ,replacement part in ops_mod_abstractor
+        }
+      }
+    }
     // use the symbol to name the term (if applicable)
     // input, output, and state already named
     if (l_->symbol && l_->tag != BTOR2_TAG_input && l_->tag != BTOR2_TAG_output
