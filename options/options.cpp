@@ -45,6 +45,7 @@ enum optionIndex
   CLK,
   SMT_SOLVER,
   LOGGING_SMT_SOLVER,
+  PROPERTY_FILE,
   NO_IC3_PREGEN,
   NO_IC3_INDGEN,
   NO_IC3BITS_COI_PREGEN,
@@ -190,6 +191,13 @@ const option::Descriptor usage[] = {
     "guarantees the exact term structure that was created. Good "
     "for avoiding term rewriting at the API level or sort aliasing. "
     "(default: false)" },
+  { PROPERTY_FILE,
+    0,
+    "",
+    "property-file",
+    Arg::NonEmpty,
+    "  --property-file \tInput the smtlib2 property as the assert or assmue"
+     },
   { WITNESS,
     0,
     "",
@@ -713,6 +721,7 @@ ProverResult PonoOptions::parse_and_set_options(int argc,
           break;
         }
         case LOGGING_SMT_SOLVER: logging_smt_solver_ = true; break;
+        case PROPERTY_FILE: property_file_=opt.arg;break;
         case WITNESS: witness_ = true; break;
         case STATICCOI: static_coi_ = true; break;
         case SHOW_INVAR: show_invar_ = true; break;

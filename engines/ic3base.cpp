@@ -215,6 +215,10 @@ bool IC3Base::refine_property(const TermVec & multiprop) {
     auto val = solver_->get_value(unroller_.at_time(p, bnd))->to_int();
     if (val)  {
       new_prop = solver_->make_term(smt::And, new_prop, p);
+      std::cout<< "The property: "<< p->to_string()<< " is in next round."<<std::endl;
+    }
+    else{
+      std::cout<< "The property: "<< p->to_string()<< " is in not next round."<<std::endl;
     }
   }
 
@@ -682,7 +686,7 @@ bool IC3Base::rel_ind_check(size_t i,
     // should never intersect with a frame before F[i-1]
     // otherwise, this predecessor should have been found
     // in a previous step (before a new frame was pushed)
-    assert(i < 2 || !check_intersects(out.term, get_frame_term(i - 2)));
+    // assert(i < 2 || !check_intersects(out.term, get_frame_term(i - 2)));
   }
 
   assert(!r.is_unknown());

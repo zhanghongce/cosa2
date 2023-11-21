@@ -22,7 +22,7 @@ using namespace smt;
 using namespace std;
 
 
-// #define DEBUG
+#define DEBUG
 #ifdef DEBUG
   #define D(...) logger.log( __VA_ARGS__ )
   #define INFO(...) D(0, __VA_ARGS__)
@@ -199,7 +199,7 @@ IC3Formula IC3Bits::ExtractPartialModel(const Term & p) {
     D(4, "[PartialModel] assumptions (mapped): {}", constraints_curr_var_.size());
     unsigned idx = 0;
     for (const auto & c : constraints_curr_var_)
-      D(4, "[PartialModel] assumption #{} : {}", idx ++, c->to_string());
+      D(4, "[PartialModel] assumption #{} : {}", idx ++, c.first->to_string());
     constraints_curr_var_.emplace(bad_state_no_nxt,std::vector<std::pair<int,int>>({{0,0}}));
     partial_model_getter.GetVarListForAsts_in_bitlevel(constraints_curr_var_, varlist);
     constraints_curr_var_.erase(bad_state_no_nxt);
@@ -214,7 +214,7 @@ IC3Formula IC3Bits::ExtractPartialModel(const Term & p) {
   {
     D(4, "[PartialModel] before cutting vars: ");
     for (const auto & v : varlist)
-      D(4, "[PartialModel] {} := {} ", v->to_string(), solver_->get_value(v)->to_string());
+      D(4, "[PartialModel] {} := {} ", v.first->to_string(), solver_->get_value(v.first)->to_string());
     D(4, "[PartialModel] ------------------- ");
   }
 

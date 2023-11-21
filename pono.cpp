@@ -300,8 +300,12 @@ int main(int argc, char ** argv)
             + " is greater than the number of properties in file "
             + pono_options.filename_ + " (" + to_string(num_props) + ")");
       }
-
       Term prop = propvec[pono_options.prop_idx_];
+      if(pono_options.property_file_!=""){
+        PropertyInterface assertion(pono_options.property_file_, fts);
+        prop = assertion.AddAssertions(prop);
+      }
+        
 
       TermVec additional_properties;
       if(pono_options.assertion_foler_ != "") {
@@ -310,7 +314,7 @@ int main(int argc, char ** argv)
 
         for (const auto& dirEntry : std::filesystem::recursive_directory_iterator(pono_options.assertion_foler_)) {
           if(dirEntry.is_regular_file()) {
-            PropertyInterface pif(dirEntry.path().filename(), fts);
+            PropertyInterface pif(dirEntry.path(), fts);
             additional_properties.push_back(pif.get_assertion());
           }
         }

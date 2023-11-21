@@ -190,6 +190,7 @@ class PonoOptions
   std::string filename_;
   smt::SolverEnum smt_solver_;  ///< underlying smt solver
   bool logging_smt_solver_;
+  std::string property_file_;
   bool static_coi_;
   bool show_invar_;   ///< display invariant when running from command line
   bool check_invar_;  ///< check invariants (if available) when run through CLI
