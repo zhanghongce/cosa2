@@ -50,6 +50,10 @@ class Prover
 
   virtual ProverResult check_until(int k) = 0;
 
+  virtual ProverResult check_until_multi_property(int k, const smt::TermVec & multiproperty) {
+    return ProverResult::UNKNOWN;
+  }
+
   virtual bool witness(std::vector<smt::UnorderedTermMap> & out);
 
   /** Returns length of the witness

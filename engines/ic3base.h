@@ -172,6 +172,8 @@ class IC3Base : public Prover
   void initialize() override;
 
   ProverResult check_until(int k) override;
+  
+  ProverResult check_until_multi_property(int k, const smt::TermVec & multiproperty) override;
 
   bool witness(std::vector<smt::UnorderedTermMap> & out) override;
 
@@ -213,7 +215,6 @@ class IC3Base : public Prover
   // labels for activating assertions
   smt::Term init_label_;       ///< label to activate init
   smt::Term trans_label_;      ///< label to activate trans
-  smt::Term bad_label_;        ///< label to activate bad
   smt::TermVec frame_labels_;  ///< labels to activate frames
   smt::UnorderedTermMap labels_;  //< labels for unsat cores
 
@@ -596,6 +597,9 @@ class IC3Base : public Prover
    ** or applying Not if the term is not already negated.
    */
   smt::Term smart_not(const smt::Term & t) const;
+
+  /* return true if success */
+  bool refine_property(const smt::TermVec & multiprop);
 };
 
 }  // namespace pono

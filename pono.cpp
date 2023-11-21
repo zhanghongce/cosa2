@@ -16,6 +16,7 @@
 
 #include <csignal>
 #include <iostream>
+#include <filesystem>
 #include "assert.h"
 
 #ifdef WITH_PROFILING
@@ -31,6 +32,7 @@
 #include "frontends/btor2_encoder.h"
 #include "frontends/smv_encoder.h"
 #include "frontends/vmt_encoder.h"
+#include "frontends/property_if.h"
 #include "modifiers/control_signals.h"
 #include "modifiers/mod_ts_prop.h"
 #include "modifiers/prop_monitor.h"
@@ -53,7 +55,8 @@ ProverResult check_prop(PonoOptions pono_options,
                         Term & prop,
                         TransitionSystem & ts,
                         const SmtSolver & s,
-                        std::vector<UnorderedTermMap> & cex)
+                        std::vector<UnorderedTermMap> & cex,
+                        const TermVec & multiprop)
 {
   // get property name before it is rewritten
   const string prop_name = ts.get_name(prop);
@@ -145,8 +148,11 @@ ProverResult check_prop(PonoOptions pono_options,
     r = prover->prove();
   }
   else
-  {
-    r = prover->check_until(pono_options.bound_);
+  { 
+    if (multiprop.empty())
+      r = prover->check_until(pono_options.bound_);
+    else
+      r = prover->check_until_multi_property(pono_options.bound_, multiprop);
   }
 
   if (r == FALSE && pono_options.witness_) {
@@ -297,8 +303,21 @@ int main(int argc, char ** argv)
 
       Term prop = propvec[pono_options.prop_idx_];
 
+      TermVec additional_properties;
+      if(pono_options.assertion_foler_ != "") {
+        // Walk through the folder
+        // load properties
+
+        for (const auto& dirEntry : std::filesystem::recursive_directory_iterator(pono_options.assertion_foler_)) {
+          if(dirEntry.is_regular_file()) {
+            PropertyInterface pif(dirEntry.path().filename(), fts);
+            additional_properties.push_back(pif.get_assertion());
+          }
+        }
+      }
+
       vector<UnorderedTermMap> cex;
-      res = check_prop(pono_options, prop, fts, s, cex);
+      res = check_prop(pono_options, prop, fts, s, cex, additional_properties);
       // we assume that a prover never returns 'ERROR'
       assert(res != ERROR);
 
@@ -347,7 +366,7 @@ int main(int argc, char ** argv)
       // get property name before it is rewritten
 
       std::vector<UnorderedTermMap> cex;
-      res = check_prop(pono_options, prop, rts, s, cex);
+      res = check_prop(pono_options, prop, rts, s, cex, {});
       // we assume that a prover never returns 'ERROR'
       assert(res != ERROR);
 

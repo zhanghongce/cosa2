@@ -212,6 +212,7 @@ class PonoOptions
   std::string profiling_log_filename_;
   bool pseudo_init_prop_;  ///< replace init and prop with boolean state vars
   bool assume_prop_;       ///< assume property in pre-state
+  std::string assertion_foler_; ///< load assertions from folder
   // ceg-prophecy-arrays options
   bool ceg_prophecy_arrays_;
   bool cegp_timed_axiom_red_;      ///< reduce axioms with an unsat core when

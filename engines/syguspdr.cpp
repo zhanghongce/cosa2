@@ -1035,7 +1035,6 @@ void SygusPdr::disable_all_labels() {
   #define NOT(x) (solver_->make_term(Not, (x)))
   solver_->assert_formula(NOT(init_label_));
   solver_->assert_formula(NOT(trans_label_));
-  solver_->assert_formula(NOT(bad_label_));
   for(const auto & fl : frame_labels_)
     solver_->assert_formula(NOT(fl));
   #undef NOT

@@ -19,6 +19,7 @@
 
 #include "assert.h"
 #include "smt/available_solvers.h"
+#include "core/unroller.h"
 #include "utils/logger.h"
 #include "utils/term_analysis.h"
 
@@ -138,16 +139,12 @@ void IC3Base::initialize()
   // set semantics of TS labels
   assert(!init_label_);
   assert(!trans_label_);
-  assert(!bad_label_);
   // frame 0 label is identical to init label
   init_label_ = frame_labels_[0];
 
   trans_label_ = solver_->make_symbol("__trans_label", boolsort_);
   solver_->assert_formula(
       solver_->make_term(Implies, trans_label_, ts_.trans()));
-
-  bad_label_ = solver_->make_symbol("__bad_label", boolsort_);
-  solver_->assert_formula(solver_->make_term(Implies, bad_label_, bad_));
 }
 
 ProverResult IC3Base::check_until(int k)
@@ -174,6 +171,95 @@ ProverResult IC3Base::check_until(int k)
       } else if (s == REFINE_NONE) {
         // this is a real counterexample
         assert(cex_.size());
+        return ProverResult::FALSE;
+      } else {
+        assert(s == REFINE_FAIL);
+        logger.log(1, "IC3Base: refinement failure, returning unknown");
+        return ProverResult::UNKNOWN;
+      }
+    } else {
+      ++i;
+    }
+
+    if (res != ProverResult::UNKNOWN) {
+      return res;
+    }
+  }
+
+  return ProverResult::UNKNOWN;
+}
+
+
+bool IC3Base::refine_property(const TermVec & multiprop) {
+  // reconstruct from cex_, use unroller
+  solver_->push();
+  solver_->assert_formula( unroller_.at_time(ts_.init(), 0) );
+
+  size_t bnd;
+  for (bnd = 0; bnd < cex_.size(); ++ bnd) {
+    solver_->assert_formula( unroller_.at_time(ts_.trans(), bnd) );
+    solver_->assert_formula( unroller_.at_time(cex_.at(bnd), bnd) );
+  }
+  auto r = solver_->check_sat();
+  assert(r.is_sat());
+
+  -- bnd;
+  auto original_prop_val = solver_->get_value(unroller_.at_time(orig_property_.prop(), bnd))->to_int();
+  if (original_prop_val == 0) {
+    solver_->pop();
+    return false;
+  }
+
+  auto new_prop = orig_property_.prop();
+  for (const auto & p : multiprop) {
+    auto val = solver_->get_value(unroller_.at_time(p, bnd))->to_int();
+    if (val)  {
+      new_prop = solver_->make_term(smt::And, new_prop, p);
+    }
+  }
+
+  // update bad
+  bad_ = solver_->make_term(smt::Not, new_prop);
+
+  solver_->pop();
+
+  return true;
+}
+
+ProverResult IC3Base::check_until_multi_property(int k, const TermVec & multiprop)
+{
+  //  change bad to original_property /\ multiprop
+  auto new_prop = orig_property_.prop();
+  for (const auto & p: multiprop)
+    new_prop = solver_->make_term(smt::And, new_prop, p);
+  bad_ = solver_->make_term(smt::Not, new_prop);
+
+  initialize();
+  // make sure derived class implemented initialize and called
+  // this version of initialize with super::initialize or
+  // (for experts only) set the initialized_ flag without
+  // ever initializing base classes
+  assert(initialized_);
+
+  ProverResult res;
+  RefineResult ref_res;
+  int i = reached_k_ + 1;
+  assert(reached_k_ + 1 >= 0);
+  while (i <= k) {
+    res = step(i);
+
+    if (res == ProverResult::FALSE) {
+      assert(cex_.size());
+      RefineResult s = refine();
+      if (s == REFINE_SUCCESS) {
+        continue;
+      } else if (s == REFINE_NONE) {
+        // this is a real counterexample
+        assert(cex_.size());
+        // TODO: if success, recheck with new property
+        if ( refine_property(multiprop) ) 
+          continue;
+
         return ProverResult::FALSE;
       } else {
         assert(s == REFINE_FAIL);
@@ -734,7 +820,7 @@ bool IC3Base::propagate(size_t i)
     //       need to negate
     if (rel_ind_check(i + 1, ic3formula_negate(c), gen, false)) {
       // can push to next frame
-      // got unsat-core based generalization
+      // got unsat-core based generalization // HZ: do we really need unsat-core based gen here?
       assert(gen.term);
       assert(gen.children.size());
       constrain_frame(i + 1, ic3formula_negate(gen), false);
@@ -1040,8 +1126,6 @@ void IC3Base::reset_solver()
     solver_->assert_formula(
         solver_->make_term(Implies, trans_label_, ts_.trans()));
 
-    solver_->assert_formula(solver_->make_term(Implies, bad_label_, bad_));
-
     Term prop = smart_not(bad_);
     for (size_t i = 0; i < frames_.size(); ++i) {
       assert(i < frame_labels_.size());
@@ -1105,7 +1189,7 @@ Term IC3Base::label(const Term & t)
 
 bool IC3Base::is_global_label(const Term & l) const
 {
-  return (l == trans_label_ || l == bad_label_
+  return (l == trans_label_ 
           || std::count(frame_labels_.begin(), frame_labels_.end(), l));
 }
 
