@@ -30,29 +30,29 @@ logging_pivot_input = os.path.join(args.result_folder,"summary_pivot.txt")
 
 file_list = []
 root_directory = os.getcwd() 
-abs_path = os.path.join(root_directory,args.test_case)
-file_list.append(abs_path) 
-# for root, _, files in os.walk(args.hwmcc_folder):
-#     for file in files:
-#         if file.endswith(".btor") or file.endswith(".btor2"):  
-#             file_path = os.path.join(root, file)
-#             abs_path = os.path.join(root_directory,file_path)
-#             # filename = os.path.relpath(file_path, os.getcwd() )
-#             # if filename in skip_files:
-#             #     continue
-#             # file_list.append(file_path)
+# abs_path = os.path.join(root_directory,args.test_case)
+# file_list.append(abs_path) 
+for root, _, files in os.walk(args.test_case):
+    for file in files:
+        if file.endswith(".btor") or file.endswith(".btor2"):  
+            file_path = os.path.join(root, file)
+            abs_path = os.path.join(root_directory,file_path)
+            # filename = os.path.relpath(file_path, os.getcwd() )
+            # if filename in skip_files:
+            #     continue
+            # file_list.append(file_path)
             
-#             # if file_path in btor_filenames:
-#             #     index = btor_filenames.index(file_path)
-#                 # if btor_sat_unsat[index] == "unknown":
-#                 #     # print(f"Skipping {filename} because SAT/UNSAT is unknown.")
-#                 #     continue
-#             file_list.append(abs_path) 
+            # if file_path in btor_filenames:
+            #     index = btor_filenames.index(file_path)
+                # if btor_sat_unsat[index] == "unknown":
+                #     # print(f"Skipping {filename} because SAT/UNSAT is unknown.")
+                #     continue
+            file_list.append(abs_path) 
 
 def run_with_timeout(btor_path, timeout,logging_coi, logging_pivot_input):
     command_to_run = ["pono", "--bound","500","--logging-smt-solver",
-                "--vcd",
-                "cex.vcd",
+                # "--vcd",
+                # "cex.vcd",
                 "--promote-inputvars",
                 "--dynamic_coi_up_cex",
                 "--coi_check",
@@ -87,7 +87,7 @@ def write_hwmcc_out(filename,log, logging_coi, logging_pivot_input):
          logging.error(str(e))
 
 def ex_pono(file_path,logging_failure, logging_coi, logging_pivot_input):
-    relative_path = os.path.basename(args.test_case)
+    relative_path = os.path.basename(file_path)
     result_subfolder = os.path.join(args.result_folder, relative_path)
     os.makedirs(result_subfolder, exist_ok=True)
 

@@ -534,7 +534,7 @@ void Prover::compute_dynamic_COI_from_term(const smt::Term & t,
     for(const auto out:newvarset_slice){
       for(const auto slice: out.second){
         auto val = solver_->get_value(out.first);
-        fout<< i << " "<<out.first->to_string() << " " <<val->to_string()<< " "<<slice.first << " " <<slice.second<<"\n";
+        fout<< i << " "<<out.first->to_string() << " " << slice.first << " " <<slice.second << " " <<val->to_string()<<"\n";
       }
     }
     varset.swap(newvarset_slice);  // the same as "varset = newvarset;" , but

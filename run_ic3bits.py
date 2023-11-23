@@ -38,7 +38,7 @@ except subprocess.TimeoutExpired:
 
 command_to_run = ["pono", "--bound","500",
                 "--check-invar",
-                "--ic3bits-no-enhanced-coi",
+                "--ic3bits-no-coi",
                 "-e", "ic3bits",
                 args.test_case]
 print(" Running on Vanilla ic3bits\n")
