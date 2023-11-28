@@ -28,6 +28,7 @@
 #include "engines/kinduction.h"
 #include "engines/mbic3.h"
 #include "engines/syguspdr.h"
+#include "engines/btorsim.h"
 #ifdef WITH_MSAT_IC3IA
 #include "engines/msat_ic3ia.h"
 #endif
@@ -60,6 +61,8 @@ shared_ptr<Prover> make_prover(Engine e,
     return make_shared<Bmc>(p, ts, slv, opts);
   } else if (e == BMC_SP) {
     return make_shared<BmcSimplePath>(p, ts, slv, opts);
+  } else if (e == BTOR_SIM) {
+    return make_shared<BtorSim>(p, ts, slv, opts);
   } else if (e == KIND) {
     return make_shared<KInduction>(p, ts, slv, opts);
   } else if (e == INTERP) {
