@@ -45,7 +45,10 @@ smt::Term PropertyInterface::register_arg(const std::string & name, const smt::S
 smt::Term PropertyInterface::AddAssertions(const smt::Term &in) const{
   auto ret = in;
   for(const auto & t : assertions_) {
-    ret = ts_.make_term(smt::And, ret, t);
+    if(ret==nullptr)
+      ret = t;
+    else  
+      ret = ts_.make_term(smt::And, ret, t);
   }
   return ret;
 }

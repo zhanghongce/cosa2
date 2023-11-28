@@ -151,8 +151,10 @@ ProverResult check_prop(PonoOptions pono_options,
   { 
     if (multiprop.empty())
       r = prover->check_until(pono_options.bound_);
-    else
-      r = prover->check_until_multi_property(pono_options.bound_, multiprop);
+    else {
+      std::vector<ProverResult> results;
+      r = prover->check_until_multi_property(pono_options.bound_, multiprop, results);
+    }
   }
 
   if (r == FALSE && pono_options.witness_) {
@@ -294,18 +296,26 @@ int main(int argc, char ** argv)
       BTOR2Encoder btor_enc(pono_options.filename_, fts);
       const TermVec & propvec = btor_enc.propvec();
       unsigned int num_props = propvec.size();
-      if (pono_options.prop_idx_ >= num_props) {
-        throw PonoException(
-            "Property index " + to_string(pono_options.prop_idx_)
-            + " is greater than the number of properties in file "
-            + pono_options.filename_ + " (" + to_string(num_props) + ")");
+      // if (pono_options.prop_idx_ >= num_props) {
+      //   throw PonoException(
+      //       "Property index " + to_string(pono_options.prop_idx_)
+      //       + " is greater than the number of properties in file "
+      //       + pono_options.filename_ + " (" + to_string(num_props) + ")");
+      // }
+      Term prop;
+      if(num_props==0){
+        if(pono_options.property_file_!=""){
+          PropertyInterface assertion(pono_options.property_file_, fts);
+          prop = assertion.AddAssertions(prop);
+        }        
       }
-      Term prop = propvec[pono_options.prop_idx_];
-      if(pono_options.property_file_!=""){
-        PropertyInterface assertion(pono_options.property_file_, fts);
-        prop = assertion.AddAssertions(prop);
+      else{      
+        prop = propvec[pono_options.prop_idx_];
+      // if(pono_options.property_file_!=""){
+      //   PropertyInterface assertion(pono_options.property_file_, fts);
+      //   prop = assertion.AddAssertions(prop);
+      // }
       }
-        
 
       TermVec additional_properties;
       if(pono_options.assertion_foler_ != "") {

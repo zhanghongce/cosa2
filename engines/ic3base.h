@@ -173,7 +173,7 @@ class IC3Base : public Prover
 
   ProverResult check_until(int k) override;
   
-  ProverResult check_until_multi_property(int k, const smt::TermVec & multiproperty) override;
+  ProverResult check_until_multi_property(int k, const smt::TermVec & multiproperty, std::vector<ProverResult> & results) override;
 
   bool witness(std::vector<smt::UnorderedTermMap> & out) override;
 
@@ -599,7 +599,7 @@ class IC3Base : public Prover
   smt::Term smart_not(const smt::Term & t) const;
 
   /* return true if success */
-  bool refine_property(const smt::TermVec & multiprop);
+  bool refine_property(const smt::TermVec & multiprop, std::vector<ProverResult> & results);
 };
 
 }  // namespace pono
