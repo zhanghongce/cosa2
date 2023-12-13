@@ -303,12 +303,12 @@ int main(int argc, char ** argv)
       //       + pono_options.filename_ + " (" + to_string(num_props) + ")");
       // }
       Term prop;
-      if(num_props==0){
-        if(pono_options.property_file_!=""){
-          PropertyInterface assertion(pono_options.property_file_, fts);
-          prop = assertion.AddAssertions(prop);
-        }        
-      }
+      // if(num_props==0){
+      if(pono_options.property_file_!=""){
+        PropertyInterface assertion(pono_options.property_file_, fts);
+        prop = assertion.AddAssertions(prop);
+      }        
+      // }
       else{      
         prop = propvec[pono_options.prop_idx_];
       // if(pono_options.property_file_!=""){

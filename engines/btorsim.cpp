@@ -151,8 +151,15 @@ ProverResult BtorSim::check_until(int k)
   compute_witness();
 
   std::ofstream fout("simtrace.txt");
+  auto state_updates = ts_.state_updates();
   for (int i = 0; i <= reached_k_ + 1; ++i) {
     for (const auto &v : ts_.statevars()) {
+      auto str_v = v->to_string();
+      auto found = str_v.find("_monitor_");
+      if(found!=std::string::npos)
+        continue;
+      // if(state_updates.find(v) == state_updates.end())
+      //   continue;
       const Term &vi = unroller_.at_time(v, i);
       const Term &r = solver_->get_value(vi);
       fout << v->to_string() << ": "<< r->to_string() << ", ";
