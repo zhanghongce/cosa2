@@ -48,7 +48,7 @@ public:
    *  but in the future maybe we can cache some of the results
    *  @param the solver where the assertions were made
    */
-  PartialModelGen(smt::SmtSolver & solver) : solver_(solver) { }
+  PartialModelGen(const smt::SmtSolver & solver) : solver_(solver) { }
     
   // disallow copy construct/assign
   PartialModelGen(const PartialModelGen &) = delete;
@@ -56,7 +56,7 @@ public:
   
 protected:
   // let's keep a reference to the solver since we need to add terms
-  smt::SmtSolver & solver_;
+  smt::SmtSolver solver_;
 
   // for the DFS, will not use the stack but use one reference here
   std::unordered_set<smt::Term> dfs_walked_;
