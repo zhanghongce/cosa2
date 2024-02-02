@@ -144,7 +144,7 @@ class QedCexParser : public SelectiveExtractor
     is_reg_t is_reg;
 };
 
-class coireader 
+class coireader : public CexExtractor 
 {
   public:
     typedef Filter filter_t;
@@ -156,6 +156,7 @@ class coireader
                  TransitionSystem & ts):COI_to_consider_(COI_to_consider),COI_value_(COI_value),filter_(filter),ts_(ts){};
     smt::Term coi_cex2property(filter_t & filter) const;
     smt::Term coi_cex2property_ant(filter_t & filter,filter_r & filter_re) const;
+    void get_remaining_var(filter_t & filter, std::vector<std::string> & out) const;
   protected:
     TransitionSystem & ts_;
     std::unordered_map<std::string, std::vector<std::pair<int,int>>>  COI_to_consider_;

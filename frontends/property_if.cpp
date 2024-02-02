@@ -580,4 +580,12 @@ smt::Term coireader::coi_cex2property(filter_t & filter) const{
   else
     return prop;
 }
+void coireader::get_remaining_var(filter_t & filter,std::vector<std::string> & out) const {
+  for (const auto & var_val_pair :COI_to_consider_) {
+    const auto & var_name = var_val_pair.first;
+    if(!filter(var_name))
+      continue;
+    out.push_back(var_name);
+  }
+}
 }  // namespace pono

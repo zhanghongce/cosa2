@@ -55,7 +55,7 @@ using namespace pono;
 using namespace smt;
 using namespace std;
 
-ProverResult check_for_inductiveness_bmc(PonoOptions pono_options,
+bool check_for_inductiveness_bmc(PonoOptions pono_options,
                         const Term & prop_old,
                         const TransitionSystem & original_ts,
                         const SmtSolver & solver_old,
@@ -165,7 +165,7 @@ ProverResult check_for_inductiveness_bmc(PonoOptions pono_options,
   }
   else
   {
-    r = prover->check_until(15);
+    r = prover->check_until(10);
   }
   // if((r == FALSE)&&(need_cex == true)){
   //   bool success = prover->witness(local_cex);
@@ -174,7 +174,10 @@ ProverResult check_for_inductiveness_bmc(PonoOptions pono_options,
   //   VCDWitnessPrinter vcdprinter(new_fts, local_cex);
   //   vcdprinter.dump_trace_to_file("env_failure.vcd");
   // }
-  return r;
+  if (r == FALSE) 
+    return false;
+  else
+    return true;
 }
 
 // bool check_previous(Term prop_filter, UnorderedTermSet prop_check)
@@ -218,7 +221,7 @@ ProverResult check_prop(PonoOptions pono_options,
                         const std::string & varname_prefix)
 {
   // create a solver for this
-  auto new_solver = create_solver_for(se, e, false,false);
+  auto new_solver = create_solver_for(se, e, true,false);
   TermTranslator to_new_solver(new_solver);
   TermTranslator to_old_solver(solver_old);
   FunctionalTransitionSystem new_fts(original_ts,to_new_solver);
@@ -405,14 +408,15 @@ bool check_for_inductiveness(const Term & prop, const TransitionSystem & ts) {
 
 int main(int argc, char ** argv)
 {
-
+  // We must open the logging smt solver, because it will be faster
   PonoOptions pono_options;
   ProverResult res = pono_options.parse_and_set_options(argc, argv);
   pono_options.engine_ = IC3_BITS;
   pono_options.verbosity_ = 1;
   pono_options.show_invar_ = true;
   pono_options.check_invar_ = true;
-
+  pono_options.logging_smt_solver_ = true;
+  pono_options.promote_inputvars_ = false;
   if (res == ERROR) return res;
   // expected result returned by option parsing and setting is
   // 'pono::UNKNOWN', indicating that options were correctly set and
@@ -492,7 +496,7 @@ int main(int argc, char ** argv)
   
   FilterConcat filter;
   unsigned max_width = 32;
-  filter.filters.push_back(std::make_shared<NameFilter>(cexinfo.auxvar_removal_, fts, false));
+  // filter.filters.push_back(std::make_shared<NameFilter>(cexinfo.auxvar_removal_, fts, false));
   filter.filters.push_back(std::make_shared<SliceFilter>(cexinfo.COI_to_consider_, fts));
   auto COI_filter = filter.filters.back(); // mark this down and we should not remove it, so later we will check this
   filter.filters.push_back(std::make_shared<NameFilter>(cexinfo.datapath_elements_, fts, false));
@@ -500,119 +504,139 @@ int main(int argc, char ** argv)
 
   prop = cexreader.coi_cex2property(filter);
   bool inductiveness;
-  while( (inductiveness = check_for_inductiveness(prop, fts)) == true && max_width > 1 ) {
+  vector<UnorderedTermMap> cex_bmc;
+  while( (inductiveness = check_for_inductiveness_bmc(pono_options, prop, fts, s, cex_bmc, pono_options.smt_solver_,true,btor_enc)) == true && max_width > 1 ) {
+    cex_bmc.clear();
     max_width /= 2;
     filter.filters.push_back(std::make_shared<MaxWidthFilter>(max_width, fts));
     prop = cexreader.coi_cex2property(filter);
     cout << "Reducing w: " << max_width << " F:" << filter.to_string() << endl;
   }
-
-  // if (inductiveness) {
-  //   std::vector<std::string> varset;
-  //   cexreader.get_remaining_var(filter, varset);
-  //   std::sort(varset.begin(), varset.end());
-  //   do {
-  //     auto newsize = varset.size() / 2;
-  //     varset.resize(newsize);
-  //     filter.filters.push_back(std::make_shared<NameFilter>(varset, fts, true));
-  //     cout << "Reducing F:" << filter.to_string() << endl;
-  //     prop = cexreader.cex2property(filter);
-  //   }while( (inductiveness = check_for_inductiveness(prop, fts)) == true && varset.size() > 1 );
-  // }
-
-
-  vector<UnorderedTermMap> cex;
-  if(pono_options.step_>0){
-    vector<UnorderedTermMap> cex;
-    AntFilter ant_filter("COI_ant.txt",std::string("RTL."),fts);
-    prop = cexreader.coi_cex2property_ant(filter,ant_filter);
-    int switch_mode = 0;
-    if(prop!=nullptr){
-      cout << "PROPERTY:" << prop->to_string()<< ", with open Ant filter." << endl;
-      switch_mode = 1;
-    }
-    else{
-      cout << "Ant filter cannot be used in this stage." << endl;
+  cex_bmc.clear();
+  if (inductiveness) {
+    std::vector<std::string> varset;
+    cexreader.get_remaining_var(filter, varset);
+    std::sort(varset.begin(), varset.end());
+    do {
+      auto newsize = varset.size() / 2;
+      varset.resize(newsize);
+      filter.filters.push_back(std::make_shared<NameFilter>(varset, fts, true));
+      cout << "Reducing F:" << filter.to_string() << endl;
       prop = cexreader.coi_cex2property(filter);
-      cout << "PROPERTY:" << prop->to_string() << ", without open Ant filter."<<endl;
-      switch_mode = 2;
-    }
-    ProverResult res_bmc;
-    vector<UnorderedTermMap> cex_bmc;
-    while((res_bmc = check_for_inductiveness_bmc(pono_options, prop, fts, s, cex_bmc, pono_options.smt_solver_,true,btor_enc)) == false){
-      if(switch_mode == 2){
-        if (filter.filters.back() == COI_filter)
-          throw PonoException("Removing COI filter! Something is wrong here!");
-        filter.filters.pop_back();
-        cout << "Reachable, removing filter, after: " << filter.to_string() << endl;
-        switch_mode = 0;
-      }
-      if((switch_mode == 1)||((prop = cexreader.coi_cex2property_ant(filter,ant_filter))==nullptr)){
-        cout << "Reachable, removing Ant filter" << endl;
-        prop = cexreader.coi_cex2property(filter);
-        cout << "Now work on PROPERTY:" << prop->to_string() <<", without open Ant filter." << endl;
-        switch_mode = 2;
-      }
-      else{
-        prop = cexreader.coi_cex2property_ant(filter,ant_filter);
-        cout << "Now work on PROPERTY:" << prop->to_string() <<", with open Ant filter." << endl;
-        switch_mode = 1;
-      }
-      cex_bmc.clear();      
-    }
-    while (  (res = check_prop(pono_options, prop, fts, s, cex, 
-        pono_options.smt_solver_, pono_options.engine_, pono_options.step_, cexinfo.module_name_removal_)) == FALSE 
-    && !filter.filters.empty()) {
-      if (filter.filters.back() == COI_filter)
-        throw PonoException("Removing COI filter! Something is wrong here!");
-      if(switch_mode == 2){
-        filter.filters.pop_back();
-        cout << "Reachable, removing filter, after: " << filter.to_string() << endl;
-        switch_mode = 0;
-      }
-      if((switch_mode == 1)||((prop = cexreader.coi_cex2property_ant(filter,ant_filter))==nullptr)){
-        cout << "Reachable, removing Ant filter" << endl;
-        prop = cexreader.coi_cex2property(filter);
-        cout << "Now work on PROPERTY:" << prop->to_string() <<", without open Ant filter." << endl;
-        switch_mode = 2;
-      }
-      else{
-        prop = cexreader.coi_cex2property_ant(filter,ant_filter);
-        cout << "Now work on PROPERTY:" << prop->to_string() <<", with open Ant filter." << endl;
-        switch_mode = 1;
-      }
-      cex.clear();
-    // TODO: s->reset();
-    }
+      cex_bmc.clear();
+    }while( (inductiveness = check_for_inductiveness_bmc(pono_options, prop, fts, s, cex_bmc, pono_options.smt_solver_,true,btor_enc)) == true && varset.size() > 1 );
   }
+  if(!inductiveness){
+    filter.filters.pop_back();
+    prop = cexreader.coi_cex2property(filter);
+  }
+  else{
+    cout << "PROPERTY:" << prop->to_string() << endl;
+  }
+  vector<UnorderedTermMap> cex;
+  while (  (res = check_prop(pono_options, prop, fts, s, cex, 
+      pono_options.smt_solver_, pono_options.engine_, pono_options.step_, cexinfo.module_name_removal_)) == FALSE 
+   && !filter.filters.empty()) {
+    if (filter.filters.back() == COI_filter)
+      throw PonoException("Removing COI filter! Something is wrong here!");
+    filter.filters.pop_back();
+    cout << "Reachable, removing filter, after: " << filter.to_string() << endl;
+    prop = cexreader.coi_cex2property(filter);
+    cex.clear();
+    cout << "Now work on PROPERTY:" << prop->to_string() << endl;
+   }
+  // vector<UnorderedTermMap> cex;
+  // if(pono_options.step_>0){
+  //   vector<UnorderedTermMap> cex;
+  //   AntFilter ant_filter("COI_ant.txt",std::string("RTL."),fts);
+  //   prop = cexreader.coi_cex2property_ant(filter,ant_filter);
+  //   int switch_mode = 0;
+  //   if(prop!=nullptr){
+  //     cout << "PROPERTY:" << prop->to_string()<< ", with open Ant filter." << endl;
+  //     switch_mode = 1;
+  //   }
+  //   else{
+  //     cout << "Ant filter cannot be used in this stage." << endl;
+  //     prop = cexreader.coi_cex2property(filter);
+  //     cout << "PROPERTY:" << prop->to_string() << ", without open Ant filter."<<endl;
+  //     switch_mode = 2;
+  //   }
+  //   ProverResult res_bmc;
+  //   vector<UnorderedTermMap> cex_bmc;
+  //   while((res_bmc = check_for_inductiveness_bmc(pono_options, prop, fts, s, cex_bmc, pono_options.smt_solver_,true,btor_enc)) == false){
+  //     if(switch_mode == 2){
+  //       if (filter.filters.back() == COI_filter)
+  //         throw PonoException("Removing COI filter! Something is wrong here!");
+  //       filter.filters.pop_back();
+  //       cout << "Reachable, removing filter, after: " << filter.to_string() << endl;
+  //       switch_mode = 0;
+  //     }
+  //     if((switch_mode == 1)||((prop = cexreader.coi_cex2property_ant(filter,ant_filter))==nullptr)){
+  //       cout << "Reachable, removing Ant filter" << endl;
+  //       prop = cexreader.coi_cex2property(filter);
+  //       cout << "Now work on PROPERTY:" << prop->to_string() <<", without open Ant filter." << endl;
+  //       switch_mode = 2;
+  //     }
+  //     else{
+  //       prop = cexreader.coi_cex2property_ant(filter,ant_filter);
+  //       cout << "Now work on PROPERTY:" << prop->to_string() <<", with open Ant filter." << endl;
+  //       switch_mode = 1;
+  //     }
+  //     cex_bmc.clear();      
+  //   }
+  //   while (  (res = check_prop(pono_options, prop, fts, s, cex, 
+  //       pono_options.smt_solver_, pono_options.engine_, pono_options.step_, cexinfo.module_name_removal_)) == FALSE 
+  //   && !filter.filters.empty()) {
+  //     if (filter.filters.back() == COI_filter)
+  //       throw PonoException("Removing COI filter! Something is wrong here!");
+  //     if(switch_mode == 2){
+  //       filter.filters.pop_back();
+  //       cout << "Reachable, removing filter, after: " << filter.to_string() << endl;
+  //       switch_mode = 0;
+  //     }
+  //     if((switch_mode == 1)||((prop = cexreader.coi_cex2property_ant(filter,ant_filter))==nullptr)){
+  //       cout << "Reachable, removing Ant filter" << endl;
+  //       prop = cexreader.coi_cex2property(filter);
+  //       cout << "Now work on PROPERTY:" << prop->to_string() <<", without open Ant filter." << endl;
+  //       switch_mode = 2;
+  //     }
+  //     else{
+  //       prop = cexreader.coi_cex2property_ant(filter,ant_filter);
+  //       cout << "Now work on PROPERTY:" << prop->to_string() <<", with open Ant filter." << endl;
+  //       switch_mode = 1;
+  //     }
+  //     cex.clear();
+  //   // TODO: s->reset();
+  //   }
+  // }
   
 
-  else{
-    ProverResult res_bmc;
-    vector<UnorderedTermMap> cex_bmc;
-    while((res_bmc = check_for_inductiveness_bmc(pono_options, prop, fts, s, cex_bmc, pono_options.smt_solver_,true,btor_enc)) == false){
-      if (filter.filters.back() == COI_filter)
-        throw PonoException("Removing COI filter! Something is wrong here!");
-        filter.filters.pop_back();
-        cout << "Reachable, removing filter, after: " << filter.to_string() << endl;
-        prop = cexreader.coi_cex2property(filter);
-        cout << "Now work on PROPERTY:" << prop->to_string() <<", without open Ant filter." << endl;
-      cex_bmc.clear();      
-    }
-      cout << "PROPERTY:" << prop->to_string() << endl;
-      while (  (res = check_prop(pono_options, prop, fts, s, cex, 
-          pono_options.smt_solver_, pono_options.engine_, pono_options.step_, cexinfo.module_name_removal_)) == FALSE 
-      && !filter.filters.empty()) {
-        if (filter.filters.back() == COI_filter)
-          throw PonoException("Removing COI filter! Something is wrong here!");
-        filter.filters.pop_back();
-        cout << "Reachable, removing filter, after: " << filter.to_string() << endl;
-        prop = cexreader.coi_cex2property(filter);
-        cex.clear();
-        cout << "Now work on PROPERTY:" << prop->to_string() << endl;
-        // TODO: s->reset();
-      }
-  }
+  // else{
+  //   ProverResult res_bmc;
+  //   vector<UnorderedTermMap> cex_bmc;
+  //   while((res_bmc = check_for_inductiveness_bmc(pono_options, prop, fts, s, cex_bmc, pono_options.smt_solver_,true,btor_enc)) == false){
+  //     if (filter.filters.back() == COI_filter)
+  //       throw PonoException("Removing COI filter! Something is wrong here!");
+  //       filter.filters.pop_back();
+  //       cout << "Reachable, removing filter, after: " << filter.to_string() << endl;
+  //       prop = cexreader.coi_cex2property(filter);
+  //       cout << "Now work on PROPERTY:" << prop->to_string() <<", without open Ant filter." << endl;
+  //     cex_bmc.clear();      
+  //   }
+  //     cout << "PROPERTY:" << prop->to_string() << endl;
+  //     while (  (res = check_prop(pono_options, prop, fts, s, cex, 
+  //         pono_options.smt_solver_, pono_options.engine_, pono_options.step_, cexinfo.module_name_removal_)) == FALSE 
+  //     && !filter.filters.empty()) {
+  //       if (filter.filters.back() == COI_filter)
+  //         throw PonoException("Removing COI filter! Something is wrong here!");
+  //       filter.filters.pop_back();
+  //       cout << "Reachable, removing filter, after: " << filter.to_string() << endl;
+  //       prop = cexreader.coi_cex2property(filter);
+  //       cex.clear();
+  //       cout << "Now work on PROPERTY:" << prop->to_string() << endl;
+  //       // TODO: s->reset();
+  //     }
+  // }
 
 
   assert ( filter.filters.empty() || res != FALSE);
