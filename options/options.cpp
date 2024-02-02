@@ -97,6 +97,7 @@ enum optionIndex
   CEX_READER,
   SYGUS_INITIAL_TERM_WIDTH,
   FIND_ENV_INV,
+  DYNANIC_CHECK_COI,
   NUM_OF_ITR,
   SMTLIB_PATH,
   ADD_ASSUMP_IN_ORIGIN
@@ -639,6 +640,14 @@ const option::Descriptor usage[] = {
     "  --find-environment-invariant \tFinding the enironment invariant"
 
     },
+  { DYNANIC_CHECK_COI,
+    0,
+    "",
+    "dynamic-check-coi",
+    Arg::None,
+    "  --dynamic-check-coi \tWhether we use the dyncmic cone of influence to reduce the counter example"
+
+    },
     { NUM_OF_ITR,
     0,
     "",
@@ -856,6 +865,7 @@ ProverResult PonoOptions::parse_and_set_options(int argc,
         case CEX_READER: cex_reader_ = opt.arg; break;
         case SYGUS_INITIAL_TERM_WIDTH: sygus_initial_term_width_ = atoi(opt.arg); break;
         case FIND_ENV_INV: find_environment_invariant_ =  true; break;
+        case DYNANIC_CHECK_COI: compute_dynamic_coi_upon_cex_ = true; break;
         case NUM_OF_ITR: step_ = atoi(opt.arg); break;
         case SMTLIB_PATH: smt_path_ = opt.arg; break;
         case ADD_ASSUMP_IN_ORIGIN: add_assuption_in_origin_ = true; break;

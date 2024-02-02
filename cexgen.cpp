@@ -285,7 +285,7 @@ int main(int argc, char ** argv)
   // in this case, we are only interested in the first state
   pono_options.witness_ = true;
   pono_options.witness_first_state_only_ = false;
-  pono_options.compute_dynamic_coi_upon_cex_ = true;
+  // pono_options.compute_dynamic_coi_upon_cex_ = true;/
   pono_options.dynamic_coi_check_ = false;
   { // dynamically check if asmpt-ila.smt2 is available or not
     std::ifstream fin("asmpt-ila.smt2");

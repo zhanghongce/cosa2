@@ -65,6 +65,8 @@ bool check_for_inductiveness_bmc(PonoOptions pono_options,
                         BTOR2Encoder btor_enc)
 {
   // create a solver for this
+  if(prop_old==nullptr)
+   return false;
   auto new_solver = create_solver_for(BTOR, BMC, true,false);
   // FunctionalTransitionSystem new_fts(new_solver);
   TermTranslator to_new_solver(new_solver);

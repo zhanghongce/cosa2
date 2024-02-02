@@ -72,7 +72,7 @@ def run_cegar(n_iteration, qedbtor, dutbtor):
         try_rm("check.result")
         try_rm("COI.txt")
         log2fs ('running QED iter #' + str( n_iteration) )
-        subprocess.run(["./build/cexgen","--logging-smt-solver","--bmc-bound-start" ,str(start_bound) ,"--property-file", "envinv.smt2",qedbtor])
+        subprocess.run(["./build/cexgen","--logging-smt-solver","--dynamic-check-coi", "--bmc-bound-start" ,str(start_bound) ,"--property-file", "envinv.smt2",qedbtor])
         try:
             result = open('check.result')
         except:
@@ -131,8 +131,9 @@ def run_cegar(n_iteration, qedbtor, dutbtor):
 if __name__ == '__main__':
      parser = argparse.ArgumentParser()
      parser.add_argument('--iter', type=int,default=0)
-     parser.add_argument('--qedbtor', type=str,default='/data/zhiyuany/EnvSynSamples/EnvSynSamples/ILAng/PICO-delay-start/verification/ADD/problem.btor2')
-     parser.add_argument('--dutbtor', type=str,default='/data/zhiyuany/EnvSynSamples/EnvSynSamples/ILAng/PICO-delay-start/envinvsyn/design.btor')
+     parser.add_argument('--dynamic-check-coi', action="store_true")
+     parser.add_argument('--qedbtor', type=str,default='/data/zhiyuany/cosa2/ILANG_env/PICO/verification/ADD/problem.btor2')
+     parser.add_argument('--dutbtor', type=str,default='/data/zhiyuany/cosa2/ILANG_env/PICO/envinvsyn/design.btor')
      
      opts = parser.parse_args()
      run_cegar(opts.iter, opts.qedbtor, opts.dutbtor)

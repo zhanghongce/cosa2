@@ -290,6 +290,20 @@ bool Prover::compute_witness()
       record_coi_info(varset, all_inputs, reached_k_ + 1, backtrack_to_step_n);
     }
   }
+  else{
+    std::ofstream fout("COI.txt");
+    for(const auto &v: ts_.statevars()){
+      if (ts_.state_updates().find(v) == ts_.state_updates().end())
+        continue;
+      fout << v->to_string();
+      fout << " " << 1;
+      auto width = (v->get_sort()->get_sort_kind() != smt::SortKind::BV) ? v->get_sort()->get_width() : 1;
+      fout << " " << width - 1 << " " << 0;
+      auto v_time = unroller_.at_time(v,0);
+      fout <<" "<<solver_->get_value(v_time)->to_string();
+      fout << std::endl;
+    }
+  }
 ///////////////////////If we want to have the vcd file, just uncomment this///////////////////
   // for (int i = 0; i <= reached_k_ + 1; ++i) {
   //   witness_.push_back(UnorderedTermMap());
