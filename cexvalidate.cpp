@@ -515,19 +515,19 @@ int main(int argc, char ** argv)
     cout << "Reducing w: " << max_width << " F:" << filter.to_string() << endl;
   }
   cex_bmc.clear();
-  if (inductiveness) {
-    std::vector<std::string> varset;
-    cexreader.get_remaining_var(filter, varset);
-    std::sort(varset.begin(), varset.end());
-    do {
-      auto newsize = varset.size() / 2;
-      varset.resize(newsize);
-      filter.filters.push_back(std::make_shared<NameFilter>(varset, fts, true));
-      cout << "Reducing F:" << filter.to_string() << endl;
-      prop = cexreader.coi_cex2property(filter);
-      cex_bmc.clear();
-    }while( (inductiveness = check_for_inductiveness_bmc(pono_options, prop, fts, s, cex_bmc, pono_options.smt_solver_,true,btor_enc)) == true && varset.size() > 1 );
-  }
+  // if (inductiveness) {
+  //   std::vector<std::string> varset;
+  //   cexreader.get_remaining_var(filter, varset);
+  //   std::sort(varset.begin(), varset.end());
+  //   do {
+  //     auto newsize = varset.size() / 2;
+  //     varset.resize(newsize);
+  //     filter.filters.push_back(std::make_shared<NameFilter>(varset, fts, true));
+  //     cout << "Reducing F:" << filter.to_string() << endl;
+  //     prop = cexreader.coi_cex2property(filter);
+  //     cex_bmc.clear();
+  //   }while( (inductiveness = check_for_inductiveness_bmc(pono_options, prop, fts, s, cex_bmc, pono_options.smt_solver_,true,btor_enc)) == true && varset.size() > 1 );
+  // }
   if(!inductiveness){
     filter.filters.pop_back();
     prop = cexreader.coi_cex2property(filter);

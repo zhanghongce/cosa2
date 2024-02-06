@@ -281,12 +281,13 @@ int main(int argc, char ** argv)
   // if (pono_options.vcd_name_.empty())
   //   pono_options.vcd_name_ = "cex.vcd";
 
-
+  pono_options.find_environment_invariant_ = true;
   // in this case, we are only interested in the first state
   pono_options.witness_ = true;
   pono_options.witness_first_state_only_ = false;
-  // pono_options.compute_dynamic_coi_upon_cex_ = true;/
-  pono_options.dynamic_coi_check_ = false;
+  
+  // pono_options.compute_dynamic_coi_upon_cex_ = true;
+  // pono_options.dynamic_coi_check_ = false;
   { // dynamically check if asmpt-ila.smt2 is available or not
     std::ifstream fin("asmpt-ila.smt2");
     pono_options.use_ilang_coi_constraint_file_ = fin.is_open();

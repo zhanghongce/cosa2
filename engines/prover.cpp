@@ -291,15 +291,39 @@ bool Prover::compute_witness()
     }
   }
   else{
+    int backtrack_to_step_n = 0;
+    if (ts_.named_terms().find("__START__") != ts_.named_terms().end()) {
+      auto start = ts_.lookup("__START__");
+      for (int idx = 0; idx <= reached_k_ + 1; ++idx) {
+        auto v = solver_->get_value(unroller_.at_time(start, idx))->to_int();
+        if (v != 0) {
+          backtrack_to_step_n = idx;
+          logger.log(0,"START @ {}" , backtrack_to_step_n);
+          break;
+        }
+      }
+    }
+    else if (ts_.named_terms().find("RTL.__START__") != ts_.named_terms().end()) {
+      auto start = ts_.lookup("RTL.__START__");
+      for (int idx = 0; idx <= reached_k_ + 1; ++idx) {
+        auto v = solver_->get_value(unroller_.at_time(start, idx))->to_int();
+        if (v != 0) {
+          backtrack_to_step_n = idx;
+          logger.log(0,"START @ {}" , backtrack_to_step_n);
+          break;
+        }
+      }
+    }
+
     std::ofstream fout("COI.txt");
     for(const auto &v: ts_.statevars()){
       if (ts_.state_updates().find(v) == ts_.state_updates().end())
         continue;
       fout << v->to_string();
       fout << " " << 1;
-      auto width = (v->get_sort()->get_sort_kind() != smt::SortKind::BV) ? v->get_sort()->get_width() : 1;
+      auto width = (v->get_sort()->get_sort_kind() == smt::SortKind::BV) ? v->get_sort()->get_width() : 1;
       fout << " " << width - 1 << " " << 0;
-      auto v_time = unroller_.at_time(v,0);
+      auto v_time = unroller_.at_time(v,backtrack_to_step_n);
       fout <<" "<<solver_->get_value(v_time)->to_string();
       fout << std::endl;
     }

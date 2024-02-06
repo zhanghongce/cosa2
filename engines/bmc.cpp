@@ -70,8 +70,11 @@ ProverResult Bmc::check_until(int k)
        i = exp_step ? (i == 0 ? 1 : i << 1) : (i + bound_step_)) {
     if (!step(i)) {
       compute_witness();
-      std::ofstream bound("bound.txt");
-      bound<< i <<std::endl;
+      if(options_.find_environment_invariant_){
+        std::ofstream bound("bound.txt");
+        bound<< i <<std::endl;
+        
+      }
       return ProverResult::FALSE;
     }
   }
