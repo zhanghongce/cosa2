@@ -56,12 +56,10 @@ void IC3ng::check_ts() {
   }
 
   if (!can_sat(ts_.init())) {
-    logger.log(0, "constraint is too tight that conflicts with init.");
-    return ProverResult(UNKNOWN);
+    throw PonoException("constraint is too tight that conflicts with init.");
   }
   if (!can_sat(smart_and({ts_.init(), ts_.trans()}))) {
-    logger.log(0, "constraint is too tight that conflicts with init and trans");
-    return ProverResult(UNKNOWN);
+    throw PonoException("constraint is too tight that conflicts with init and trans");
   }
 
 }
@@ -332,6 +330,14 @@ ProverResult IC3ng::check_until(int k) {
   }
 
   return ProverResult::UNKNOWN;
+}
+
+
+/**
+ * This functino should check F[-1] /\ P
+*/
+bool IC3ng::last_frame_reaches_bad() {
+
 }
 
 

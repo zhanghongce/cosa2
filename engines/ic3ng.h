@@ -90,7 +90,7 @@ namespace pono
     } // replace next variables with their update function
     
     Ic3PriorityQueue proof_goals;
-
+    
     /** Perform the base IC3 step (zero case)
      */
     bool check_init_failed(); // return true if failed
@@ -108,6 +108,8 @@ namespace pono
     }
     bool frame_implies(unsigned fidx, const smt::Term & expr);
     bool recursive_block_all_in_queue();
+    bool last_frame_reaches_bad();
+    void eager_push_lemmas(unsigned fidx);
 
     // \neg C /\ F /\ C
     //           F /\ p
@@ -116,6 +118,10 @@ namespace pono
       Model * cex_to_block,
       bool get_pre_state );
   
+    /**
+     * misc functions, supportive functions
+    */
+    bool can_sat(const smt::Term & t);
 
     smt::Term smart_not(const smt::Term & in) {
       const smt::Op &op = in->get_op();
