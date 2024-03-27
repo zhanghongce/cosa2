@@ -26,6 +26,8 @@ struct fcex_t_ordering {
 };
 
 // will need to be cleared every time finishing recursive_block
+// priority_queue only store the pointers, so you only need to swap pointers
+// 
 class Ic3PriorityQueue {
 public:
   ~Ic3PriorityQueue() { clear(); }

@@ -37,16 +37,16 @@ void IC3ng::check_ts() {
   // check if there are arrays or uninterpreted sorts and fail if so
   if (!ts_.is_functional())
     throw PonoException(
-      "SyGuS PDR only supports functional transition systems.");
+      "IC3ng only supports functional transition systems.");
     // check if there are arrays or uninterpreted sorts and fail if so
   for (const auto & vec : { ts_.statevars(), ts_.inputvars() }) {
     for (const auto & st : vec) {
       smt::SortKind sk = st->get_sort()->get_sort_kind();
       if (sk == smt::ARRAY) {
-        throw PonoException("SyGuS PDR does not support arrays yet");
+        throw PonoException("IC3ng does not support arrays yet");
       } else if (sk == smt::UNINTERPRETED) {
         throw PonoException(
-            "SyGuS PDR does not support uninterpreted sorts yet.");
+            "IC3ng does not support uninterpreted sorts yet.");
       }
     }
   }
@@ -104,7 +104,7 @@ void IC3ng::initialize() {
     // } // else skip
   }
   all_constraints_ = has_assumptions ? smart_and(constraints_curr_var_) : solver_true_;
-  bad_next_trans_ = next_trans_replace(ts_.next(bad_)); // bad_ is only available after Prover's initialize()
+  bad_next_trans_subst_ = next_trans_replace(ts_.next(bad_)); // bad_ is only available after Prover's initialize()
 
   // 2. set up the label system
 
@@ -143,6 +143,16 @@ void IC3ng::add_lemma_to_frame(Lemma * lemma, unsigned fidx) {
 
 }
 
+void IC3ng::assert_frame(unsigned fidx) {
+  assert(fidx < frame_labels_.size());
+  for (unsigned idx = 0; idx < frame_labels_.size(); ++idx) {
+    if (idx == fidx)
+      solver_->assert_formula(frame_labels_.at(fidx));
+    else // to disable other frames
+      solver_->assert_formula(smart_not(frame_labels_.at(fidx)));
+  }
+}
+
 bool IC3ng::frame_implies(unsigned fidx, const smt::Term & expr) {
   solver_->push();
   assert_frame(fidx);
@@ -154,7 +164,7 @@ bool IC3ng::frame_implies(unsigned fidx, const smt::Term & expr) {
 
 bool IC3ng::check_init_failed() {
   solver_->push();
-    solver_->assert_formula(init_label_);
+    solver_->assert_formula(init_label_); // init contains assumptions already
     solver_->assert_formula(bad_);
     auto r1 = solver_->check_sat();
   solver_->pop();
@@ -162,9 +172,9 @@ bool IC3ng::check_init_failed() {
     return true;
   
   solver_->push();
-    solver_->assert_formula(init_label_);
+    solver_->assert_formula(init_label_); // init contains assumptions already
     // solver_->assert_formula(constraint_label_); // already added from frame[0]
-    solver_->assert_formula(bad_next_trans_); // T is inside bad_next_trans_
+    solver_->assert_formula(bad_next_trans_subst_); // T is inside bad_next_trans_subst_
     r1 = solver_->check_sat();
   solver_->pop();
   if(r1.is_sat())
@@ -174,14 +184,14 @@ bool IC3ng::check_init_failed() {
 
 
 ic3_rel_ind_check_result IC3ng::rel_ind_check( unsigned prevFidx, 
-  const smt::Term & bad_next_trans_,
+  const smt::Term & bad_next_trans_subst_,
   Model * cex_to_block,
   bool get_pre_state
   ) {
   
   auto bad_next_to_assert = cex_to_block ? 
     next_trans_replace( ts_.next( cex_to_block->to_expr(solver_) ) ) :
-    bad_next_trans_   ; // p(T(s))
+    bad_next_trans_subst_   ; // p(T(s))
   // constraints: constraints_btor
 
   solver_->push();
@@ -264,7 +274,7 @@ bool IC3ng::recursive_block_all_in_queue() {
     Model * pre_model = reachable_from_prior_frame.prev_ex;
     proof_goals.new_proof_goal(fcex->fidx-1, pre_model, fcex->cex_origin, fcex);
   }
-  proof_goals.clear(); // clear the model buffer
+  proof_goals.clear(); // clear the model buffer, required by proof_goals class
   return true;
 } // recursive_block_all_in_queue
 
@@ -293,18 +303,24 @@ ProverResult IC3ng::step(int i)
   
   append_frame();
 
-  // print cubes?  
-  push_lemma_from_the_lowest_frame();
+  // TODO: print cubes?  
+
+  // recursive block should have already pushed everything pushable to the last frame
+  // so, we can simply push from the previous last frame
+  //  should return true if all pushed
+  //  should push necessary cex to the queue
+  if ( push_lemma_to_new_frame() ) {
+    validate_inv();
+    return ProverResult::TRUE;
+  }
+
   // new proof obligations may be added
   if (!recursive_block_all_in_queue())
     return ProverResult::FALSE;
 
   ++reached_k_;
-  if (last_two_frames_are_inductive()) {
-    validate_inv();
-    return ProverResult::TRUE;
-  }
-  return ProverResult::UNKNOWN
+  
+  return ProverResult::UNKNOWN;
 } // end of step
 
 
@@ -318,7 +334,7 @@ ProverResult IC3ng::check_until(int k) {
   while (i <= k) {
     res = step(i);
     if (res == ProverResult::FALSE) {
-      // currently not abstraction
+      // currently no abstraction
       return res;
     } else {
       ++i;
@@ -334,12 +350,31 @@ ProverResult IC3ng::check_until(int k) {
 
 
 /**
- * This functino should check F[-1] /\ P
+ * This function should check F[-1] /\ P
+ * Need to consider assumptions!
+ * Need to insert the model into proof_goals
 */
 bool IC3ng::last_frame_reaches_bad() {
-
+  // use relative inductive check?
+  auto result = rel_ind_check(frames.size()-1, bad_next_trans_subst_, NULL, true);
+  if (!result.not_hold) 
+    return false;
+  proof_goals.new_proof_goal(frames.size()-1, result.prev_ex, LCexOrigin::FromProperty(), NULL);
+  // else
+  return true;
 }
 
+  // recursive block should have already pushed everything pushable to the last frame
+  // so, we can simply push from the previous last frame
+  //  should return true if all pushed
+  //  should push necessary cex to the queue
+bool IC3ng::push_lemma_to_new_frame() {
+  #error TODO
+}
+
+void IC3ng::validate_inv() {
+  #error "TODO"
+}
 
 
 } // namespace pono

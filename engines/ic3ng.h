@@ -15,7 +15,13 @@
 //   save the Model
 //   use Bitwuzla
 //   lemma class
+//   labeling for solver
 //   step 1: bit-level
+//  
+//   multiple inductive gen for 1 cex
+//   also need to maintain cex -> word-level pointer & which frame it has been pushed to
+//   frame contains only unpushed lemmas
+
 
 #pragma once
 
@@ -80,7 +86,7 @@ namespace pono
     virtual void check_ts();
 
     // some ts related info buffers
-    smt::Term bad_next_trans_;
+    smt::Term bad_next_trans_subst_;
 
     smt::UnorderedTermSet no_next_vars_; //  the inputs
     smt::Term all_constraints_; // all constraints
@@ -97,24 +103,21 @@ namespace pono
 
     void append_frame();
     void add_lemma_to_frame(Lemma * lemma, unsigned fidx);
-    void assert_frame(unsigned fidx) {
-      assert(fidx < frame_labels_.size());
-      for (unsigned idx = 0; idx < frame_labels_.size(); ++idx) {
-        if (idx == fidx)
-          solver_->assert_formula(frame_labels_.at(fidx));
-        else // to disable other frames
-          solver_->assert_formula(smart_not(frame_labels_.at(fidx)));
-      }
-    }
+
+    // will also cancel out other frame labels
+    void assert_frame(unsigned fidx);
     bool frame_implies(unsigned fidx, const smt::Term & expr);
     bool recursive_block_all_in_queue();
     bool last_frame_reaches_bad();
     void eager_push_lemmas(unsigned fidx);
+    bool push_lemma_to_new_frame();    
+    void validate_inv();
+
 
     // \neg C /\ F /\ C
     //           F /\ p
     ic3_rel_ind_check_result rel_ind_check( unsigned prevFidx, 
-      const smt::Term & bad_next_trans_,
+      const smt::Term & bad_next_trans_subst_,
       Model * cex_to_block,
       bool get_pre_state );
   

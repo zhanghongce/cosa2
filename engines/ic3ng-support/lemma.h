@@ -39,11 +39,11 @@ namespace pono
     inline std::string to_string() const { return expr()->to_string(); }
     inline LCexOrigin origin() const { return origin_; }
 
-    
-    bool pushed;
+    # error "do we really need this?"
+    // bool pushed;
 
-    Lemma * direct_push(ModelLemmaManager & mfm);
-    Lemma * copy(ModelLemmaManager & mfm);
+    // Lemma * direct_push(ModelLemmaManager & mfm);
+    // Lemma * copy(ModelLemmaManager & mfm);
 
     // bool subsume_by_frame(unsigned fidx, LemmaPDRInterface & pdr);
 
