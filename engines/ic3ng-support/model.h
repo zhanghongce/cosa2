@@ -12,12 +12,15 @@ struct ic3_rel_ind_check_result{
   // if sat at init, prev_ex = in cube (of course)
 };
 
+
+// NOTE: the vars here could be (_ extract ...)
 typedef std::unordered_map<smt::Term, smt::Term> cube_t;
 struct Model {
   cube_t cube;
   std::string to_string() const;
   std::string vars_to_canonical_string() const;
   void get_varset(std::unordered_set<smt::Term> & varset) const;
+  void get_varset_noslice(std::unordered_set<smt::Term> & varset) const;  // will remove (_ extract )
 
 private: 
   // none cache version, usually
@@ -25,7 +28,6 @@ private:
   // this is to make sure the cache
   // thing is not accidentally broken
   smt::Term _to_expr(smt::SmtSolver & solver_);
-  static smt::Term _to_expr(const cube_t & c, smt::SmtSolver & solver_);
 
 public:
   // the following use cache
@@ -39,9 +41,10 @@ public:
   Model(smt::SmtSolver & solver_, 
     const std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> & varset_slice, // extract using these vars
     const std::unordered_map<smt::Term, smt::Term> & varmap // but use the map in here for the vars
-    );
+  );
   // return true, if it really exists
-  bool erase_var(const smt::Term & v);
+  // bool erase_var(const smt::Term & v);  // depending if v is ((_ extract ) ...), erase that one
+  //                                      // if v is a var, erase all containing the var
 
 protected:
   // cache expr result

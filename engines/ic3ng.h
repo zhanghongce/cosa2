@@ -15,6 +15,7 @@
 //   save the Model
 //   use Bitwuzla
 //   lemma class
+//   varset could contain (_ extract .. )
 //   labeling for solver
 //   step 1: bit-level
 //  
@@ -62,11 +63,10 @@ namespace pono
     void print_time_stat(std::ostream & os) const ;
 
   protected:
-    std::unordered_set<smt::Term> keep_vars_nxt_;
-    std::unordered_set<smt::Term> remove_vars_nxt_;
     smt::Term constraints;
     bool has_assumptions;
-    void cut_vars_curr(std::unordered_set<smt::Term> & v, bool cut_curr_input);
+    // this is used to cut input
+    void cut_vars_curr(std::unordered_map<smt::Term,std::vector<std::pair<int,int>>> & v, bool cut_curr_input);
 
     PartialModelGen partial_model_getter;
 
@@ -88,7 +88,9 @@ namespace pono
     // some ts related info buffers
     smt::Term bad_next_trans_subst_;
 
+    smt::UnorderedTermSet actual_statevars_;
     smt::UnorderedTermSet no_next_vars_; //  the inputs
+    smt::UnorderedTermSet no_next_vars_nxt_; //  the next state of inputs
     smt::Term all_constraints_; // all constraints
     smt::UnorderedTermMap nxt_state_updates_; // a map from prime var -> next
     smt::Term next_trans_replace(const smt::Term & in) const {
@@ -124,6 +126,8 @@ namespace pono
     /**
      * misc functions, supportive functions
     */
+
+    // can_sat is used to ensure SAT[init] and SAT[init/\T]
     bool can_sat(const smt::Term & t);
 
     smt::Term smart_not(const smt::Term & in) {

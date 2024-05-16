@@ -16,6 +16,7 @@
 
 #include "utils/logger.h"
 #include "engines/ic3ng.h"
+#include "engines/ic3ng-support/debug.h"
 #include "utils/container_shortcut.h"
 
 namespace pono
@@ -69,18 +70,26 @@ void IC3ng::initialize() {
     return;
   }
 
+  if(!options_.promote_inputvars_) {
+    throw PonoException("IC3ng must be used together with --promote-inputvars");
+  }
+
   boolsort_ = solver_->make_sort(smt::BOOL);
   solver_true_ = solver_->make_term(true);
   Prover::initialize();
   check_ts();
 
   // 1. build related information
-
+  // all input will be promoted to statevar anyway
+  actual_statevars_ = ts_.statevars();
   const auto & all_state_vars = ts_.statevars();
   for (const auto & sv : all_state_vars) {
     const auto & s_updates = ts_.state_updates();
-    if (!IN(sv, s_updates))
+    if (!IN(sv, s_updates)) {
       no_next_vars_.insert(sv);
+      no_next_vars_nxt_.insert(ts_.next(sv));
+      actual_statevars_.erase(sv);
+    }
     else
       nxt_state_updates_.emplace(ts_.next(sv), s_updates.at(sv));
   }
@@ -217,6 +226,11 @@ ic3_rel_ind_check_result IC3ng::rel_ind_check( unsigned prevFidx,
     input_asts_slices.emplace(all_constraints_, std::vector<std::pair<int,int>>({ {0,0} }));
     
   partial_model_getter.GetVarListForAsts_in_bitlevel(input_asts_slices, varlist_slice);
+  // after this step varlist_slice may contain 
+  // 1. current state var , 2. current input var
+  // 3. next input var (it should contain next state var)
+  // if there is no assumption, we can remove 2&3
+  // if there is assumption, we can only remove 3
   
   cut_vars_curr(varlist_slice, !has_assumptions); // // if we don't have assumptions we can cut current input
   Model * prev_ex = new_model(varlist_slice);
