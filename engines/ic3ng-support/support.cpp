@@ -77,6 +77,24 @@ bool IC3ng::push_lemma_to_new_frame() {
 } // end of push_lemma_to_new_frame
 
 
+void IC3ng::eager_push_lemmas(unsigned fidx) {
+  auto prev_fidx = fidx;
+  const auto & prev_frame = frames.at(prev_fidx);
+  frame_t remaining_lemmas;
+  for (Lemma * l : prev_frame) {
+    auto bad_nxt_tr_subst_ =  next_trans_replace(ts_.next(l->expr()));
+    auto result = rel_ind_check(prev_fidx,  bad_nxt_tr_subst_, NULL, false);
+    if(result.not_hold) {
+      remaining_lemmas.push_back(l);
+      if (l->origin().is_must_block())
+        proof_goals.new_proof_goal(prev_fidx+1, l->cex(), l->origin());
+    } else {
+      add_lemma_to_frame(l, prev_fidx+1);
+    }
+  } // end for all lemmas
+  frames.at(prev_fidx).swap(remaining_lemmas); // directly swap
+} // end of eager_push_lemmas
+
 
 void IC3ng::validate_inv() {
 
@@ -111,5 +129,28 @@ void IC3ng::validate_inv() {
     throw PonoException("Unsound inductive invariant. Implementation Error!");
 } // end of validate_inv
 
+
+void IC3ng::sanity_check_cex_is_correct(fcex_t * cex_at_cycle_0) {
+  assert(cex_at_cycle_0);
+  // check consecution of the cexs
+  std::vector<Model *> cexs;
+  const fcex_t * ptr = cex_at_cycle_0;
+  while(ptr) {
+    assert(ptr->fidx == cexs.size());
+    cexs.push_back(ptr->cex);
+    ptr = ptr->next;
+  }
+  auto cex_length = cexs.size();
+  solver_->push();
+  solver_->assert_formula(unroller_.at_time(ts_.init(), 0)); // init @ 0
+  for(size_t t = 0; t < cex_length; ++t) {
+    solver_->assert_formula(unroller_.at_time(ts_.trans(), t));
+    solver_->assert_formula(unroller_.at_time(cexs[t]->to_expr(solver_), t));
+    auto res = solver_->check_sat();
+    if (!res.is_sat())
+      throw PonoException("Unsound counterexample. IMPLEMENTATION ERROR!");
+  }
+  solver_->pop();
+} // end of sanity_check_cex_is_correct
 
 } // end of namespace pono

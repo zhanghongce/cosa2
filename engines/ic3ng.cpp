@@ -218,7 +218,8 @@ ic3_rel_ind_check_result IC3ng::rel_ind_check( unsigned prevFidx,
     solver_->pop();
     return ic3_rel_ind_check_result(true, NULL);
   } // now get the state
-  // predecessor generalization
+
+  // predecessor generalization is implemented through partial model
   std::unordered_map<smt::Term,std::vector<std::pair<int,int>>> varlist_slice;
   std::unordered_map<smt::Term,std::vector<std::pair<int,int>>> input_asts_slices = {
     {bad_next_to_assert, { {0,0} }}
@@ -275,9 +276,9 @@ bool IC3ng::recursive_block_all_in_queue() {
     }
     if (fcex->fidx == 0) {
       // generally should fail
-      #warning TODO: check sanity here
       // check that it has intersection with init
       // and the chain is actually all reachable (by creating an unroller)
+      sanity_check_cex_is_correct(fcex);
       return false;
     } // else check if reachable from prior frame
     auto reachable_from_prior_frame =  rel_ind_check(fcex->fidx-1, nullptr, fcex->cex, true);

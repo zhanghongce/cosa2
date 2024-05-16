@@ -126,6 +126,7 @@ namespace pono
     /**
      * misc functions, supportive functions
     */
+    void sanity_check_cex_is_correct(fcex_t *cex_at_cycle_0);
 
     // can_sat is used to ensure SAT[init] and SAT[init/\T]
     bool can_sat(const smt::Term & t);
