@@ -16,6 +16,7 @@ struct ic3_rel_ind_check_result{
 // NOTE: the vars here could be (_ extract ...)
 typedef std::unordered_map<smt::Term, smt::Term> cube_t;
 struct Model {
+  #warning Rethink this, when you have varslice!!!
   cube_t cube;
   std::string to_string() const;
   std::string vars_to_canonical_string() const;
@@ -30,7 +31,7 @@ private:
   smt::Term _to_expr(smt::SmtSolver & solver_);
 
 public:
-  // the following use cache
+  // the following use cache, NOTE: it does not contain NOT!!!
   smt::Term to_expr(smt::SmtSolver & btor_solver_);
 
   // constructors

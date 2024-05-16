@@ -199,13 +199,14 @@ ic3_rel_ind_check_result IC3ng::rel_ind_check( unsigned prevFidx,
   ) {
   
   auto bad_next_to_assert = cex_to_block ? 
+    // NOTE: this is next state, you should not use NOT here
     next_trans_replace( ts_.next( cex_to_block->to_expr(solver_) ) ) :
     bad_next_trans_subst_   ; // p(T(s))
   // constraints: constraints_btor
 
   solver_->push();
   assert_frame(prevFidx);
-  if (cex_to_block)
+  if (cex_to_block) // you need to use NOT here
     solver_->assert_formula( smart_not(cex_to_block->to_expr(solver_)) );
   solver_->assert_formula(bad_next_to_assert);
   auto result = solver_->check_sat();
@@ -376,18 +377,6 @@ bool IC3ng::last_frame_reaches_bad() {
   proof_goals.new_proof_goal(frames.size()-1, result.prev_ex, LCexOrigin::FromProperty(), NULL);
   // else
   return true;
-}
-
-  // recursive block should have already pushed everything pushable to the last frame
-  // so, we can simply push from the previous last frame
-  //  should return true if all pushed
-  //  should push necessary cex to the queue
-bool IC3ng::push_lemma_to_new_frame() {
-  #error TODO
-}
-
-void IC3ng::validate_inv() {
-  #error "TODO"
 }
 
 
