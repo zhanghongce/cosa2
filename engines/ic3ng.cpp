@@ -276,6 +276,8 @@ bool IC3ng::recursive_block_all_in_queue() {
     if (fcex->fidx == 0) {
       // generally should fail
       #warning TODO: check sanity here
+      // check that it has intersection with init
+      // and the chain is actually all reachable (by creating an unroller)
       return false;
     } // else check if reachable from prior frame
     auto reachable_from_prior_frame =  rel_ind_check(fcex->fidx-1, nullptr, fcex->cex, true);

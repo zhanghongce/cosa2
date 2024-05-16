@@ -49,20 +49,27 @@ bool IC3ng::push_lemma_to_new_frame() {
   auto prev_fidx = frames.size()-2;
   const auto & prev_frame = frames.at(prev_fidx);
   bool all_pushed = true;
+  frame_t remaining_lemmas;
   for (Lemma * l : prev_frame) {
     auto bad_nxt_tr_subst_ =  next_trans_replace(ts_.next(l->expr()));
     auto result = rel_ind_check(prev_fidx,  bad_nxt_tr_subst_, NULL, false);
     if(result.not_hold) {
       all_pushed = false;
+      remaining_lemmas.push_back(l);
       if (l->origin().is_must_block())
         proof_goals.new_proof_goal(prev_fidx+1, l->cex(), l->origin());
+    } else {
+      add_lemma_to_frame(l, prev_fidx+1);
     }
   } // end for all lemmas
+  frames.at(prev_fidx).swap(remaining_lemmas); // directly swap
+
   if (all_pushed) {
+    const auto & last_frame = frames.at(prev_fidx+1);
     // if all pushed, then make the invariant
     smt::TermVec all_lemmas;
-    all_lemmas.reserve(prev_frame.size());
-    for (Lemma * l : prev_frame)
+    all_lemmas.reserve(last_frame.size());
+    for (Lemma * l : last_frame)
       all_lemmas.push_back(l->expr());
     invar_ = smart_and(all_lemmas);
   }
