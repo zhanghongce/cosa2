@@ -55,7 +55,8 @@ void IC3ng::check_ts() {
   if (!ts_.inputvars().empty()) {
     throw PonoException("IC3ng requries promoting input variables to state variables.");
   }
-
+  // maybe you don't need to use ts.constraints. Because they are already conjuncted to init
+  // and trans
   if (!can_sat(ts_.init())) {
     throw PonoException("constraint is too tight that conflicts with init.");
   }
@@ -83,8 +84,8 @@ void IC3ng::initialize() {
   // all input will be promoted to statevar anyway
   actual_statevars_ = ts_.statevars();
   const auto & all_state_vars = ts_.statevars();
+  const auto & s_updates = ts_.state_updates();
   for (const auto & sv : all_state_vars) {
-    const auto & s_updates = ts_.state_updates();
     if (!IN(sv, s_updates)) {
       no_next_vars_.insert(sv);
       no_next_vars_nxt_.insert(ts_.next(sv));
@@ -230,7 +231,7 @@ ic3_rel_ind_check_result IC3ng::rel_ind_check( unsigned prevFidx,
   partial_model_getter.GetVarListForAsts_in_bitlevel(input_asts_slices, varlist_slice);
   // after this step varlist_slice may contain 
   // 1. current state var , 2. current input var
-  // 3. next input var (it should contain next state var)
+  // 3. next input var (it should not contain next state var)
   // if there is no assumption, we can remove 2&3
   // if there is assumption, we can only remove 3
   
@@ -290,8 +291,8 @@ bool IC3ng::recursive_block_all_in_queue() {
       continue;
     } // else push queue
     Model * pre_model = reachable_from_prior_frame.prev_ex;
-    proof_goals.new_proof_goal(fcex->fidx-1, pre_model, fcex->cex_origin, fcex);
-  }
+    proof_goals.new_proof_goal(fcex->fidx-1, pre_model, fcex->cex_origin.to_prior_frame(), fcex);
+  } // end of while proof_goal is not empty
   proof_goals.clear(); // clear the model buffer, required by proof_goals class
   return true;
 } // recursive_block_all_in_queue
@@ -377,7 +378,7 @@ bool IC3ng::last_frame_reaches_bad() {
   auto result = rel_ind_check(frames.size()-1, bad_next_trans_subst_, NULL, true);
   if (!result.not_hold) 
     return false;
-  proof_goals.new_proof_goal(frames.size()-1, result.prev_ex, LCexOrigin::FromProperty(), NULL);
+  proof_goals.new_proof_goal(frames.size()-1, result.prev_ex, LCexOrigin::MustBlock(1), NULL);
   // else
   return true;
 }

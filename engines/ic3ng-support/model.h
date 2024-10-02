@@ -20,6 +20,7 @@ struct Model {
   cube_t cube;
   std::string to_string() const;
   std::string vars_to_canonical_string() const;
+  std::string vars_noslice_to_canonical_string() const;
   void get_varset(std::unordered_set<smt::Term> & varset) const;
   void get_varset_noslice(std::unordered_set<smt::Term> & varset) const;  // will remove (_ extract )
 
@@ -39,10 +40,11 @@ public:
   Model(const Model &m) : cube(m.cube), expr_cached_(m.expr_cached_) {}
   // from get value from a solver
   Model(smt::SmtSolver & solver_, const std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> & varset_slice);
-  Model(smt::SmtSolver & solver_, 
-    const std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> & varset_slice, // extract using these vars
-    const std::unordered_map<smt::Term, smt::Term> & varmap // but use the map in here for the vars
-  );
+  // Model(smt::SmtSolver & solver_, 
+  //   const std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> & varset_slice, // extract using these vars
+  //   const std::unordered_map<smt::Term, smt::Term> & varmap // but use the map in here for the vars
+  // );
+
   // return true, if it really exists
   // bool erase_var(const smt::Term & v);  // depending if v is ((_ extract ) ...), erase that one
   //                                      // if v is a var, erase all containing the var
@@ -53,6 +55,6 @@ protected:
 
 };
 
-std::ostream & operator<< (std::ostream & os, const Model & m);
+std::ostream & operator<< (std::ostream & os, const Model & m) { os << m.to_string(); }
 
 }
