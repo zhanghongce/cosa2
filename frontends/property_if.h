@@ -29,7 +29,7 @@ namespace pono {
 class PropertyInterface : public smt::SmtLibReader
 {
  public:
-  PropertyInterface(std::string filename, TransitionSystem & ts);
+  PropertyInterface(const std::string & filename, TransitionSystem & ts);
 
   typedef SmtLibReader super;
 

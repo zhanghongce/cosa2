@@ -22,7 +22,7 @@ using namespace std;
 
 namespace pono {
 
-PropertyInterface::PropertyInterface(std::string filename, TransitionSystem & ts)
+PropertyInterface::PropertyInterface(const std::string & filename, TransitionSystem & ts)
     : super(ts.get_solver()), filename_(filename), ts_(ts)
 {
   set_logic_all();
