@@ -1,5 +1,3 @@
-#pragma once
-
 #include "engines/ic3ng.h"
 
 namespace pono {
@@ -109,23 +107,23 @@ void IC3ng::validate_inv() {
   solver_->assert_formula(smart_not(invar_));
   auto res = solver_->check_sat();
   solver_->pop();
-  if (res.is_unsat())
+  if (!res.is_unsat())
     throw PonoException("Unsound inductive invariant. Implementation Error!");
   
   solver_->push();
   solver_->assert_formula(invar_);
   solver_->assert_formula(smart_not(next_trans_replace(ts_.next(invar_))));
-  auto res = solver_->check_sat();
+  res = solver_->check_sat();
   solver_->pop();
-  if (res.is_unsat())
+  if (!res.is_unsat())
     throw PonoException("Unsound inductive invariant. Implementation Error!");
 
   solver_->push();
   solver_->assert_formula(invar_);
   solver_->assert_formula(bad_);
-  auto res = solver_->check_sat();
+  res = solver_->check_sat();
   solver_->pop();
-  if (res.is_unsat())
+  if (!res.is_unsat())
     throw PonoException("Unsound inductive invariant. Implementation Error!");
 } // end of validate_inv
 

@@ -4,6 +4,8 @@
 
 namespace pono {
 
+struct Model;
+
 struct ic3_rel_ind_check_result{
   bool not_hold;
   Model * prev_ex;
@@ -16,7 +18,6 @@ struct ic3_rel_ind_check_result{
 // NOTE: the vars here could be (_ extract ...)
 typedef std::unordered_map<smt::Term, smt::Term> cube_t;
 struct Model {
-  #warning Rethink this, when you have varslice!!!
   cube_t cube;
   std::string to_string() const;
   std::string vars_to_canonical_string() const;
@@ -56,6 +57,6 @@ protected:
 
 };
 
-std::ostream & operator<< (std::ostream & os, const Model & m) { os << m.to_string(); }
+std::ostream & operator<< (std::ostream & os, const Model & m) { return (os << m.to_string()); }
 
 }
