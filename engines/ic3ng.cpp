@@ -18,6 +18,7 @@
 #include "engines/ic3ng.h"
 #include "engines/ic3ng-support/debug.h"
 #include "utils/container_shortcut.h"
+#include "utils/sygus_ic3formula_helper.h"
 
 namespace pono
 {
@@ -60,7 +61,7 @@ void IC3ng::check_ts() {
   if (!can_sat(ts_.init())) {
     throw PonoException("constraint is too tight that conflicts with init.");
   }
-  if (!can_sat(smart_and({ts_.init(), ts_.trans()}))) {
+  if (!can_sat(smart_and(smt::TermVec({ts_.init(), ts_.trans()})))) {
     throw PonoException("constraint is too tight that conflicts with init and trans");
   }
 
@@ -286,7 +287,7 @@ bool IC3ng::recursive_block_all_in_queue() {
     if(!reachable_from_prior_frame.not_hold) {
       // unsat/unreachable
       // TODO make a lemma, to explain why F(i) /\ T => not MODEL
-      inductive_generalization(fcex->fidx-1, fcex->cex);
+      inductive_generalization(fcex->fidx-1, fcex->cex, fcex->cex_origin);
       proof_goals.pop();
       continue;
     } // else push queue
@@ -298,6 +299,47 @@ bool IC3ng::recursive_block_all_in_queue() {
 } // recursive_block_all_in_queue
 
 
+// F[fidx] /\ s
+void IC3ng::inductive_generalization(unsigned fidx, Model *cex, LCexOrigin origin) {
+  smt::TermVec conjs;
+  smt::TermList conjs_nxt;
+  std::unordered_map<smt::Term, size_t> conjnxt_to_idx_map;
+  cex->to_expr_conj(solver_, conjs);
+  // TODO: sort conjs
+
+  auto cex_expr = smart_not(smart_and(conjs));
+  size_t old_size = conjs.size();
+  for (size_t idx = 0; idx < old_size; ++idx) {
+    conjs_nxt.push_back(next_trans_replace(ts_.next(conjs.at(idx))));
+    conjnxt_to_idx_map.emplace(conjs_nxt.back(), idx);
+  }
+
+  solver_->push();
+  assert_frame(fidx);
+  
+  do{
+    if (old_size > conjs_nxt.size()) {
+      smt::TermVec remaining_conjs;
+      for (const auto & c : conjs_nxt)
+        remaining_conjs.push_back(conjs.at(conjnxt_to_idx_map.at(c)));
+      cex_expr = smart_not(smart_and(remaining_conjs));
+      old_size = conjs_nxt.size();
+    }
+    syntax_analysis::reduce_unsat_core_to_fixedpoint(cex_expr, conjs_nxt, solver_);
+    if (old_size > conjs_nxt.size()) {
+      smt::TermVec remaining_conjs;
+      for (const auto & c : conjs_nxt)
+        remaining_conjs.push_back(conjs.at(conjnxt_to_idx_map.at(c)));
+      cex_expr = smart_not(smart_and(remaining_conjs));
+      old_size = conjs_nxt.size();
+    }
+    syntax_analysis::reduce_unsat_core_linear_rev(cex_expr, conjs_nxt, solver_);
+  } while(old_size > conjs_nxt.size());
+
+  solver_->pop();
+  auto lemma = new_lemma(cex_expr, cex, origin);
+  add_lemma_to_frame(lemma,fidx+1);
+}
 
 
 ProverResult IC3ng::step(int i)
@@ -313,7 +355,7 @@ ProverResult IC3ng::step(int i)
     return ProverResult::UNKNOWN;
   }
 
-  // `last_frame_reaches_bad` will push to proof obligation
+  // `last_frame_reaches_bad` will add to proof obligation
   while (last_frame_reaches_bad()) {
     if(! recursive_block_all_in_queue() )
       return ProverResult::FALSE;

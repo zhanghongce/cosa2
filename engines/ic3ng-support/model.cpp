@@ -77,6 +77,13 @@ void Model::get_varset_noslice(std::unordered_set<smt::Term> & varset) const {
 } // end of get_varset_noslice
 
 
+void Model::to_expr_conj(smt::SmtSolver & btor_solver_, smt::TermVec & out) const {
+  for (const auto & var_val_pair : cube) {
+    auto eq = btor_solver_->make_term(smt::Equal, var_val_pair.first, var_val_pair.second);
+    out.push_back(eq);
+  }
+}
+
 smt::Term Model::to_expr(smt::SmtSolver & btor_solver_) {
   if (expr_cached_ != nullptr)
     return expr_cached_;
@@ -101,9 +108,12 @@ Model::Model(smt::SmtSolver & solver_, const std::unordered_map <smt::Term,std::
     const auto & var = v_slice.first;
     auto val = solver_->get_value(var);
     for(const auto & slice : v_slice.second) {
-      auto slice_var = solver_->make_term(smt::Op(smt::Extract,slice.first,slice.second), var);
-      auto slice_val = solver_->make_term(smt::Op(smt::Extract,slice.first,slice.second), val);
-      cube.emplace(slice_var,slice_val);
+      assert(slice.first>=slice.second);
+      for (unsigned idx = slice.second; idx <= slice.first; ++ idx) {
+        auto slice_var = solver_->make_term(smt::Op(smt::Extract,idx,idx), var);
+        auto slice_val = solver_->make_term(smt::Op(smt::Extract,idx,idx), val);
+        cube.emplace(slice_var,slice_val);
+      }
     }
   }
 } // end of constructor

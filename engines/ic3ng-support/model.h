@@ -34,6 +34,7 @@ private:
 public:
   // the following use cache, NOTE: it does not contain NOT!!!
   smt::Term to_expr(smt::SmtSolver & btor_solver_);
+  void to_expr_conj(smt::SmtSolver & btor_solver_, smt::TermVec & out) const;
 
   // constructors
   Model() : expr_cached_(NULL) {}

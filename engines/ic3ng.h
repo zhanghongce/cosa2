@@ -114,6 +114,7 @@ namespace pono
     void eager_push_lemmas(unsigned fidx);
     bool push_lemma_to_new_frame();    
     void validate_inv();
+    void inductive_generalization(unsigned fidx, Model *cex, LCexOrigin origin);
 
 
     // \neg C /\ F /\ C
@@ -141,11 +142,12 @@ namespace pono
         return solver_->make_term(smt::Not, in);
       }
     } // end of smart_not
-    smt::Term smart_and(const smt::TermVec & in) {
+    template<typename T>
+    smt::Term smart_and(const T & in) {
       assert(in.size());
       smt::Term term = in.at(0);
-      for (size_t i = 1; i < in.size(); ++i) {
-        term = solver_->make_term(smt::And, term, in[i]);
+      for (auto iter = in.begin(); iter<in.end(); ++iter) {
+        term = solver_->make_term(smt::And, term, *iter);
       }
       return term;
     }
