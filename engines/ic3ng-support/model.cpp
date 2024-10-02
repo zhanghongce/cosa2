@@ -11,13 +11,13 @@ std::string Model::to_string() const {
   std::string ret;
   for (const auto & var_val_pair : cube) {
     if (var_val_pair.first->is_symbol())
-      ret += "|" + var_val_pair.first->to_string() + "=" + var_val_pair.first->to_string();
+      ret += " " + var_val_pair.first->to_string() + "=" + var_val_pair.second->to_string();
     else {
       auto op = var_val_pair.first->get_op();
       assert(op.prim_op == smt::Extract);
       auto child = *(var_val_pair.first->begin());
       auto left = op.idx0, right = op.idx1;
-      ret += "|" + child->to_string() + "["+ std::to_string(left) + ":"+  std::to_string(right) +"]=" + var_val_pair.first->to_string();
+      ret += " " + child->to_string() + "["+ std::to_string(left) + ":"+  std::to_string(right) +"]=" + var_val_pair.second->to_string();
     }
   }
   return ret;
@@ -96,9 +96,9 @@ smt::Term Model::_to_expr(smt::SmtSolver & solver_) {
   for (const auto & var_val_pair : cube) {
     auto eq = solver_->make_term(smt::Equal, var_val_pair.first, var_val_pair.second);
     if (ret)
-      ret = eq;
-    else
       ret = solver_->make_term(smt::And, eq, ret);
+    else
+      ret = eq;
   } 
   return ret;
 }
@@ -117,5 +117,8 @@ Model::Model(smt::SmtSolver & solver_, const std::unordered_map <smt::Term,std::
     }
   }
 } // end of constructor
+
+
+std::ostream & operator<< (std::ostream & os, const Model & m) { return (os << m.to_string()); }
 
 } // end of namespace pono

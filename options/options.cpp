@@ -143,7 +143,7 @@ const option::Descriptor usage[] = {
     "engine",
     Arg::NonEmpty,
     "  --engine, -e <engine> \tSelect engine from [bmc, bmc-sp, ind, "
-    "interp, mbic3, ic3bits, ic3ia, msat-ic3ia, ic3sa, sygus-pdr]." },
+    "interp, mbic3, ic3bits, ic3ia, msat-ic3ia, ic3sa, sygus-pdr, ic3ng-bits]." },
   { BOUND,
     0,
     "k",
@@ -621,7 +621,8 @@ const std::unordered_set<Engine> ic3_variants_set({ IC3_BOOL,
                                                     IC3IA_ENGINE,
                                                     MSAT_IC3IA,
                                                     IC3SA_ENGINE,
-                                                    SYGUS_PDR });
+                                                    SYGUS_PDR,
+                                                    IC3NG_BITS });
 
 const std::unordered_set<Engine> & ic3_variants() { return ic3_variants_set; }
 
@@ -889,6 +890,10 @@ string to_string(Engine e)
     }
     case SYGUS_PDR: {
       res = "sygus-pdr";
+      break;
+    }
+    case IC3NG_BITS: {
+      res = "ic3ng-bits";
       break;
     }
     default: {

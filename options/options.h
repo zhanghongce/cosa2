@@ -39,7 +39,8 @@ enum Engine
   IC3IA_ENGINE,
   MSAT_IC3IA,
   IC3SA_ENGINE,
-  SYGUS_PDR
+  SYGUS_PDR,
+  IC3NG_BITS
   // NOTE: if adding an IC3 variant,
   // make sure to update ic3_variants_set in options/options.cpp
   // used for setting solver options appropriately
@@ -65,7 +66,8 @@ const std::unordered_map<std::string, Engine> str2engine(
       { "ic3ia", IC3IA_ENGINE },
       { "msat-ic3ia", MSAT_IC3IA },
       { "ic3sa", IC3SA_ENGINE },
-      { "sygus-pdr", SYGUS_PDR } });
+      { "sygus-pdr", SYGUS_PDR },
+      { "ic3ng-bits", IC3NG_BITS } });
 
 // SyGuS mode option
 enum SyGuSTermMode{

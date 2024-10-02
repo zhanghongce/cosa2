@@ -1,4 +1,6 @@
+#include "utils/logger.h"
 #include "engines/ic3ng.h"
+#include "engines/ic3ng-support/debug.h"
 
 namespace pono {
 
@@ -49,11 +51,19 @@ bool IC3ng::push_lemma_to_new_frame() {
   bool all_pushed = true;
   frame_t remaining_lemmas;
   for (Lemma * l : prev_frame) {
-    auto bad_nxt_tr_subst_ =  next_trans_replace(ts_.next(l->expr()));
+    // you do not need to check, we assume this by default
+    if (l->origin().is_constraint()) {
+      add_lemma_to_frame(l, prev_fidx+1);
+      continue;
+    }
+
+    auto bad_nxt_tr_subst_ = smart_not( next_trans_replace(ts_.next(l->expr())));
     auto result = rel_ind_check(prev_fidx,  bad_nxt_tr_subst_, NULL, false);
     if(result.not_hold) {
       all_pushed = false;
       remaining_lemmas.push_back(l);
+      assert(! (l->origin().is_the_property())); // property should always pushable
+                                                 // otherwise we should not arrive at this step
       if (l->origin().is_must_block())
         proof_goals.new_proof_goal(prev_fidx+1, l->cex(), l->origin());
     } else {
@@ -80,7 +90,9 @@ void IC3ng::eager_push_lemmas(unsigned fidx) {
   const auto & prev_frame = frames.at(prev_fidx);
   frame_t remaining_lemmas;
   for (Lemma * l : prev_frame) {
-    auto bad_nxt_tr_subst_ =  next_trans_replace(ts_.next(l->expr()));
+    assert(!(l->origin().is_the_property()));
+    assert(!(l->origin().is_constraint()));
+    auto bad_nxt_tr_subst_ =  smart_not( next_trans_replace(ts_.next(l->expr())));
     auto result = rel_ind_check(prev_fidx,  bad_nxt_tr_subst_, NULL, false);
     if(result.not_hold) {
       remaining_lemmas.push_back(l);
@@ -101,7 +113,7 @@ void IC3ng::validate_inv() {
   //       inv /\ not(prop)            UNSAT
 
   assert(invar_);
-
+  D(2,"[Checking invar] {}", invar_->to_string());
   solver_->push();
   solver_->assert_formula(ts_.init());
   solver_->assert_formula(smart_not(invar_));

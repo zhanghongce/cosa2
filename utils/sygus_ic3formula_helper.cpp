@@ -210,37 +210,40 @@ void reduce_unsat_core_linear(
 
 // a helper function : the rev version
 // it goes from the end to the beginning
-void remove_and_move_to_next_rev(smt::TermList & pred_set, smt::TermList::reverse_iterator & pred_pos,
+void remove_and_move_to_next_rev(smt::TermList & pred_set, smt::TermList::iterator & pred_pos,
   const smt::UnorderedTermSet & unsatcore) {
 
-  auto pred_iter = pred_set.rbegin(); // pred_pos;
-  auto pred_pos_new = pred_set.rbegin();
+  auto pred_iter = pred_set.end(); // pred_pos;
+  auto pred_pos_new = pred_set.end();
+
+  pred_pos_new--;
 
   bool reached = false;
   bool next_pos_found = false;
 
-  while( pred_iter != pred_set.rend() ) {
-
-    if (pred_iter == pred_pos) {
-      assert (!reached);
+  while( pred_iter != pred_set.begin() ) {
+    pred_iter--;
+    
+    std::cout << "pointing : " << (*pred_iter)->to_string() << std::endl;
+    if (!reached && pred_iter == pred_pos) {
       reached = true;
     }
     
     if (unsatcore.find(*pred_iter) == unsatcore.end()) {
       assert (reached);
-      pred_iter = decltype(pred_iter)( pred_set.erase(std::next(pred_iter).base()));
+      pred_iter = pred_set.erase(pred_iter);
     } else {
       if (reached && ! next_pos_found) {
         pred_pos_new = pred_iter;
+        pred_pos_new ++;
         next_pos_found = true;
       }
-      ++ pred_iter;
     }
   } // end of while
 
   assert(reached);
   if (! next_pos_found) {
-    assert (pred_iter == pred_set.rend());
+    assert (pred_iter == pred_set.begin());
     pred_pos_new = pred_iter;
   }
   pred_pos = pred_pos_new;
@@ -261,17 +264,24 @@ void reduce_unsat_core_linear_rev(
 
   r = reducer_->check_sat_assuming_list(assumption_list);
   assert(r.is_unsat());
-  auto to_remove_pos = assumption_list.rbegin();
 
-  while(to_remove_pos != assumption_list.rend()) {
+  size_t idx = 0;
+  for (const auto & a : assumption_list) {
+    std::cout << (idx++) << " : " << a->to_string() << std::endl;
+  }
+
+  auto to_remove_pos = assumption_list.end();
+
+  while(to_remove_pos != assumption_list.begin()) {
+    to_remove_pos--; // firstly, point to the last one
     smt::Term term_to_remove = *to_remove_pos;
 
-    auto pos_after = assumption_list.erase(std::next(to_remove_pos).base());
+    auto pos_after = assumption_list.erase(to_remove_pos);
     r = reducer_->check_sat_assuming_list(assumption_list);
-    to_remove_pos = decltype(to_remove_pos)(assumption_list.insert(pos_after, term_to_remove));
+    to_remove_pos = assumption_list.insert(pos_after, term_to_remove);
     
     if (r.is_sat()) {
-      ++ to_remove_pos; // we cannot remove this
+      continue; // we cannot remove this, so move to the next (prior one)
     } else { // if unsat, we can remove
       smt::UnorderedTermSet core_set;
       reducer_->get_unsat_assumptions(core_set);

@@ -18,6 +18,7 @@ namespace pono
       bool inline is_must_block() const { return cex_type == MUST_BLOCK; }
       bool inline is_may_block() const { return cex_type == MAY_BLOCK; }
       bool inline is_the_property() const { return cex_type == PROPERTY; }
+      bool inline is_constraint() const { return cex_type == CONSTRAINT; }
       unsigned inline dist_to_fail() const { return step_to_fail; }
       CexType inline get_type() const { return cex_type;} 
       LCexOrigin to_prior_frame() const { 

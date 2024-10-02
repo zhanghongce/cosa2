@@ -29,6 +29,7 @@
 
 #include <algorithm>
 #include <queue>
+#include <fstream>
 
 #include "engines/prover.h"
 #include "smt-switch/utils.h"
@@ -45,7 +46,7 @@ namespace pono
     typedef std::unordered_set<smt::Term> varset_t;
     typedef std::vector<Model *> facts_t;
 
-
+  public:
     IC3ng(const Property & p, const TransitionSystem & ts,
             const smt::SmtSolver & s,
             PonoOptions opt = PonoOptions());
@@ -63,7 +64,7 @@ namespace pono
     void print_time_stat(std::ostream & os) const ;
 
   protected:
-    smt::Term constraints;
+    std::ofstream debug_fout;
     bool has_assumptions;
     // this is used to cut input
     void cut_vars_curr(std::unordered_map<smt::Term,std::vector<std::pair<int,int>>> & v, bool cut_curr_input);

@@ -57,6 +57,6 @@ protected:
 
 };
 
-std::ostream & operator<< (std::ostream & os, const Model & m) { return (os << m.to_string()); }
+std::ostream & operator<< (std::ostream & os, const Model & m);
 
 }

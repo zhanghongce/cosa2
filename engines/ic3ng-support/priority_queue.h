@@ -42,6 +42,7 @@ public:
   fcex_t * top() { return queue_.top(); }
   void pop() { queue_.pop(); } // pop the top one
   bool empty() const { return queue_.empty(); }
+  size_t size() const { return queue_.size(); }
   void clear() {
     for (auto p : store_) {
       delete p;

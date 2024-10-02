@@ -20,6 +20,8 @@
 #include "utils/container_shortcut.h"
 #include "utils/sygus_ic3formula_helper.h"
 
+#include "smt-switch/printing_solver.h"
+
 namespace pono
 {
     
@@ -27,6 +29,7 @@ IC3ng::IC3ng(const Property & p, const TransitionSystem & ts,
             const smt::SmtSolver & s,
             PonoOptions opt) :
   Prover(p, ts, s, opt), 
+  debug_fout("debug.smt2"),
   partial_model_getter(s)
   // bitwuzla can accept non-literal to reduce anyway
   {     
@@ -75,6 +78,8 @@ void IC3ng::initialize() {
   if(!options_.promote_inputvars_) {
     throw PonoException("IC3ng must be used together with --promote-inputvars");
   }
+
+  solver_ = smt::create_printing_solver(solver_, &debug_fout, smt::PrintingStyleEnum::DEFAULT_STYLE);
 
   boolsort_ = solver_->make_sort(smt::BOOL);
   solver_true_ = solver_->make_term(true);
@@ -125,9 +130,9 @@ void IC3ng::initialize() {
   
   append_frame();
   add_lemma_to_frame(new_lemma(ts_.init(), NULL, LCexOrigin::FromInit()), 0);
-  add_lemma_to_frame(new_lemma(all_constraints_, NULL,  LCexOrigin::FromConstraint()), 0);
   append_frame();
-  add_lemma_to_frame(new_lemma(smart_not(bad_), NULL, LCexOrigin::FromProperty()), 0);
+  add_lemma_to_frame(new_lemma(all_constraints_, NULL,  LCexOrigin::FromConstraint()), 1);
+  add_lemma_to_frame(new_lemma(smart_not(bad_), NULL, LCexOrigin::FromProperty()), 1);
 
   // set semantics of TS labels
   assert(!init_label_);
@@ -157,10 +162,11 @@ void IC3ng::add_lemma_to_frame(Lemma * lemma, unsigned fidx) {
 void IC3ng::assert_frame(unsigned fidx) {
   assert(fidx < frame_labels_.size());
   for (unsigned idx = 0; idx < frame_labels_.size(); ++idx) {
-    if (idx == fidx)
-      solver_->assert_formula(frame_labels_.at(fidx));
-    else // to disable other frames
-      solver_->assert_formula(smart_not(frame_labels_.at(fidx)));
+    if (idx >= fidx) {// Fi -> Fi+1
+      solver_->assert_formula(frame_labels_.at(idx));
+    } else { // to disable other frames
+      solver_->assert_formula(smart_not(frame_labels_.at(idx)));
+    }
   }
 }
 
@@ -204,7 +210,6 @@ ic3_rel_ind_check_result IC3ng::rel_ind_check( unsigned prevFidx,
     // NOTE: this is next state, you should not use NOT here
     next_trans_replace( ts_.next( cex_to_block->to_expr(solver_) ) ) :
     bad_next_trans_subst_   ; // p(T(s))
-  // constraints: constraints_btor
 
   solver_->push();
   assert_frame(prevFidx);
@@ -265,8 +270,10 @@ bool IC3ng::recursive_block_all_in_queue() {
   while(!proof_goals.empty()) {
     fcex_t * fcex = proof_goals.top();
 
+    D(2, "[recursive_block] Try to block {} @ F{}", fcex->cex->to_string(), fcex->fidx);
     // if we arrive at a new frame, eager push from prior frame
     if (fcex->fidx > prior_round_frame_no) {
+      D(2,"Eager push from {} --> {}", prior_round_frame_no, fcex->fidx);
       for (unsigned idx = prior_round_frame_no; idx < fcex->fidx; ++idx)
         eager_push_lemmas(idx); // push from prior frame, in case of multiple frames
     }
@@ -274,12 +281,15 @@ bool IC3ng::recursive_block_all_in_queue() {
 
     if (frame_implies(fcex->fidx, smart_not(fcex->cex->to_expr(solver_)))) {
       proof_goals.pop();
+      D(2, "[recursive_block] F{} -> not(cex)", fcex->fidx);
       continue;
     }
     if (fcex->fidx == 0) {
       // generally should fail
       // check that it has intersection with init
       // and the chain is actually all reachable (by creating an unroller)
+      
+      D(2, "[recursive_block] Cannot block @0");
       sanity_check_cex_is_correct(fcex);
       return false;
     } // else check if reachable from prior frame
@@ -287,12 +297,16 @@ bool IC3ng::recursive_block_all_in_queue() {
     if(!reachable_from_prior_frame.not_hold) {
       // unsat/unreachable
       // TODO make a lemma, to explain why F(i) /\ T => not MODEL
+      
+      D(2, "[recursive_block] Not reachable from F{}", fcex->fidx-1);
       inductive_generalization(fcex->fidx-1, fcex->cex, fcex->cex_origin);
       proof_goals.pop();
       continue;
     } // else push queue
     Model * pre_model = reachable_from_prior_frame.prev_ex;
     proof_goals.new_proof_goal(fcex->fidx-1, pre_model, fcex->cex_origin.to_prior_frame(), fcex);
+    
+    D(2, "[recursive_block] reachable, traceback to F{}", fcex->fidx-1);
   } // end of while proof_goal is not empty
   proof_goals.clear(); // clear the model buffer, required by proof_goals class
   return true;
@@ -300,6 +314,7 @@ bool IC3ng::recursive_block_all_in_queue() {
 
 
 // F[fidx] /\ s
+#error ig formula is wrong
 void IC3ng::inductive_generalization(unsigned fidx, Model *cex, LCexOrigin origin) {
   smt::TermVec conjs;
   smt::TermList conjs_nxt;
@@ -325,7 +340,12 @@ void IC3ng::inductive_generalization(unsigned fidx, Model *cex, LCexOrigin origi
       cex_expr = smart_not(smart_and(remaining_conjs));
       old_size = conjs_nxt.size();
     }
+
+    solver_->push();
     syntax_analysis::reduce_unsat_core_to_fixedpoint(cex_expr, conjs_nxt, solver_);
+    solver_->pop();
+    D(2, "[ig] core size: {} => {}", old_size, conjs_nxt.size());
+
     if (old_size > conjs_nxt.size()) {
       smt::TermVec remaining_conjs;
       for (const auto & c : conjs_nxt)
@@ -333,7 +353,11 @@ void IC3ng::inductive_generalization(unsigned fidx, Model *cex, LCexOrigin origi
       cex_expr = smart_not(smart_and(remaining_conjs));
       old_size = conjs_nxt.size();
     }
+
+    solver_->push();
     syntax_analysis::reduce_unsat_core_linear_rev(cex_expr, conjs_nxt, solver_);
+    solver_->pop();
+
   } while(old_size > conjs_nxt.size());
 
   solver_->pop();
@@ -352,17 +376,21 @@ ProverResult IC3ng::step(int i)
     if(check_init_failed())
       return ProverResult::FALSE;
     D(1, "[Checking property] init passed");
+    
+    reached_k_ = 1;
     return ProverResult::UNKNOWN;
   }
 
   // `last_frame_reaches_bad` will add to proof obligation
   while (last_frame_reaches_bad()) {
+    size_t nCube = proof_goals.size();
     if(! recursive_block_all_in_queue() )
       return ProverResult::FALSE;
-    D(1, "[Checking property] 1 Cube block at F{}", frames.size()-1);
+    D(1, "[step] Blocked {} CTI on F{}", nCube, frames.size()-1);
   }
   
   append_frame();
+  D(1, "[step] Extend to F{}", frames.size()-1);
 
   // TODO: print cubes?  
 
@@ -370,10 +398,15 @@ ProverResult IC3ng::step(int i)
   // so, we can simply push from the previous last frame
   //  should return true if all pushed
   //  should push necessary cex to the queue
+  auto old_fsize = (++frames.rbegin())->size();
   if ( push_lemma_to_new_frame() ) {
     validate_inv();
     return ProverResult::TRUE;
   }
+  
+  auto new_fsize = (frames.rbegin())->size();
+  D(1, "[step] Pushed {}/{} Lemmas to F{}", new_fsize, old_fsize, frames.size()-1 );
+  D(1, "[step] Added {} CTI on F{} ", proof_goals.size(), frames.size()-1 );
 
   // new proof obligations may be added
   if (!recursive_block_all_in_queue())
