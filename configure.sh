@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Syntax and structure borrowed from CVC4's configure.sh script
+# Syntax and structure borrowed from cvc5's configure.sh script
 
 CONF_FILE=Makefile.conf
 
@@ -94,6 +94,9 @@ do
     esac
     shift
 done
+
+[ $lib_type = STATIC ] && [ $with_coreir = ON -o $with_coreir_extern = ON ] && \
+    die "CoreIR and static build are incompatible, must omit either '--static/--static-lib' or '--with-coreir/--with-coreir-extern'"
 
 cmake_opts="-DCMAKE_BUILD_TYPE=$buildtype -DPONO_LIB_TYPE=${lib_type} -DPONO_STATIC_EXEC=${static_exec}"
 

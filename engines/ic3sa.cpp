@@ -404,7 +404,7 @@ RefineResult IC3SA::ic3sa_refine_functional(Term & learned_lemma)
         }
       }
     }
-  }
+  } // end for each cex
   assert(lbls.size() == assumps.size());
 
   if (r.is_sat()) {
@@ -533,7 +533,7 @@ RefineResult IC3SA::ic3sa_refine_value(Term & learned_lemma)
         p = solver_->make_term(And, p, eq);
       }
     }
-  }
+  } // end of for
   assert(lbls.size() == assumps.size());
 
   if (r.is_sat()) {
@@ -775,8 +775,8 @@ void IC3SA::construct_partition(const EquivalenceClasses & ec,
           assert(solver_->get_value(lit) == solver_true_);
         }
       }
-    }
-  }
+    } // end for each representative
+  } // end for each sort
 }
 
 UnorderedTermSet IC3SA::add_to_term_abstraction(const Term & term)
