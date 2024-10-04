@@ -23,7 +23,7 @@ std::string Model::to_string() const {
   return ret;
 }
 
-std::string Model::vars_to_canonical_string() const {
+std::string Model::get_var_canonical_string() const {
   std::vector<std::string> varnames;
   for (const auto & var_val_pair : cube) {
     if (var_val_pair.first->is_symbol())
@@ -45,9 +45,7 @@ std::string Model::vars_to_canonical_string() const {
   return ret;
 }
 
-std::string Model::vars_noslice_to_canonical_string() const {
-  std::unordered_set<smt::Term> varset;
-  get_varset_noslice(varset);
+std::string Model::compute_vars_noslice_canonical_string(const std::unordered_set<smt::Term> & varset) {
   std::vector<std::string> varnames;
   for (const auto &v : varset)
     varnames.push_back(v->to_string());
@@ -63,16 +61,11 @@ void Model::get_varset(std::unordered_set<smt::Term> & varset) const {
     varset.emplace(var_val_pair.first);
 }
 
-void Model::get_varset_noslice(std::unordered_set<smt::Term> & varset) const {
-  for (const auto & var_val_pair : cube) {
-    if (var_val_pair.first->is_symbol())
-      varset.emplace(var_val_pair.first);
-    else {
-      auto op = var_val_pair.first->get_op();
-      assert(op.prim_op == smt::Extract);
-      auto child = *(var_val_pair.first->begin());
-      varset.emplace(child);
-    }
+void Model::compute_varset_noslice(const std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> & varset_slice,
+  std::unordered_set<smt::Term> & varset) 
+{
+  for (const auto & var_bits_pair : varset_slice) {
+    varset.emplace(var_bits_pair.first);
   }
 } // end of get_varset_noslice
 
@@ -103,7 +96,10 @@ smt::Term Model::_to_expr(smt::SmtSolver & solver_) {
   return ret;
 }
 
-Model::Model(smt::SmtSolver & solver_, const std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> & varset_slice) {
+Model::Model(smt::SmtSolver & solver_,
+  const std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> & varset_slice, 
+  PerVarInfo * var_info_ptr) : var_info_(var_info_ptr)
+{
   for (const auto & v_slice : varset_slice) {
     const auto & var = v_slice.first;
     auto val = solver_->get_value(var);

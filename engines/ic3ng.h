@@ -85,6 +85,7 @@ namespace pono
     smt::Sort boolsort_;
 
     virtual void check_ts();
+    smt::Term get_trans_for_vars(const smt::UnorderedTermSet & vars);
 
     // some ts related info buffers
     smt::Term bad_next_trans_subst_;
@@ -93,6 +94,7 @@ namespace pono
     smt::UnorderedTermSet no_next_vars_; //  the inputs
     smt::UnorderedTermSet no_next_vars_nxt_; //  the next state of inputs
     smt::Term all_constraints_; // all constraints
+    smt::Term init_prime_;
     smt::UnorderedTermMap nxt_state_updates_; // a map from prime var -> next
     smt::Term next_trans_replace(const smt::Term & in) const {
       return ts_.solver()->substitute(in, nxt_state_updates_);
@@ -110,6 +112,7 @@ namespace pono
     // will also cancel out other frame labels
     void assert_frame(unsigned fidx);
     bool frame_implies(unsigned fidx, const smt::Term & expr);
+    smt::Term get_frame_formula(unsigned fidx);
     bool recursive_block_all_in_queue();
     bool last_frame_reaches_bad();
     void eager_push_lemmas(unsigned fidx);
@@ -149,6 +152,15 @@ namespace pono
       smt::Term term = in.at(0);
       for (auto iter = in.begin(); iter<in.end(); ++iter) {
         term = solver_->make_term(smt::And, term, *iter);
+      }
+      return term;
+    }
+    template<typename T>
+    smt::Term smart_or(const T & in) {
+      assert(in.size());
+      smt::Term term = in.at(0);
+      for (auto iter = in.begin(); iter<in.end(); ++iter) {
+        term = solver_->make_term(smt::Or, term, *iter);
       }
       return term;
     }

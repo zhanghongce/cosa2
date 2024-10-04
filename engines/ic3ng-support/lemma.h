@@ -80,7 +80,7 @@ public:
   virtual smt::SmtSolver & solver() = 0;
 
 protected:
-  Model * new_model();
+  // Model * new_model();
   void register_new_model(Model *);
   Model * new_model(const std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> & varset);
   // Model * new_model_replace_var(
@@ -92,6 +92,7 @@ protected:
     
   std::vector<Lemma *> lemma_allocation_pool;
   std::vector<Model *> cube_allocation_pool;
+  std::unordered_map<std::string, PerVarInfo *> cube_var_info_allocation_pool;
 };
 
 } // namespace pono

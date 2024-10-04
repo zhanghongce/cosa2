@@ -79,7 +79,7 @@ void IC3ng::initialize() {
     throw PonoException("IC3ng must be used together with --promote-inputvars");
   }
 
-  solver_ = smt::create_printing_solver(solver_, &debug_fout, smt::PrintingStyleEnum::DEFAULT_STYLE);
+  // solver_ = smt::create_printing_solver(solver_, &debug_fout, smt::PrintingStyleEnum::DEFAULT_STYLE);
 
   boolsort_ = solver_->make_sort(smt::BOOL);
   solver_true_ = solver_->make_term(true);
@@ -121,6 +121,7 @@ void IC3ng::initialize() {
   }
   all_constraints_ = has_assumptions ? smart_and(constraints_curr_var_) : solver_true_;
   bad_next_trans_subst_ = next_trans_replace(ts_.next(bad_)); // bad_ is only available after Prover's initialize()
+  init_prime_ = ts_.next(ts_.init());
 
   // 2. set up the label system
 
@@ -157,46 +158,6 @@ void IC3ng::add_lemma_to_frame(Lemma * lemma, unsigned fidx) {
   solver_->assert_formula(
       solver_->make_term(smt::Implies, frame_labels_.at(fidx), lemma->expr()));
 
-}
-
-void IC3ng::assert_frame(unsigned fidx) {
-  assert(fidx < frame_labels_.size());
-  for (unsigned idx = 0; idx < frame_labels_.size(); ++idx) {
-    if (idx >= fidx) {// Fi -> Fi+1
-      solver_->assert_formula(frame_labels_.at(idx));
-    } else { // to disable other frames
-      solver_->assert_formula(smart_not(frame_labels_.at(idx)));
-    }
-  }
-}
-
-bool IC3ng::frame_implies(unsigned fidx, const smt::Term & expr) {
-  solver_->push();
-  assert_frame(fidx);
-  solver_->assert_formula(smart_not(expr));
-  auto r = solver_->check_sat();
-  solver_->pop();
-  return r.is_unsat();
-}
-
-bool IC3ng::check_init_failed() {
-  solver_->push();
-    solver_->assert_formula(init_label_); // init contains assumptions already
-    solver_->assert_formula(bad_);
-    auto r1 = solver_->check_sat();
-  solver_->pop();
-  if(r1.is_sat())
-    return true;
-  
-  solver_->push();
-    solver_->assert_formula(init_label_); // init contains assumptions already
-    // solver_->assert_formula(constraint_label_); // already added from frame[0]
-    solver_->assert_formula(bad_next_trans_subst_); // T is inside bad_next_trans_subst_
-    r1 = solver_->check_sat();
-  solver_->pop();
-  if(r1.is_sat())
-    return true;
-  return false;
 }
 
 
@@ -313,24 +274,31 @@ bool IC3ng::recursive_block_all_in_queue() {
 } // recursive_block_all_in_queue
 
 
-// F[fidx] /\ s
-#error ig formula is wrong
+// ( ( not(S) /\ F /\ T ) \/ init_prime ) /\ ( S )
+
 void IC3ng::inductive_generalization(unsigned fidx, Model *cex, LCexOrigin origin) {
+
+  auto F = get_frame_formula(fidx);
+  auto T = get_trans_for_vars(cex->get_varset_noslice()); // find the update F for vars in set...
+  auto F_and_T = smart_and<smt::TermVec>({F,T});
+
+
   smt::TermVec conjs;
-  smt::TermList conjs_nxt;
-  std::unordered_map<smt::Term, size_t> conjnxt_to_idx_map;
   cex->to_expr_conj(solver_, conjs);
+  auto cex_expr = smart_not(smart_and(conjs));
   // TODO: sort conjs
 
-  auto cex_expr = smart_not(smart_and(conjs));
+  smt::TermList conjs_nxt;
+  std::unordered_map<smt::Term, size_t> conjnxt_to_idx_map;
   size_t old_size = conjs.size();
   for (size_t idx = 0; idx < old_size; ++idx) {
-    conjs_nxt.push_back(next_trans_replace(ts_.next(conjs.at(idx))));
+    conjs_nxt.push_back(ts_.next(conjs.at(idx)));
     conjnxt_to_idx_map.emplace(conjs_nxt.back(), idx);
   }
 
-  solver_->push();
-  assert_frame(fidx);
+  smt::Term base = 
+    smart_or<smt::TermVec>(
+      {smart_and<smt::TermVec>(  {cex_expr, F_and_T} ) , init_prime_ } );
   
   do{
     if (old_size > conjs_nxt.size()) {
@@ -339,10 +307,12 @@ void IC3ng::inductive_generalization(unsigned fidx, Model *cex, LCexOrigin origi
         remaining_conjs.push_back(conjs.at(conjnxt_to_idx_map.at(c)));
       cex_expr = smart_not(smart_and(remaining_conjs));
       old_size = conjs_nxt.size();
+      base = smart_or<smt::TermVec>(
+        { smart_and<smt::TermVec>(  {cex_expr, F_and_T} ) , init_prime_ } );
     }
 
     solver_->push();
-    syntax_analysis::reduce_unsat_core_to_fixedpoint(cex_expr, conjs_nxt, solver_);
+    syntax_analysis::reduce_unsat_core_to_fixedpoint(base, conjs_nxt, solver_);
     solver_->pop();
     D(2, "[ig] core size: {} => {}", old_size, conjs_nxt.size());
 
@@ -352,17 +322,19 @@ void IC3ng::inductive_generalization(unsigned fidx, Model *cex, LCexOrigin origi
         remaining_conjs.push_back(conjs.at(conjnxt_to_idx_map.at(c)));
       cex_expr = smart_not(smart_and(remaining_conjs));
       old_size = conjs_nxt.size();
+      base = smart_or<smt::TermVec>(
+        { smart_and<smt::TermVec>(  {cex_expr, F_and_T} ) , init_prime_ } );
     }
 
     solver_->push();
-    syntax_analysis::reduce_unsat_core_linear_rev(cex_expr, conjs_nxt, solver_);
+    syntax_analysis::reduce_unsat_core_linear_rev(base, conjs_nxt, solver_);
     solver_->pop();
 
   } while(old_size > conjs_nxt.size());
 
-  solver_->pop();
   auto lemma = new_lemma(cex_expr, cex, origin);
   add_lemma_to_frame(lemma,fidx+1);
+  D(2,"[ig] F{} get lemma:{}", fidx+1, lemma->to_string());
 }
 
 

@@ -73,17 +73,37 @@ bool IC3ng::push_lemma_to_new_frame() {
   frames.at(prev_fidx).swap(remaining_lemmas); // directly swap
 
   if (all_pushed) {
-    const auto & last_frame = frames.at(prev_fidx+1);
-    // if all pushed, then make the invariant
-    smt::TermVec all_lemmas;
-    all_lemmas.reserve(last_frame.size());
-    for (Lemma * l : last_frame)
-      all_lemmas.push_back(l->expr());
-    invar_ = smart_and(all_lemmas);
+    invar_ = get_frame_formula(prev_fidx+1);
   }
+
   return all_pushed;
 } // end of push_lemma_to_new_frame
 
+
+smt::Term IC3ng::get_trans_for_vars(const smt::UnorderedTermSet & vars) {
+  smt::TermVec updates;
+  for (const auto & v : vars) {
+    updates.push_back(
+      solver_->make_term(
+        smt::Equal,
+        ts_.next(v),
+        ts_.state_updates().at(v)));
+  }
+  return smart_and(updates);
+}
+
+smt::Term IC3ng::get_frame_formula(unsigned fidx) {
+  assert(fidx < frames.size());
+  smt::TermVec all_lemmas;
+  // you must go through all later frames!!!
+  for (size_t curr_fidx = fidx; curr_fidx < frames.size(); ++ curr_fidx ) {
+    const auto & the_frame = frames.at(curr_fidx);
+    // if all pushed, then make the invariant
+    for (Lemma * l : the_frame)
+      all_lemmas.push_back(l->expr());
+  }
+  return smart_and(all_lemmas);
+}
 
 void IC3ng::eager_push_lemmas(unsigned fidx) {
   auto prev_fidx = fidx;
@@ -162,5 +182,48 @@ void IC3ng::sanity_check_cex_is_correct(fcex_t * cex_at_cycle_0) {
   }
   solver_->pop();
 } // end of sanity_check_cex_is_correct
+
+
+void IC3ng::assert_frame(unsigned fidx) {
+  assert(fidx < frame_labels_.size());
+  for (unsigned idx = 0; idx < frame_labels_.size(); ++idx) {
+    if (idx >= fidx) {// Fi -> Fi+1
+      solver_->assert_formula(frame_labels_.at(idx));
+    } else { // to disable other frames
+      solver_->assert_formula(smart_not(frame_labels_.at(idx)));
+    }
+  }
+}
+
+bool IC3ng::frame_implies(unsigned fidx, const smt::Term & expr) {
+  solver_->push();
+  assert_frame(fidx);
+  solver_->assert_formula(smart_not(expr));
+  auto r = solver_->check_sat();
+  solver_->pop();
+  return r.is_unsat();
+}
+
+
+bool IC3ng::check_init_failed() {
+  solver_->push();
+    solver_->assert_formula(init_label_); // init contains assumptions already
+    solver_->assert_formula(bad_);
+    auto r1 = solver_->check_sat();
+  solver_->pop();
+  if(r1.is_sat())
+    return true;
+  
+  solver_->push();
+    solver_->assert_formula(init_label_); // init contains assumptions already
+    // solver_->assert_formula(constraint_label_); // already added from frame[0]
+    solver_->assert_formula(bad_next_trans_subst_); // T is inside bad_next_trans_subst_
+    r1 = solver_->check_sat();
+  solver_->pop();
+  if(r1.is_sat())
+    return true;
+  return false;
+}
+
 
 } // end of namespace pono

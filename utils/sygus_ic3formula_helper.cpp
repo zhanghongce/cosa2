@@ -224,7 +224,6 @@ void remove_and_move_to_next_rev(smt::TermList & pred_set, smt::TermList::iterat
   while( pred_iter != pred_set.begin() ) {
     pred_iter--;
     
-    std::cout << "pointing : " << (*pred_iter)->to_string() << std::endl;
     if (!reached && pred_iter == pred_pos) {
       reached = true;
     }
@@ -264,11 +263,6 @@ void reduce_unsat_core_linear_rev(
 
   r = reducer_->check_sat_assuming_list(assumption_list);
   assert(r.is_unsat());
-
-  size_t idx = 0;
-  for (const auto & a : assumption_list) {
-    std::cout << (idx++) << " : " << a->to_string() << std::endl;
-  }
 
   auto to_remove_pos = assumption_list.end();
 
