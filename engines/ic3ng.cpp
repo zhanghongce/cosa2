@@ -144,6 +144,8 @@ void IC3ng::initialize() {
 
 
   lowest_frame_touched_ = frames.size() - 1;
+
+  load_predicates("predicates.smt2");
 }
 
 void IC3ng::append_frame()
@@ -293,6 +295,26 @@ bool IC3ng::recursive_block_all_in_queue() {
 
 // ( ( not(S) /\ F /\ T ) \/ init_prime ) /\ ( S )
 
+void IC3ng::extend_predicates(Model *cex, smt::TermVec & conj_inout) {
+  //TODO:
+  // for each predicate p:
+  //   check if  cex_expr /\ p  is unsat            :   use (p)
+  //         or  cex_expr /\ not(p)  is unsat       :   use (not p)
+  //   you may only check the case when (cex_expr) and p have shared variables
+  //   you don't need to check every time, you can cache this...
+  //   you can also cache the result of which p to consider for a given variable set
+  
+  // make sure newly added preds are put in the beginning of conj_inout
+
+  auto model_info_pos = model_info_map_.find(cex);
+  if (model_info_pos == model_info_map_.end()) {
+    // TODO: populate this information
+  }
+  auto preds = model_info_pos->second.preds_to_use;
+  preds.insert(preds.end(), conj_inout.begin(), conj_inout.end() );
+  conj_inout.swap(preds);
+}
+
 void IC3ng::inductive_generalization(unsigned fidx, Model *cex, LCexOrigin origin) {
 
   auto F = get_frame_formula(fidx);
@@ -302,6 +324,8 @@ void IC3ng::inductive_generalization(unsigned fidx, Model *cex, LCexOrigin origi
 
   smt::TermVec conjs;
   cex->to_expr_conj(solver_, conjs);
+  extend_predicates(cex, conjs);
+
   auto cex_expr = smart_not(smart_and(conjs));
   // TODO: sort conjs
 
