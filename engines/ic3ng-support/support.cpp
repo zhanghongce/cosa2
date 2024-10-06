@@ -41,42 +41,46 @@ void IC3ng::cut_vars_curr(std::unordered_map<smt::Term,std::vector<std::pair<int
 
 
 
-  // recursive block should have already pushed everything pushable to the last frame
-  // so, we can simply push from the previous last frame
   //  should return true if all pushed
   //  should push necessary cex to the queue
 bool IC3ng::push_lemma_to_new_frame() {
-  auto prev_fidx = frames.size()-2;
-  const auto & prev_frame = frames.at(prev_fidx);
-  bool all_pushed = true;
-  frame_t remaining_lemmas;
-  for (Lemma * l : prev_frame) {
-    // you do not need to check, we assume this by default
-    if (l->origin().is_constraint()) {
-      add_lemma_to_frame(l, prev_fidx+1);
-      continue;
-    }
+  for (unsigned prev_fidx = lowest_frame_touched_; prev_fidx < frames.size()-1; ++prev_fidx) {
+    
+    bool is_last_push = (prev_fidx == frames.size()-2);
+    const auto & prev_frame = frames.at(prev_fidx);
+    bool all_pushed = true;
+    frame_t remaining_lemmas;
+    for (Lemma * l : prev_frame) {
+      // you do not need to check, we assume this by default
+      if (l->origin().is_constraint()) {
+        add_lemma_to_frame(l, prev_fidx+1);
+        continue;
+      }
 
-    auto bad_nxt_tr_subst_ = smart_not( next_trans_replace(ts_.next(l->expr())));
-    auto result = rel_ind_check(prev_fidx,  bad_nxt_tr_subst_, NULL, false);
-    if(result.not_hold) {
-      all_pushed = false;
-      remaining_lemmas.push_back(l);
-      assert(! (l->origin().is_the_property())); // property should always pushable
-                                                 // otherwise we should not arrive at this step
-      if (l->origin().is_must_block())
-        proof_goals.new_proof_goal(prev_fidx+1, l->cex(), l->origin());
-    } else {
-      add_lemma_to_frame(l, prev_fidx+1);
-    }
-  } // end for all lemmas
-  frames.at(prev_fidx).swap(remaining_lemmas); // directly swap
+      auto bad_nxt_tr_subst_ = smart_not( next_trans_replace(ts_.next(l->expr())));
+      auto result = rel_ind_check(prev_fidx,  bad_nxt_tr_subst_, NULL, false);
+      if(result.not_hold) {
+        all_pushed = false;
+        remaining_lemmas.push_back(l);
+        assert(! (l->origin().is_the_property())); // property should always pushable
+                                                  // otherwise we should not arrive at this step
+        
+        // if it is not the last frame to push, we should have already tried to push that
+        // which should have generated some new lemmas to block that
+        if (is_last_push && l->origin().is_must_block())
+          proof_goals.new_proof_goal(prev_fidx+1, l->cex(), l->origin());
+      } else {
+        add_lemma_to_frame(l, prev_fidx+1);
+      }
+    } // end for all lemmas
+    frames.at(prev_fidx).swap(remaining_lemmas); // directly swap
 
-  if (all_pushed) {
-    invar_ = get_frame_formula(prev_fidx+1);
+    if (all_pushed) {
+      invar_ = get_frame_formula(prev_fidx+1);
+      return true; // we can stop early
+    }
   }
-
-  return all_pushed;
+  return false;
 } // end of push_lemma_to_new_frame
 
 
@@ -105,11 +109,13 @@ smt::Term IC3ng::get_frame_formula(unsigned fidx) {
   return smart_and(all_lemmas);
 }
 
-void IC3ng::eager_push_lemmas(unsigned fidx) {
+void IC3ng::eager_push_lemmas(unsigned fidx, unsigned start_lemma_id) {
   auto prev_fidx = fidx;
   const auto & prev_frame = frames.at(prev_fidx);
   frame_t remaining_lemmas;
-  for (Lemma * l : prev_frame) {
+  assert(start_lemma_id < prev_frame.size());
+  for (size_t lidx = start_lemma_id; lidx < prev_frame.size(); lidx++) {
+    Lemma * l = prev_frame.at(lidx);
     assert(!(l->origin().is_the_property()));
     assert(!(l->origin().is_constraint()));
     auto bad_nxt_tr_subst_ =  smart_not( next_trans_replace(ts_.next(l->expr())));
@@ -121,8 +127,12 @@ void IC3ng::eager_push_lemmas(unsigned fidx) {
     } else {
       add_lemma_to_frame(l, prev_fidx+1);
     }
-  } // end for all lemmas
-  frames.at(prev_fidx).swap(remaining_lemmas); // directly swap
+  }
+  auto & mod_prev_frame = frames.at(prev_fidx);
+  for (size_t lidx = 0; lidx < remaining_lemmas.size(); ++lidx) {
+    mod_prev_frame.at(lidx + start_lemma_id) = remaining_lemmas.at(lidx);
+  }
+  mod_prev_frame.resize(start_lemma_id+remaining_lemmas.size());
 } // end of eager_push_lemmas
 
 
@@ -223,6 +233,23 @@ bool IC3ng::check_init_failed() {
   if(r1.is_sat())
     return true;
   return false;
+}
+
+
+std::string IC3ng::print_frame_stat() const {
+  std::string output = "F[" + std::to_string(frames.size()) + "] ";
+  if (frames.size() < 20) {
+    for (auto && f : frames)
+      output += std::to_string(f.size()) + ' ';
+    return output;
+  } else {
+    for(unsigned idx = 0; idx < 10; ++ idx)
+      output += std::to_string(frames.at(idx).size()) + ' ';
+    output += "...";
+    for(unsigned idx = frames.size()-10; idx < frames.size(); ++ idx)
+      output += std::to_string(frames.at(idx).size()) + ' ';
+  }
+  return output;
 }
 
 
