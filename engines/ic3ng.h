@@ -123,6 +123,8 @@ namespace pono
     void validate_inv();
     void inductive_generalization(unsigned fidx, Model *cex, LCexOrigin origin);
 
+    void reduce_unsat_core_linear_backwards(const smt::Term & F_and_T,
+      smt::TermList &conjs, smt::TermList & conjs_nxt);
 
     // \neg C /\ F /\ C
     //           F /\ p
@@ -152,8 +154,8 @@ namespace pono
     template<typename T>
     smt::Term smart_and(const T & in) {
       assert(in.size());
-      smt::Term term = in.at(0);
-      for (auto iter = in.begin(); iter<in.end(); ++iter) {
+      smt::Term term = *(in.begin());
+      for (auto iter = ++(in.begin()); iter!=in.end(); ++iter) {
         term = solver_->make_term(smt::And, term, *iter);
       }
       return term;
@@ -161,8 +163,8 @@ namespace pono
     template<typename T>
     smt::Term smart_or(const T & in) {
       assert(in.size());
-      smt::Term term = in.at(0);
-      for (auto iter = in.begin(); iter<in.end(); ++iter) {
+      smt::Term term = *(in.begin());
+      for (auto iter = ++(in.begin()); iter!=in.end(); ++iter) {
         term = solver_->make_term(smt::Or, term, *iter);
       }
       return term;

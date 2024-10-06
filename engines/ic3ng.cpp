@@ -29,7 +29,9 @@ IC3ng::IC3ng(const Property & p, const TransitionSystem & ts,
             const smt::SmtSolver & s,
             PonoOptions opt) :
   Prover(p, ts, s, opt), 
-  debug_fout("debug.smt2"),
+#ifdef DEBUG_IC3
+  // debug_fout("debug.smt2"),
+#endif
   partial_model_getter(s)
   // bitwuzla can accept non-literal to reduce anyway
   {     
@@ -303,61 +305,147 @@ void IC3ng::inductive_generalization(unsigned fidx, Model *cex, LCexOrigin origi
   auto cex_expr = smart_not(smart_and(conjs));
   // TODO: sort conjs
 
-  smt::TermList conjs_nxt;
-  std::unordered_map<smt::Term, size_t> conjnxt_to_idx_map;
-  size_t old_size = conjs.size();
-  for (size_t idx = 0; idx < old_size; ++idx) {
-    conjs_nxt.push_back(ts_.next(conjs.at(idx)));
-    conjnxt_to_idx_map.emplace(conjs_nxt.back(), idx);
-  }
 
-  smt::Term base = 
-    smart_or<smt::TermVec>(
-      {smart_and<smt::TermVec>(  {cex_expr, F_and_T} ) , init_prime_ } );
-  
-  do{
+  if (conjs.size() > 1) {
 
-    if (old_size > conjs_nxt.size()) {
-      smt::TermVec remaining_conjs;
-      for (const auto & c : conjs_nxt)
-        remaining_conjs.push_back(conjs.at(conjnxt_to_idx_map.at(c)));
-      cex_expr = smart_not(smart_and(remaining_conjs));
-      old_size = conjs_nxt.size();
-      base = smart_or<smt::TermVec>(
-        { smart_and<smt::TermVec>(  {cex_expr, F_and_T} ) , init_prime_ } );
+    smt::TermList conjs_nxt;
+    std::unordered_map<smt::Term, size_t> conjnxt_to_idx_map;
+    size_t old_size = conjs.size();
+    for (size_t idx = 0; idx < old_size; ++idx) {
+      conjs_nxt.push_back(ts_.next(conjs.at(idx)));
+      conjnxt_to_idx_map.emplace(conjs_nxt.back(), idx);
     }
 
-    if (conjs_nxt.size() == 1)
-      break;
-
+    smt::Term base = 
+      smart_or<smt::TermVec>(
+        {smart_and<smt::TermVec>(  {cex_expr, F_and_T} ) , init_prime_ } );
+  
     solver_->push();
     syntax_analysis::reduce_unsat_core_to_fixedpoint(base, conjs_nxt, solver_);
     solver_->pop();
     D(2, "[ig] core size: {} => {}", old_size, conjs_nxt.size());
 
-    if (old_size > conjs_nxt.size()) {
-      smt::TermVec remaining_conjs;
-      for (const auto & c : conjs_nxt)
-        remaining_conjs.push_back(conjs.at(conjnxt_to_idx_map.at(c)));
-      cex_expr = smart_not(smart_and(remaining_conjs));
-      old_size = conjs_nxt.size();
-      base = smart_or<smt::TermVec>(
-        { smart_and<smt::TermVec>(  {cex_expr, F_and_T} ) , init_prime_ } );
+    smt::TermList conjs_list;
+    for (const auto & c : conjs_nxt)
+      conjs_list.push_back(conjs.at(conjnxt_to_idx_map.at(c)));
+
+
+    if (conjs_nxt.size() > 1) {
+      solver_->push();
+      // syntax_analysis::reduce_unsat_core_linear_rev(base, conjs_nxt, solver_);
+      reduce_unsat_core_linear_backwards(F_and_T, conjs_list, conjs_nxt);
+      solver_->pop();
+      // from conjs_nxt to conj
     }
-
-    if (conjs_nxt.size() == 1)
-      break;
-
-    solver_->push();
-    syntax_analysis::reduce_unsat_core_linear_rev(base, conjs_nxt, solver_);
-    solver_->pop();
-
-  } while(old_size > conjs_nxt.size());
+    cex_expr = smart_not(smart_and(conjs_list));
+  }
 
   auto lemma = new_lemma(cex_expr, cex, origin);
   add_lemma_to_frame(lemma,fidx+1);
   D(2,"[ig] F{} get lemma:{}", fidx+1, lemma->to_string());
 }
+
+
+
+// a helper function : the rev version
+// it goes from the end to the beginning
+void remove_and_move_to_next_backward(smt::TermList & pred_set_prev, smt::TermList::iterator & pred_pos_rev,
+  smt::TermList & pred_set, smt::TermList::iterator & pred_pos,
+  const smt::UnorderedTermSet & unsatcore) {
+
+  auto pred_iter = pred_set.end(); // pred_pos;
+  auto pred_pos_new = pred_set.end();
+
+  auto pred_iter_prev = pred_set_prev.end();
+  auto pred_pos_new_prev = pred_set_prev.end();
+
+  pred_pos_new--;
+  pred_pos_new_prev--;
+
+  bool reached = false;
+  bool next_pos_found = false;
+
+  while( pred_iter != pred_set.begin() ) {
+    pred_iter--;
+    pred_iter_prev--;
+    
+    if (!reached && pred_iter == pred_pos) {
+      reached = true;
+    }
+    
+    if (unsatcore.find(*pred_iter) == unsatcore.end()) {
+      assert (reached);
+      pred_iter = pred_set.erase(pred_iter);
+      pred_iter_prev = pred_set_prev.erase(pred_iter_prev);
+    } else {
+      if (reached && ! next_pos_found) {
+        pred_pos_new = pred_iter;
+        pred_pos_new ++;
+
+        pred_pos_new_prev = pred_iter_prev;
+        pred_pos_new_prev++;
+
+        next_pos_found = true;
+      }
+    }
+  } // end of while
+
+  assert(reached);
+  if (! next_pos_found) {
+    assert (pred_iter == pred_set.begin());
+    assert (pred_iter_prev == pred_set_prev.begin());
+
+    pred_pos_new = pred_iter;
+    pred_pos_new_prev = pred_iter_prev;
+  }
+  pred_pos = pred_pos_new;
+  pred_pos_rev = pred_pos_new_prev;
+} // remove_and_move_to_next
+
+// 1. check if init /\ (conjs-removed)  is unsat
+// 2. if so, check ( ( not(conjs-removed) /\ F /\ T ) /\ ( conjs-removed )' is unsat?
+void IC3ng::reduce_unsat_core_linear_backwards(const smt::Term & F_and_T,
+  smt::TermList &conjs, smt::TermList & conjs_nxt) {
+  
+  auto to_remove_pos_prev = conjs.end();
+  auto to_remove_pos_next = conjs_nxt.end();
+
+  while(to_remove_pos_prev != conjs.begin()) {
+    to_remove_pos_prev--; // firstly, point to the last one
+    to_remove_pos_next--;
+
+    if (conjs.size() == 1)
+      continue;
+
+    smt::Term term_to_remove = *to_remove_pos_prev;
+    smt::Term term_to_remove_next = *to_remove_pos_next;
+
+    auto pos_after_conj = conjs.erase(to_remove_pos_prev);
+    auto pos_after_conj_nxt = conjs_nxt.erase(to_remove_pos_next);
+
+
+    auto cex_expr = smart_not(smart_and(conjs));
+    auto base = smart_or<smt::TermVec>(
+        { smart_and<smt::TermVec>(  {cex_expr, F_and_T} ) , init_prime_ } );
+
+    solver_->push();
+    solver_->assert_formula(base);
+    smt::Result r = solver_->check_sat_assuming_list(conjs_nxt);
+
+    to_remove_pos_prev = conjs.insert(pos_after_conj, term_to_remove);
+    to_remove_pos_next = conjs_nxt.insert(pos_after_conj_nxt, term_to_remove_next);
+    if (r.is_sat()) {
+      solver_->pop();
+      continue;
+    } // else { // if unsat, we can remove
+    smt::UnorderedTermSet core_set;
+    solver_->get_unsat_assumptions(core_set);
+    // below function will update assumption_list and to_remove_pos
+    remove_and_move_to_next_backward(conjs, to_remove_pos_prev, conjs_nxt, to_remove_pos_next, core_set);
+    solver_->pop();
+  } // end of while
+}
+
 
 
 ProverResult IC3ng::step(int i)
@@ -405,8 +493,12 @@ ProverResult IC3ng::step(int i)
   D(1, "[step] Added {} CTI on F{} ", proof_goals.size(), frames.size()-1 );
 
   // new proof obligations may be added
-  if (!recursive_block_all_in_queue())
+  size_t nCube = proof_goals.size();
+  if (!recursive_block_all_in_queue()) {
     return ProverResult::FALSE;
+  }
+
+  D(1, "[step] Blocked {} CTI resulted from pushing on F{}", nCube, frames.size()-1);
 
   ++reached_k_;
   
