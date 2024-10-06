@@ -113,10 +113,13 @@ namespace pono
     void assert_frame(unsigned fidx);
     bool frame_implies(unsigned fidx, const smt::Term & expr);
     smt::Term get_frame_formula(unsigned fidx);
-    bool recursive_block_all_in_queue();
+
+    unsigned lowest_frame_touched_;
+    bool recursive_block_all_in_queue(); // recursive_block_all_in_queue will update lowest_frame_touched_
     bool last_frame_reaches_bad();
-    void eager_push_lemmas(unsigned fidx);
-    bool push_lemma_to_new_frame();    
+    void eager_push_lemmas(unsigned fidx, unsigned start_lemma_id);
+
+    bool push_lemma_to_new_frame(); // will use lowest_frame_touched_ to start from
     void validate_inv();
     void inductive_generalization(unsigned fidx, Model *cex, LCexOrigin origin);
 

@@ -139,6 +139,9 @@ void IC3ng::initialize() {
   assert(!init_label_);
   // frame 0 label is identical to init label
   init_label_ = frame_labels_[0];
+
+
+  lowest_frame_touched_ = frames.size() - 1;
 }
 
 void IC3ng::append_frame()
@@ -188,6 +191,7 @@ ic3_rel_ind_check_result IC3ng::rel_ind_check( unsigned prevFidx,
   } // now get the state
 
   // predecessor generalization is implemented through partial model
+  // not good enough
   std::unordered_map<smt::Term,std::vector<std::pair<int,int>>> varlist_slice;
   std::unordered_map<smt::Term,std::vector<std::pair<int,int>>> input_asts_slices = {
     {bad_next_to_assert, { {0,0} }}
@@ -225,6 +229,8 @@ bool IC3ng::recursive_block_all_in_queue() {
   // queue not empty
   if(proof_goals.empty())
     return true;
+  
+  std::unordered_map<unsigned, unsigned> original_frame_sizes;
 
   unsigned prior_round_frame_no =  proof_goals.top()->fidx;
 
@@ -234,9 +240,10 @@ bool IC3ng::recursive_block_all_in_queue() {
     D(2, "[recursive_block] Try to block {} @ F{}", fcex->cex->to_string(), fcex->fidx);
     // if we arrive at a new frame, eager push from prior frame
     if (fcex->fidx > prior_round_frame_no) {
+      assert(fcex->fidx == prior_round_frame_no + 1);
+      eager_push_lemmas(prior_round_frame_no, original_frame_sizes.at(prior_round_frame_no));
+      // pop the stack
       D(2,"Eager push from {} --> {}", prior_round_frame_no, fcex->fidx);
-      for (unsigned idx = prior_round_frame_no; idx < fcex->fidx; ++idx)
-        eager_push_lemmas(idx); // push from prior frame, in case of multiple frames
     }
     prior_round_frame_no = fcex->fidx;
 
@@ -259,14 +266,22 @@ bool IC3ng::recursive_block_all_in_queue() {
       // unsat/unreachable
       // TODO make a lemma, to explain why F(i) /\ T => not MODEL
       
-      D(2, "[recursive_block] Not reachable from F{}", fcex->fidx-1);
+      D(2, "[recursive_block] Not reachable on F{}", fcex->fidx);
       inductive_generalization(fcex->fidx-1, fcex->cex, fcex->cex_origin);
       proof_goals.pop();
+
+      if (lowest_frame_touched_ > fcex->fidx)
+        lowest_frame_touched_ = fcex->fidx;
+
       continue;
     } // else push queue
     Model * pre_model = reachable_from_prior_frame.prev_ex;
     proof_goals.new_proof_goal(fcex->fidx-1, pre_model, fcex->cex_origin.to_prior_frame(), fcex);
     
+    // push the stack
+    original_frame_sizes[fcex->fidx-1] = frames.at(fcex->fidx-1).size();
+    // record_frame_size(fcex->fidx-1);
+
     D(2, "[recursive_block] reachable, traceback to F{}", fcex->fidx-1);
   } // end of while proof_goal is not empty
   proof_goals.clear(); // clear the model buffer, required by proof_goals class
@@ -301,6 +316,7 @@ void IC3ng::inductive_generalization(unsigned fidx, Model *cex, LCexOrigin origi
       {smart_and<smt::TermVec>(  {cex_expr, F_and_T} ) , init_prime_ } );
   
   do{
+
     if (old_size > conjs_nxt.size()) {
       smt::TermVec remaining_conjs;
       for (const auto & c : conjs_nxt)
@@ -310,6 +326,9 @@ void IC3ng::inductive_generalization(unsigned fidx, Model *cex, LCexOrigin origi
       base = smart_or<smt::TermVec>(
         { smart_and<smt::TermVec>(  {cex_expr, F_and_T} ) , init_prime_ } );
     }
+
+    if (conjs_nxt.size() == 1)
+      break;
 
     solver_->push();
     syntax_analysis::reduce_unsat_core_to_fixedpoint(base, conjs_nxt, solver_);
@@ -325,6 +344,9 @@ void IC3ng::inductive_generalization(unsigned fidx, Model *cex, LCexOrigin origi
       base = smart_or<smt::TermVec>(
         { smart_and<smt::TermVec>(  {cex_expr, F_and_T} ) , init_prime_ } );
     }
+
+    if (conjs_nxt.size() == 1)
+      break;
 
     solver_->push();
     syntax_analysis::reduce_unsat_core_linear_rev(base, conjs_nxt, solver_);
@@ -353,6 +375,7 @@ ProverResult IC3ng::step(int i)
     return ProverResult::UNKNOWN;
   }
 
+  
   // `last_frame_reaches_bad` will add to proof obligation
   while (last_frame_reaches_bad()) {
     size_t nCube = proof_goals.size();
@@ -360,10 +383,10 @@ ProverResult IC3ng::step(int i)
       return ProverResult::FALSE;
     D(1, "[step] Blocked {} CTI on F{}", nCube, frames.size()-1);
   }
+  D(1,"[step] {}", print_frame_stat());
   
   append_frame();
   D(1, "[step] Extend to F{}", frames.size()-1);
-
   // TODO: print cubes?  
 
   // recursive block should have already pushed everything pushable to the last frame
@@ -376,6 +399,7 @@ ProverResult IC3ng::step(int i)
     return ProverResult::TRUE;
   }
   
+  lowest_frame_touched_ = frames.size() - 1 ;
   auto new_fsize = (frames.rbegin())->size();
   D(1, "[step] Pushed {}/{} Lemmas to F{}", new_fsize, old_fsize, frames.size()-1 );
   D(1, "[step] Added {} CTI on F{} ", proof_goals.size(), frames.size()-1 );
