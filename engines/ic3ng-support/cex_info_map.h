@@ -25,6 +25,7 @@ struct PerVarInfo {
 
   bool related_info_populated;
   smt::Term related_trans;
+  smt::TermVec preds_w_subset_vars;
   smt::TermVec preds_w_related_vars;
 
   PerVarInfo(std::unordered_set<smt::Term> && vars, std::string && hashstring):
