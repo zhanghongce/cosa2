@@ -167,6 +167,8 @@ void IC3ng::add_lemma_to_frame(Lemma * lemma, unsigned fidx) {
 
 }
 
+// F /\ T /\ not(p)
+// F /\ T /\ cube    sat?   
 
 ic3_rel_ind_check_result IC3ng::rel_ind_check( unsigned prevFidx, 
   const smt::Term & bad_next_trans_subst_,
@@ -194,6 +196,7 @@ ic3_rel_ind_check_result IC3ng::rel_ind_check( unsigned prevFidx,
     return ic3_rel_ind_check_result(true, NULL);
   } // now get the state
 
+  //  c = a /\ b
   // predecessor generalization is implemented through partial model
   // not good enough
   std::unordered_map<smt::Term,std::vector<std::pair<int,int>>> varlist_slice;
@@ -293,8 +296,41 @@ bool IC3ng::recursive_block_all_in_queue() {
 } // recursive_block_all_in_queue
 
 
-// ( ( not(S) /\ F /\ T ) \/ init_prime ) /\ ( S )
+static size_t TermScore(const smt::Term & t) {
+  unsigned w = 0;
+  for(auto pos = t->begin(); pos != t->end(); ++pos)
+    if ((*pos)->get_sort()->get_sort_kind()==smt::SortKind::BV)
+      w += (*pos)->get_sort()->get_width();
+  return w;
+}
 
+static void SortLemma(smt::TermVec & inout, bool descending) {
+  // we don't want to sort the term themselves
+  // we don't want to invoke TermScore function more than once for a term
+  std::vector<std::pair<size_t,size_t>> complexity_index_pair;
+  size_t idx = 0;
+  for (const auto & t : inout) {
+    complexity_index_pair.push_back({ TermScore(t) ,idx});
+    ++ idx;
+  }
+  // sort in descending order (the `first` is compared first), so term-index with 
+  // the highest score will rank first
+  if(descending)
+    std::sort(complexity_index_pair.begin(), complexity_index_pair.end(), std::greater<>());
+  else
+    std::sort(complexity_index_pair.begin(), complexity_index_pair.end(), std::less<>());
+    
+  // now map back to termvec
+  smt::TermVec sorted_term;
+  for (const auto & cpl_idx_pair : complexity_index_pair) {
+    sorted_term.push_back(inout.at(cpl_idx_pair.second));
+  }
+  inout.swap(sorted_term); // this is the same as inout = sorted_term, but faster
+} // end of SortLemma
+
+
+// s 00 a 0001 b 0011
+// s ==00 ->  a > b   a == b a>=b 
 void IC3ng::extend_predicates(Model *cex, smt::TermVec & conj_inout) {
   //TODO:
   // for each predicate p:
@@ -315,6 +351,8 @@ void IC3ng::extend_predicates(Model *cex, smt::TermVec & conj_inout) {
   conj_inout.swap(preds);
 }
 
+// ( ( not(S) /\ F /\ T ) \/ init_prime ) /\ ( cube' )
+//   cube (v[0]=1 /\ v[1]=0 /\ ...)
 void IC3ng::inductive_generalization(unsigned fidx, Model *cex, LCexOrigin origin) {
 
   auto F = get_frame_formula(fidx);
@@ -324,10 +362,13 @@ void IC3ng::inductive_generalization(unsigned fidx, Model *cex, LCexOrigin origi
 
   smt::TermVec conjs;
   cex->to_expr_conj(solver_, conjs);
-  extend_predicates(cex, conjs);
+  // extend_predicates(cex, conjs); // IC3INN
+
+  // TODO: sort conjs
+  SortLemma(conjs, true);
 
   auto cex_expr = smart_not(smart_and(conjs));
-  // TODO: sort conjs
+  // TODO: you may generate more than 1 clauses
 
 
   if (conjs.size() > 1) {
@@ -362,11 +403,13 @@ void IC3ng::inductive_generalization(unsigned fidx, Model *cex, LCexOrigin origi
       // from conjs_nxt to conj
     }
     cex_expr = smart_not(smart_and(conjs_list));
-  }
+
+    D(1,"[ig] F{} get lemma size:{}", fidx+1, conjs_list.size());
+  } else
+    D(1,"[ig] F{} get lemma size:{}", fidx+1, 1);
 
   auto lemma = new_lemma(cex_expr, cex, origin);
   add_lemma_to_frame(lemma,fidx+1);
-  D(2,"[ig] F{} get lemma:{}", fidx+1, lemma->to_string());
 }
 
 
@@ -556,7 +599,7 @@ ProverResult IC3ng::check_until(int k) {
 
 
 /**
- * This function should check F[-1] /\ P
+ * This function should check F[-1] /\ T/\ P'
  * Need to consider assumptions!
  * Need to insert the model into proof_goals
 */
