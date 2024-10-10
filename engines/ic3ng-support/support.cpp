@@ -87,12 +87,17 @@ bool IC3ng::push_lemma_to_new_frame() {
 smt::Term IC3ng::get_trans_for_vars(const smt::UnorderedTermSet & vars) {
   smt::TermVec updates;
   for (const auto & v : vars) {
+    if (actual_statevars_.find(v) == actual_statevars_.end())
+      continue;
+    
     updates.push_back(
       solver_->make_term(
         smt::Equal,
         ts_.next(v),
         ts_.state_updates().at(v)));
   }
+  if (updates.empty())
+    return solver_true_;
   return smart_and(updates);
 }
 
