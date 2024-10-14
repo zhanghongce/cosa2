@@ -112,7 +112,10 @@ namespace pono
     // will also cancel out other frame labels
     void assert_frame(unsigned fidx);
     bool frame_implies(unsigned fidx, const smt::Term & expr);
-    smt::Term get_frame_formula(unsigned fidx);
+
+    // if keep_constraint is false, will not include Lemmas from constraints
+    // dropping constraint is necessary when using this function to create invariant
+    smt::Term get_frame_formula(unsigned fidx, bool keep_constraint = true);
 
     unsigned lowest_frame_touched_;
     bool recursive_block_all_in_queue(); // recursive_block_all_in_queue will update lowest_frame_touched_

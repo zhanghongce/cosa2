@@ -182,7 +182,7 @@ ic3_rel_ind_check_result IC3ng::rel_ind_check( unsigned prevFidx,
     bad_next_trans_subst_   ; // p(T(s))
 
   solver_->push();
-  assert_frame(prevFidx);
+  assert_frame(prevFidx); // this will also enforce the constraints
   if (cex_to_block) // you need to use NOT here
     solver_->assert_formula( smart_not(cex_to_block->to_expr(solver_)) );
   solver_->assert_formula(bad_next_to_assert);
@@ -244,7 +244,7 @@ bool IC3ng::recursive_block_all_in_queue() {
   while(!proof_goals.empty()) {
     fcex_t * fcex = proof_goals.top();
 
-    D(2, "[recursive_block] Try to block {} @ F{}", fcex->cex->to_string(), fcex->fidx);
+    D(2, "[recursive_block] Try to block {} @ F{}", (long long)(fcex), fcex->fidx);
     // if we arrive at a new frame, eager push from prior frame
     if (fcex->fidx > prior_round_frame_no) {
       assert(fcex->fidx == prior_round_frame_no + 1);
@@ -408,6 +408,7 @@ void IC3ng::inductive_generalization(unsigned fidx, Model *cex, LCexOrigin origi
   } else
     D(1,"[ig] F{} get lemma size:{}", fidx+1, 1);
 
+  D(3,"[ig] F{} get lemma:{}", fidx+1, cex_expr->to_string());
   auto lemma = new_lemma(cex_expr, cex, origin);
   add_lemma_to_frame(lemma,fidx+1);
 }

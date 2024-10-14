@@ -76,7 +76,7 @@ bool IC3ng::push_lemma_to_new_frame() {
     frames.at(prev_fidx).swap(remaining_lemmas); // directly swap
 
     if (all_pushed) {
-      invar_ = get_frame_formula(prev_fidx+1);
+      invar_ = get_frame_formula(prev_fidx+1, false);
       return true; // we can stop early
     }
   }
@@ -101,15 +101,18 @@ smt::Term IC3ng::get_trans_for_vars(const smt::UnorderedTermSet & vars) {
   return smart_and(updates);
 }
 
-smt::Term IC3ng::get_frame_formula(unsigned fidx) {
+smt::Term IC3ng::get_frame_formula(unsigned fidx, bool keep_constraint) {
   assert(fidx < frames.size());
   smt::TermVec all_lemmas;
   // you must go through all later frames!!!
   for (size_t curr_fidx = fidx; curr_fidx < frames.size(); ++ curr_fidx ) {
     const auto & the_frame = frames.at(curr_fidx);
     // if all pushed, then make the invariant
-    for (Lemma * l : the_frame)
+    for (Lemma * l : the_frame) {
+      if (l->origin().is_constraint() && !keep_constraint)
+        continue;
       all_lemmas.push_back(l->expr());
+    }
   }
   return smart_and(all_lemmas);
 }
@@ -151,6 +154,7 @@ void IC3ng::validate_inv() {
   D(2,"[Checking invar] {}", invar_->to_string());
   solver_->push();
   solver_->assert_formula(ts_.init());
+  solver_->assert_formula(all_constraints_);
   solver_->assert_formula(smart_not(invar_));
   auto res = solver_->check_sat();
   solver_->pop();
@@ -159,6 +163,7 @@ void IC3ng::validate_inv() {
   
   solver_->push();
   solver_->assert_formula(invar_);
+  solver_->assert_formula(all_constraints_);
   solver_->assert_formula(smart_not(next_trans_replace(ts_.next(invar_))));
   res = solver_->check_sat();
   solver_->pop();
@@ -167,6 +172,7 @@ void IC3ng::validate_inv() {
 
   solver_->push();
   solver_->assert_formula(invar_);
+  solver_->assert_formula(all_constraints_);
   solver_->assert_formula(bad_);
   res = solver_->check_sat();
   solver_->pop();
