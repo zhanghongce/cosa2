@@ -15,6 +15,7 @@ Configures the CMAKE build environment.
 --build-dir=STR         custom build directory  (default: build)
 --with-msat             build with MathSAT which has a custom non-BSD compliant license.  (default : off)
                         Required for interpolant based model checking
+--with-bitwuzla         build with Bitwuzla  (default: off)
 --with-msat-ic3ia       build with the open-source IC3IA implementation as a backend. (default: off)
 --with-coreir           build the CoreIR frontend (default: off)
 --with-coreir-extern    build the CoreIR frontend using an installation of coreir in /usr/local/lib (default: off)
@@ -44,6 +45,7 @@ python=default
 lib_type=SHARED
 static_exec=NO
 with_profiling=default
+with_bitwuzla=default
 
 buildtype=Release
 
@@ -75,6 +77,7 @@ do
         --with-msat-ic3ia) with_msat_ic3ia=ON;;
         --with-coreir) with_coreir=ON;;
         --with-coreir-extern) with_coreir_extern=ON;;
+        --with-bitwuzla) with_bitwuzla=ON;;
         --debug)
             debug=yes;
             buildtype=Debug
@@ -120,6 +123,9 @@ cmake_opts="-DCMAKE_BUILD_TYPE=$buildtype -DPONO_LIB_TYPE=${lib_type} -DPONO_STA
 
 [ $with_profiling != default ] \
     && cmake_opts="$cmake_opts -DWITH_PROFILING=$with_profiling"
+
+[ $with_bitwuzla != default ] \
+    && cmake_opts="$cmake_opts -DWITH_BITWUZLA=$with_bitwuzla"
 
 root_dir=$(pwd)
 

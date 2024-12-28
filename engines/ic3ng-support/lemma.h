@@ -9,7 +9,7 @@ namespace pono
     
   struct LCexOrigin{ // the origin of a model (and therefore its lemma to block)
     public:
-      enum CexType {MUST_BLOCK, MAY_BLOCK, ORIGIN_FROM_INIT, PROPERTY, CONSTRAINT} cex_type;
+      enum CexType {MUST_BLOCK, MAY_BLOCK, ORIGIN_FROM_INIT, PROPERTY, CONSTRAINT, SIDE_LOAD} cex_type;
     private:
       unsigned step_to_fail; // only matters for MUST_BLOCK
     public:
@@ -19,6 +19,7 @@ namespace pono
       bool inline is_may_block() const { return cex_type == MAY_BLOCK; }
       bool inline is_the_property() const { return cex_type == PROPERTY; }
       bool inline is_constraint() const { return cex_type == CONSTRAINT; }
+      bool inline is_side_load() const { return cex_type == SIDE_LOAD; }
       unsigned inline dist_to_fail() const { return step_to_fail; }
       CexType inline get_type() const { return cex_type;} 
       LCexOrigin to_prior_frame() const { 
@@ -31,6 +32,7 @@ namespace pono
       static LCexOrigin FromInit() { return LCexOrigin(ORIGIN_FROM_INIT, 0); }
       static LCexOrigin FromProperty() { return LCexOrigin(PROPERTY, 0); }
       static LCexOrigin FromConstraint() { return LCexOrigin(CONSTRAINT, 0); }
+      static LCexOrigin FromSideLoad() { return LCexOrigin(SIDE_LOAD, 0); }
   };
 
     // the lemma on a frame

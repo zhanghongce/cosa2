@@ -38,6 +38,7 @@ class ExternalTermInterface : public smt::SmtLibReader
 
   void AddAssumptionsToTS();
   const smt::TermVec & GetExternalPredicates() const { return predicates_; }
+  const smt::TermList & GetExternalClauses() const { return clauses_; }
 
  protected:
   // overloaded function, used when arg list of function is parsed
@@ -51,7 +52,7 @@ class ExternalTermInterface : public smt::SmtLibReader
   smt::TermVec predicates_;
   smt::TermVec assertions_;
   smt::TermVec assumptions_;
-
+  smt::TermList clauses_;    // Store clauses in a list
 };
 
 }  // namespace pono

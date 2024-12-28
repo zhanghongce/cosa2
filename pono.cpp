@@ -22,6 +22,7 @@
 #include <gperftools/profiler.h>
 #endif
 
+#include "smt-switch/bitwuzla_factory.h"
 #include "smt-switch/boolector_factory.h"
 #ifdef WITH_MSAT
 #include "smt-switch/msat_factory.h"
@@ -29,9 +30,9 @@
 
 #include "core/fts.h"
 #include "frontends/btor2_encoder.h"
+#include "frontends/external_term.h"
 #include "frontends/smv_encoder.h"
 #include "frontends/vmt_encoder.h"
-#include "frontends/external_term.h"
 #include "modifiers/control_signals.h"
 #include "modifiers/mod_ts_prop.h"
 #include "modifiers/prop_monitor.h"
@@ -42,8 +43,8 @@
 #include "smt-switch/logging_solver.h"
 #include "smt/available_solvers.h"
 #include "utils/logger.h"
-#include "utils/timestamp.h"
 #include "utils/make_provers.h"
+#include "utils/timestamp.h"
 #include "utils/ts_analysis.h"
 
 using namespace pono;
@@ -55,7 +56,8 @@ ProverResult check_prop(PonoOptions pono_options,
                         TransitionSystem & ts,
                         const SmtSolver & s,
                         std::vector<UnorderedTermMap> & cex,
-                        const TermVec & external_preds)
+                        const TermVec & external_preds,
+                        const TermList & external_clauses)
 {
   // get property name before it is rewritten
   const string prop_name = ts.get_name(prop);
@@ -86,7 +88,6 @@ ProverResult check_prop(PonoOptions pono_options,
     // guard the property with reset_done
     prop = ts.solver()->make_term(Implies, reset_done, prop);
   }
-
 
   if (pono_options.static_coi_) {
     /* Compute the set of state/input variables related to the
@@ -137,6 +138,7 @@ ProverResult check_prop(PonoOptions pono_options,
   assert(prover);
 
   prover->set_helper_term_predicates(external_preds);
+  prover->set_helper_term_clauses(external_clauses);  // Use validated clauses
 
   // TODO: handle this in a more elegant way in the future
   //       consider calling prover for CegProphecyArrays (so that underlying
@@ -299,21 +301,39 @@ int main(int argc, char ** argv)
             + pono_options.filename_ + " (" + to_string(num_props) + ")");
       }
 
+      // ----------------------Load external predicates------------------------------
       TermVec external_predicates;
       if (!pono_options.external_predicates_file_.empty()) {
         ExternalTermInterface term_if(pono_options.external_predicates_file_, fts);
         external_predicates = term_if.GetExternalPredicates();
         // TODO add helper assertions/assumptions
         std::cout << "Loaded " << external_predicates.size() << " predicates\n";
-        unsigned i=0;
+        unsigned i = 0;
         for (const auto & p : external_predicates)
-          std::cout << i++ <<" : " << p->to_string() << std::endl;
+          std::cout << i++ << " : " << p->to_string() << std::endl;
+      }
+
+      // -----------------------Load external clauses-------------------------------
+      TermList external_clauses;
+      if (!pono_options.external_clauses_file_.empty()) {
+        ExternalTermInterface term_if(pono_options.external_clauses_file_, fts);
+        external_clauses = term_if.GetExternalClauses();
+        logger.log(1,
+                   "Found {} clauses in {}",
+                   external_clauses.size(),
+                   pono_options.external_clauses_file_);
       }
 
       Term prop = propvec[pono_options.prop_idx_];
 
       vector<UnorderedTermMap> cex;
-      res = check_prop(pono_options, prop, fts, s, cex, external_predicates);
+      res = check_prop(pono_options,
+                       prop,
+                       fts,
+                       s,
+                       cex,
+                       external_predicates,
+                       external_clauses);
       // we assume that a prover never returns 'ERROR'
       assert(res != ERROR);
 
@@ -362,7 +382,7 @@ int main(int argc, char ** argv)
       // get property name before it is rewritten
 
       std::vector<UnorderedTermMap> cex;
-      res = check_prop(pono_options, prop, rts, s, cex, {});
+      res = check_prop(pono_options, prop, rts, s, cex, {}, {});
       // we assume that a prover never returns 'ERROR'
       assert(res != ERROR);
 
@@ -426,7 +446,7 @@ int main(int argc, char ** argv)
   if (pono_options.print_wall_time_) {
     auto end_time_stamp = timestamp();
     auto elapsed_time = timestamp_diff(begin_time_stamp, end_time_stamp);
-    std:cout << "Pono wall clock time (s): " <<
+    std::cout << "Pono wall clock time (s): " <<
       time_duration_to_sec_string(elapsed_time) << std::endl;
   }
 

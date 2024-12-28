@@ -25,6 +25,7 @@
 // these two always included
 #include "smt-switch/boolector_factory.h"
 #include "smt-switch/cvc5_factory.h"
+#include "smt-switch/bitwuzla_factory.h"
 
 #if WITH_MSAT
 #include "smt-switch/msat_factory.h"
@@ -47,7 +48,7 @@ namespace pono {
 
 // list of regular (non-interpolator) solver enums
 const std::vector<SolverEnum> solver_enums({
-  BTOR, CVC5,
+  BTOR, CVC5, BZLA,
 
 #if WITH_MSAT
       MSAT,
@@ -70,6 +71,10 @@ SmtSolver create_solver_base(SolverEnum se, bool logging)
     }
     case CVC5: {
       s = Cvc5SolverFactory::create(logging);
+      break;
+    }
+    case BZLA: {
+      s = BitwuzlaSolverFactory::create(logging);
       break;
     }
 #if WITH_MSAT

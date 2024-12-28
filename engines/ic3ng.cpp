@@ -352,6 +352,27 @@ static size_t TermScore(const smt::Term & t) {
   return slice;
 }
 
+void IC3ng::dump_invariants(std::ostream & os) const {
+    if (frames.empty()) {
+        os << "No frames available.\n";
+        return;
+    }
+
+    D(1, "Starting to dump invariants from the last frame");
+    
+    const auto & last_frame = frames.back();
+    os << "Dumping invariants from the last frame:\n";
+    for (const Lemma * lemma : last_frame) {
+        // os << "Clause: " << lemma->to_string() << "\n";
+        // if (lemma->cex()) {
+        //     os << "Model: " << lemma->cex()->to_string() << "\n";
+        // }
+        D(2, "Clause: {}", lemma->to_string());
+    }
+    
+    D(1, "Finished dumping {} lemmas", last_frame.size());
+}
+
 static void SortLemma(smt::TermVec & inout, bool descending) {
   // we don't want to sort the term themselves
   // we don't want to invoke TermScore function more than once for a term
@@ -493,6 +514,10 @@ void remove_and_move_to_next_backward(smt::TermList & pred_set_prev, smt::TermLi
   smt::TermList & pred_set, smt::TermList::iterator & pred_pos,
   const smt::UnorderedTermSet & unsatcore) {
 
+  assert(pred_set.size() == pred_set_prev.size());
+  assert(pred_pos != pred_set.end());
+  assert(pred_pos_rev != pred_set_prev.end());
+
   auto pred_iter = pred_set.end(); // pred_pos;
   auto pred_pos_new = pred_set.end();
 
@@ -549,6 +574,8 @@ void IC3ng::reduce_unsat_core_linear_backwards(const smt::Term & F_and_T,
   
   auto to_remove_pos_prev = conjs.end();
   auto to_remove_pos_next = conjs_nxt.end();
+
+  assert(conjs.size() == conjs_nxt.size());
 
   while(to_remove_pos_prev != conjs.begin()) {
     to_remove_pos_prev--; // firstly, point to the last one

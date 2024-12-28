@@ -36,6 +36,8 @@ ExternalTermInterface::ExternalTermInterface(const std::string & filename, Trans
         assumptions_.push_back(n_prop.second);
       if(n_prop.first.find("predicate.") == 0)
         predicates_.push_back(n_prop.second);
+      if(n_prop.first.find("clause.") == 0)
+        clauses_.push_back(n_prop.second);
   }
 }
 

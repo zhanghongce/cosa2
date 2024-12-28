@@ -181,6 +181,7 @@ class PonoOptions
   // Pono options
   Engine engine_;
   std::string external_predicates_file_;
+  std::string external_clauses_file_;
   unsigned int prop_idx_;
   unsigned int bound_;
   unsigned int verbosity_;

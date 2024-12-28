@@ -64,6 +64,8 @@ namespace pono
     void print_time_stat(std::ostream & os) const;
 
     void virtual set_helper_term_predicates(const smt::TermVec & ) override;
+    void virtual set_helper_term_clauses(const smt::TermList & clauses);
+    void dump_invariants(std::ostream & os) const;
 
   protected:
     std::ofstream debug_fout;
@@ -145,6 +147,11 @@ namespace pono
     unsigned extend_predicates(Model *cex, smt::TermVec & conj_inout);
     smt::TermVec loaded_predicates_;
     std::unordered_map<Model *, PerCexInfo> model_info_map_;
+
+    // Store side-loaded clauses for first frame
+    smt::TermList loaded_clauses_;
+    // Add method declaration
+    //void process_external_clauses(const std::string & filename);
 
     /**
      * misc functions, supportive functions

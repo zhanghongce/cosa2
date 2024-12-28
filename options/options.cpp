@@ -32,6 +32,7 @@ enum optionIndex
   HELP,
   ENGINE,
   EXTERNAL_PREDICATES_FILE,
+  EXTERNAL_CLAUSES_FILE,
   BOUND,
   PROP,
   VERBOSITY,
@@ -152,6 +153,13 @@ const option::Descriptor usage[] = {
     Arg::NonEmpty,
     "  --external-predicates <file-name> \tThe file name to load predicates."
   },
+  { EXTERNAL_CLAUSES_FILE,
+    0,
+    "",
+    "external-clauses",
+    Arg::NonEmpty,
+    "  --external-clauses <file-name> \tThe file name to load clauses."
+  },
   { BOUND,
     0,
     "k",
@@ -187,7 +195,7 @@ const option::Descriptor usage[] = {
     "",
     "smt-solver",
     Arg::NonEmpty,
-    "  --smt-solver \tSMT Solver to use: btor, msat, or cvc5." },
+    "  --smt-solver \tSMT Solver to use: btor, bzla, msat, or cvc5." },
   { LOGGING_SMT_SOLVER,
     0,
     "",
@@ -693,6 +701,7 @@ ProverResult PonoOptions::parse_and_set_options(int argc,
           // not possible, because handled further above and exits the program
         case ENGINE: engine_ = to_engine(opt.arg); break;
         case EXTERNAL_PREDICATES_FILE: external_predicates_file_ = opt.arg; break;
+        case EXTERNAL_CLAUSES_FILE: external_clauses_file_ = opt.arg; break;
         case BOUND: bound_ = atoi(opt.arg); break;
         case PROP: prop_idx_ = atoi(opt.arg); break;
         case VERBOSITY: verbosity_ = atoi(opt.arg); break;
@@ -708,6 +717,8 @@ ProverResult PonoOptions::parse_and_set_options(int argc,
             smt_solver_ = smt::CVC5;
           } else if (opt.arg == std::string("msat")) {
             smt_solver_ = smt::MSAT;
+          } else if (opt.arg == std::string("bzla")) {
+            smt_solver_ = smt::BZLA;
           } else {
             throw PonoException("Unknown solver: " + std::string(opt.arg));
             break;
