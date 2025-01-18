@@ -23,6 +23,7 @@
 #endif
 
 #include "smt-switch/boolector_factory.h"
+#include "smt-switch/bitwuzla_factory.h"
 #ifdef WITH_MSAT
 #include "smt-switch/msat_factory.h"
 #endif
@@ -55,7 +56,9 @@ ProverResult check_prop(PonoOptions pono_options,
                         TransitionSystem & ts,
                         const SmtSolver & s,
                         std::vector<UnorderedTermMap> & cex,
-                        const TermVec & external_preds)
+                        const TermVec & external_preds,
+                        const TermVec & augmenting_assertions,
+                        const TermVec & f1_lemma_candidates)                        
 {
   // get property name before it is rewritten
   const string prop_name = ts.get_name(prop);
@@ -299,12 +302,18 @@ int main(int argc, char ** argv)
             + pono_options.filename_ + " (" + to_string(num_props) + ")");
       }
 
-      TermVec external_predicates;
+      TermVec external_predicates, augmenting_assertions, f1_lemma_candidates;
       if (!pono_options.external_predicates_file_.empty()) {
         ExternalTermInterface term_if(pono_options.external_predicates_file_, fts);
         external_predicates = term_if.GetExternalPredicates();
+        augmenting_assertions = term_if.GetAugmentingAssertions();
+        f1_lemma_candidates = term_if.GetF1LemmaCandidates();
+
         // TODO add helper assertions/assumptions
-        std::cout << "Loaded " << external_predicates.size() << " predicates\n";
+        std::cout << "Loaded " << external_predicates.size() << " predicates, "
+                               << augmenting_assertions.size() << " assertions, "
+                               << f1_lemma_candidates.size() << " lemmas\n";
+
         unsigned i=0;
         for (const auto & p : external_predicates)
           std::cout << i++ <<" : " << p->to_string() << std::endl;
@@ -313,7 +322,8 @@ int main(int argc, char ** argv)
       Term prop = propvec[pono_options.prop_idx_];
 
       vector<UnorderedTermMap> cex;
-      res = check_prop(pono_options, prop, fts, s, cex, external_predicates);
+      res = check_prop(pono_options, prop, fts, s, cex, 
+              external_predicates, augmenting_assertions, f1_lemma_candidates);
       // we assume that a prover never returns 'ERROR'
       assert(res != ERROR);
 
@@ -362,7 +372,7 @@ int main(int argc, char ** argv)
       // get property name before it is rewritten
 
       std::vector<UnorderedTermMap> cex;
-      res = check_prop(pono_options, prop, rts, s, cex, {});
+      res = check_prop(pono_options, prop, rts, s, cex, {}, {}, {});
       // we assume that a prover never returns 'ERROR'
       assert(res != ERROR);
 

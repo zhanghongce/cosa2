@@ -64,7 +64,9 @@ void reduce_unsat_core_to_fixedpoint(const smt::Term & formula, smt::UnorderedTe
 void reduce_unsat_core_linear(const smt::Term & formula, smt::TermList & assumption_list, const smt::SmtSolver & solver_);
 
 
-void reduce_unsat_core_to_fixedpoint(const smt::Term & formula, smt::TermList & core_inout, const smt::SmtSolver & solver_);
+// return true, if succeed
+// return false, if it is not unsat
+bool reduce_unsat_core_to_fixedpoint(const smt::Term & formula, smt::TermList & core_inout, const smt::SmtSolver & solver_);
 // The rev version assumes that assumption_list are ordered as following:
 // [keep...remove]  (those we want to keep are put the first)
 void reduce_unsat_core_linear_rev(const smt::Term & formula, smt::TermList & assumption_list, const smt::SmtSolver & solver_);

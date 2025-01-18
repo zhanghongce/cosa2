@@ -405,69 +405,119 @@ void IC3ng::inductive_generalization(unsigned fidx, Model *cex, LCexOrigin origi
   auto F_and_T = smart_and<smt::TermVec>({F,T});
 
 
-  smt::TermVec conjs;
-  cex->to_expr_conj(solver_, conjs);
+  smt::TermVec all_conjs;
+  cex->to_expr_conj(solver_, all_conjs);
   // HZ: TODO a better way is to check, if the vars are appearing too often
   // if so, we extend the predicates
   // otherwise, we will not use word-level preds
 
 
   // TODO: sort conjs
-  SortLemma(conjs, options_.ic3base_sort_lemma_descending);
+  SortLemma(all_conjs, options_.ic3base_sort_lemma_descending);
 
 
-  auto npred = extend_predicates(cex, conjs); // IC3INN
+  auto npred = extend_predicates(cex, all_conjs); // IC3INN
   //  conjs.erase(conjs.begin()+1);
   //  TODO: you may need more than 1 round (if not word-level pred used)
+  smt::UnorderedTermSet pred_vars, pred_vars_nxt;
+  for (size_t idx = 0; idx < npred; ++ idx) {
+    smt::get_free_symbols( all_conjs.at(idx), pred_vars );
+  }
+  for (const auto & v : pred_vars)
+    pred_vars_nxt.emplace(ts_.next(v));
 
 
 #ifdef DEBUG_IC3
   std::cout << "After sorting:\n";
   unsigned i = 0;
-  for (const auto & e : conjs)
+  for (const auto & e : all_conjs)
     std::cout << " " << i++ << ": " << e->to_string() << "\n";
   std::cout << "------------------\n";
 #endif
 
-  auto cex_expr = smart_not(smart_and(conjs));
-  // TODO: you may generate more than 1 clauses
+  assert(!all_conjs.empty());
+  if (all_conjs.size() == 1) { // a short-cut
+    auto cex_expr = smart_not(smart_and(all_conjs));
+    D(3,"[ig] F{} get lemma:{}", fidx+1, cex_expr->to_string());
+    auto lemma = new_lemma(cex_expr, cex, origin);
+    add_lemma_to_frame(lemma,fidx+1);
+    return;
+  }
 
+  // Next, if we have more than 1 clause...
+  smt::TermVec allconjs_nxt;
+  std::unordered_map<smt::Term, size_t> conjnxt_to_idx_map; // use this map to identify more easily its index
+  for (size_t idx = 0; idx < all_conjs.size(); ++idx) {
+    allconjs_nxt.push_back(ts_.next(all_conjs.at(idx)));
+    conjnxt_to_idx_map.emplace(allconjs_nxt.back(), idx);
+  }
+  std::vector<bool> conjs_used(all_conjs.size(), false); // initialized: all un-used
 
-  if (conjs.size() > 1) {
+  unsigned max_round = options_.ic3ng_indgen_max_round; // default 3
+  if (options_.ic3ng_indgen_multilemma_on_predicates_only && npred == 0)
+    max_round = 1; // if we have no predicates, then just one round
 
+  for (unsigned rnd = 0 ; rnd < max_round; ++ rnd) {
+    // we start from all_conjs, and generate the conjs and conj_nxt for this round
+    smt::TermList conjs_list;
     smt::TermList conjs_nxt;
-    std::unordered_map<smt::Term, size_t> conjnxt_to_idx_map;
-    size_t old_size = conjs.size();
-    for (size_t idx = 0; idx < old_size; ++idx) {
-      conjs_nxt.push_back(ts_.next(conjs.at(idx)));
-      conjnxt_to_idx_map.emplace(conjs_nxt.back(), idx);
+    for (size_t idx = 0; idx < all_conjs.size(); ++idx) {
+      if (!conjs_used[idx]) {
+        conjs_list.push_back(all_conjs.at(idx));
+        conjs_nxt.push_back(allconjs_nxt.at(idx));
+      }
     }
-
+    // we need to test here, if the remaining ones are still good enough to block the CTI
+    auto cex_expr = smart_not(smart_and(conjs_list));
     smt::Term base = 
       smart_or<smt::TermVec>(
         {smart_and<smt::TermVec>(  {cex_expr, F_and_T} ) , init_prime_ } );
-  
     solver_->push();
-    syntax_analysis::reduce_unsat_core_to_fixedpoint(base, conjs_nxt, solver_);
+    bool succ = syntax_analysis::reduce_unsat_core_to_fixedpoint(base, conjs_nxt, solver_);
     solver_->pop();
-    D(2, "[ig] core size: {} => {}", old_size, conjs_nxt.size());
+    if (!succ) { // the remaining ones are not enough, we should stop
+      D(3,"[ig] not enough pred remained, skipped @ rnd{}.", rnd);
+      assert(rnd != 0); // you should never fail at the first attempt!
+      break;
+    }
 
-    smt::TermList conjs_list;
+    conjs_list.clear(); // update conjs_list
     for (const auto & c : conjs_nxt)
-      conjs_list.push_back(conjs.at(conjnxt_to_idx_map.at(c)));
-
+      conjs_list.push_back(all_conjs.at(conjnxt_to_idx_map.at(c)));
 
     if (conjs_nxt.size() > 1) {
       solver_->push();
       // syntax_analysis::reduce_unsat_core_linear_rev(base, conjs_nxt, solver_);
       reduce_unsat_core_linear_backwards(F_and_T, conjs_list, conjs_nxt);
       solver_->pop();
-      // from conjs_nxt to conj
     }
+
+    // strategy #2: find those variables in provided lemmas, and try to through them away
+    bool disabled_any = false;
+    for (const auto & cj_nxt : conjs_nxt) {
+      auto to_disable_idx = conjnxt_to_idx_map.at(cj_nxt);
+      if (to_disable_idx < npred) continue; // no need to disable those external preds
+      smt::UnorderedTermSet cj_vars;
+      smt::get_free_symbols(cj_nxt,cj_vars);
+      for (const auto & v : cj_vars)
+        if (pred_vars_nxt.find(v) != pred_vars_nxt.end()) {
+          conjs_used[to_disable_idx] = true;
+          disabled_any = true;
+          break;
+        }
+    }
+
+    // Design Choice here: should we disable all or just one, and which one?
+    // strategy #1: using the last one, but is there a better way?
+    if (!disabled_any) {
+      auto to_disable_idx = conjnxt_to_idx_map.at(conjs_nxt.back());
+      conjs_used[to_disable_idx] = true;
+    }
+
     cex_expr = smart_not(smart_and(conjs_list));
 
 #ifdef DEBUG_IC3
-    std::cout << "Kept:\n";
+    std::cout << rnd << " Kept:\n";
     for (const auto & e : conjs_nxt) {
       std::cout << conjnxt_to_idx_map.at(e) << " : " << e->to_string() << std::endl;
       if (conjnxt_to_idx_map.at(e) < npred)
@@ -477,13 +527,11 @@ void IC3ng::inductive_generalization(unsigned fidx, Model *cex, LCexOrigin origi
 #endif
 
     D(1,"[ig] F{} get lemma size:{}", fidx+1, conjs_list.size());
-  } else
-    D(1,"[ig] F{} get lemma size:{}", fidx+1, 1);
-
-  D(3,"[ig] F{} get lemma:{}", fidx+1, cex_expr->to_string());
-  auto lemma = new_lemma(cex_expr, cex, origin);
-  add_lemma_to_frame(lemma,fidx+1);
-}
+    D(3,"[ig] F{} get lemma:{}", fidx+1, cex_expr->to_string());
+    auto lemma = new_lemma(cex_expr, cex, origin);
+    add_lemma_to_frame(lemma,fidx+1);
+  } // end for each round
+} // end of inductive_generalization
 
 
 
@@ -514,7 +562,10 @@ void remove_and_move_to_next_backward(smt::TermList & pred_set_prev, smt::TermLi
     }
     
     if (unsatcore.find(*pred_iter) == unsatcore.end()) {
-      assert (reached);
+      // assert (reached); OK, this can happen.
+      // it is possible that a previously unremoveable one now is removable
+      // because the pre-set is also changed (it becomes more restrictive
+      // after you remove another one)
       pred_iter = pred_set.erase(pred_iter);
       pred_iter_prev = pred_set_prev.erase(pred_iter_prev);
     } else {
@@ -547,22 +598,22 @@ void remove_and_move_to_next_backward(smt::TermList & pred_set_prev, smt::TermLi
 void IC3ng::reduce_unsat_core_linear_backwards(const smt::Term & F_and_T,
   smt::TermList &conjs, smt::TermList & conjs_nxt) {
   
-  auto to_remove_pos_prev = conjs.end();
-  auto to_remove_pos_next = conjs_nxt.end();
+  auto to_remove_pos_prev = conjs.end(); // prev means on the predicates with current version of variables
+  auto to_remove_pos_next = conjs_nxt.end(); // next means over the predicates with the next version of variables
 
   while(to_remove_pos_prev != conjs.begin()) {
     to_remove_pos_prev--; // firstly, point to the last one
-    to_remove_pos_next--;
+    to_remove_pos_next--; // synchronously point to the corresponding one in the next set
 
-    if (conjs.size() == 1)
+    if (conjs.size() == 1) // no need to reduce anymore, if we only have 1 left
       continue;
 
     smt::Term term_to_remove = *to_remove_pos_prev;
     smt::Term term_to_remove_next = *to_remove_pos_next;
 
-    auto pos_after_conj = conjs.erase(to_remove_pos_prev);
+    auto pos_after_conj = conjs.erase(to_remove_pos_prev); // let's try to remove it
     auto pos_after_conj_nxt = conjs_nxt.erase(to_remove_pos_next);
-
+    // the return value is the pointer to the element after the removed one
 
     auto cex_expr = smart_not(smart_and(conjs));
     auto base = smart_or<smt::TermVec>(
@@ -572,7 +623,7 @@ void IC3ng::reduce_unsat_core_linear_backwards(const smt::Term & F_and_T,
     solver_->assert_formula(base);
     smt::Result r = solver_->check_sat_assuming_list(conjs_nxt);
 
-    to_remove_pos_prev = conjs.insert(pos_after_conj, term_to_remove);
+    to_remove_pos_prev = conjs.insert(pos_after_conj, term_to_remove); // will insert before pos_after_conj
     to_remove_pos_next = conjs_nxt.insert(pos_after_conj_nxt, term_to_remove_next);
     if (r.is_sat()) {
       solver_->pop();

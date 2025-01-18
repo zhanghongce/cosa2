@@ -30,20 +30,32 @@ ExternalTermInterface::ExternalTermInterface(const std::string & filename, Trans
   assert(!res);  // 0 means success
 
   for(const auto & n_prop : defs_){
-      if(n_prop.first.find("assertion.") == 0)
+      // for proving aids
+      if(n_prop.first.find("assertion.") == 0) // augmenting assertions
         assertions_.push_back(n_prop.second);
-      if(n_prop.first.find("assumption.") == 0)
-        assumptions_.push_back(n_prop.second);
       if(n_prop.first.find("predicate.") == 0)
         predicates_.push_back(n_prop.second);
+      if(n_prop.first.find("lemma.") == 0)
+        lemmas_.push_back(n_prop.second);
+      
+      // For augmenting transition systems
+      if(n_prop.first.find("assumption.") == 0)
+        assumptions_.push_back(n_prop.second);
   }
 }
 
 
 smt::Term ExternalTermInterface::register_arg(const std::string & name, const smt::Sort & sort) {
-  auto tmpvar = ts_.lookup(name);
-  arg_param_map_.add_mapping(name, tmpvar);
-  return tmpvar; // we expect to get the term in the transition system.
+  auto pos = ts_.named_terms().find(name);
+  if (pos == ts_.named_terms().end()) {
+    pos = ts_.named_terms().find("|"+name+"|");
+  }
+  if (pos == ts_.named_terms().end()) {
+    throw PonoException("Cannot find term named: " + name);
+  }
+  
+  arg_param_map_.add_mapping(name, pos->second);
+  return pos->second; // we expect to get the term in the transition system.
 }
 
 smt::Term ExternalTermInterface::AddAssertions(const smt::Term &in) const{
