@@ -297,8 +297,16 @@ bool IC3ng::recursive_block_all_in_queue() {
       D(2,"Eager push from {} --> {}", prior_round_frame_no, fcex->fidx);
     }
     prior_round_frame_no = fcex->fidx;
+    // HZ: TODO: add a syntactic check here!
+    bool trivial_block = false;
+    for (Lemma * l : frames.at(fcex->fidx)) {
+      if (l->cex() == fcex->cex) {
+        trivial_block = true;
+        break;
+      }
+    }
 
-    if (frame_implies(fcex->fidx, smart_not(fcex->cex->to_expr(solver_)))) {
+    if (trivial_block || frame_implies(fcex->fidx, smart_not(fcex->cex->to_expr(solver_)))) {
       proof_goals.pop();
       D(2, "[recursive_block] F{} -> not(cex)", fcex->fidx);
       continue;
