@@ -90,7 +90,6 @@ ProverResult check_prop(PonoOptions pono_options,
     prop = ts.solver()->make_term(Implies, reset_done, prop);
   }
 
-
   if (pono_options.static_coi_) {
     /* Compute the set of state/input variables related to the
        bad-state property. Based on that information, rebuild the
@@ -140,6 +139,7 @@ ProverResult check_prop(PonoOptions pono_options,
   assert(prover);
 
   prover->set_helper_term_predicates(external_preds);
+  prover->set_helper_term_clauses(external_clauses);  // Use validated clauses
 
   // TODO: handle this in a more elegant way in the future
   //       consider calling prover for CegProphecyArrays (so that underlying
@@ -302,6 +302,7 @@ int main(int argc, char ** argv)
             + pono_options.filename_ + " (" + to_string(num_props) + ")");
       }
 
+      // ----------------------Load external predicates------------------------------
       TermVec external_predicates, augmenting_assertions, f1_lemma_candidates;
       if (!pono_options.external_predicates_file_.empty()) {
         ExternalTermInterface term_if(pono_options.external_predicates_file_, fts);
@@ -436,7 +437,7 @@ int main(int argc, char ** argv)
   if (pono_options.print_wall_time_) {
     auto end_time_stamp = timestamp();
     auto elapsed_time = timestamp_diff(begin_time_stamp, end_time_stamp);
-    std:cout << "Pono wall clock time (s): " <<
+    std::cout << "Pono wall clock time (s): " <<
       time_duration_to_sec_string(elapsed_time) << std::endl;
   }
 

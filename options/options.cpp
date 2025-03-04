@@ -32,6 +32,7 @@ enum optionIndex
   HELP,
   ENGINE,
   EXTERNAL_PREDICATES_FILE,
+  EXTERNAL_CLAUSES_FILE,
   BOUND,
   PROP,
   VERBOSITY,
@@ -153,6 +154,13 @@ const option::Descriptor usage[] = {
     "external-predicates",
     Arg::NonEmpty,
     "  --external-predicates <file-name> \tThe file name to load predicates."
+  },
+  { EXTERNAL_CLAUSES_FILE,
+    0,
+    "",
+    "external-clauses",
+    Arg::NonEmpty,
+    "  --external-clauses <file-name> \tThe file name to load clauses."
   },
   { BOUND,
     0,
@@ -709,6 +717,7 @@ ProverResult PonoOptions::parse_and_set_options(int argc,
           // not possible, because handled further above and exits the program
         case ENGINE: engine_ = to_engine(opt.arg); break;
         case EXTERNAL_PREDICATES_FILE: external_predicates_file_ = opt.arg; break;
+        case EXTERNAL_CLAUSES_FILE: external_clauses_file_ = opt.arg; break;
         case BOUND: bound_ = atoi(opt.arg); break;
         case PROP: prop_idx_ = atoi(opt.arg); break;
         case VERBOSITY: verbosity_ = atoi(opt.arg); break;
