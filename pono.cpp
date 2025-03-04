@@ -139,7 +139,9 @@ ProverResult check_prop(PonoOptions pono_options,
   assert(prover);
 
   prover->set_helper_term_predicates(external_preds);
-  prover->set_helper_term_clauses(external_clauses);  // Use validated clauses
+  prover->set_helper_term_clauses(f1_lemma_candidates);  // Use validated clauses
+  if (!augmenting_assertions.empty())
+    throw PonoException("Augmented assertion not implemented. Future work.");
 
   // TODO: handle this in a more elegant way in the future
   //       consider calling prover for CegProphecyArrays (so that underlying

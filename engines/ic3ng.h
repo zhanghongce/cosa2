@@ -62,9 +62,13 @@ namespace pono
     smt::SmtSolver & solver() override { return solver_; }
     std::string print_frame_stat() const ;
     void print_time_stat(std::ostream & os) const;
-
+    
+    // set up helper predicates 
     void virtual set_helper_term_predicates(const smt::TermVec & ) override;
-    void virtual set_helper_term_clauses(const smt::TermList & clauses);
+    // give the clauses that will appear in F1
+    // will run the check: init -> c    and   init /\ T -> c'
+    void virtual set_helper_term_clauses(const smt::TermVec & clauses) override;
+    
     void dump_invariants(std::ostream & os) const;
 
   protected:

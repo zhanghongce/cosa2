@@ -32,7 +32,7 @@ void IC3ng::set_helper_term_predicates(const smt::TermVec & preds) {
 
 }
 
-void IC3ng::set_helper_term_clauses(const smt::TermList & clauses) {
+void IC3ng::set_helper_term_clauses(const smt::TermVec & clauses) {
   // Store validated clauses
   
   logger.log(1, "Starting to validate {} external clauses", clauses.size());
@@ -84,8 +84,8 @@ void IC3ng::set_helper_term_clauses(const smt::TermList & clauses) {
                               LCexOrigin::FromSideLoad());
         
         logger.log(1, "Adding clause to initial frame: {}", clause->to_string());
-        // add to F₀
-        add_lemma_to_frame(lemma, 1); // 0 is for init, it should be on F1
+        // add to F1 // 0 is for init, it should be on F1
+        add_lemma_to_frame(lemma, 1); 
         
         // HZ: I don't see the reason for doing this. So I remove it.
         // assert it as a valid invariant to solver
@@ -93,7 +93,7 @@ void IC3ng::set_helper_term_clauses(const smt::TermList & clauses) {
       } else {
         // HZ: I think you may want to throw an exception
         // because normally this should not happen 
-        logger.log(1, "Frames not initialized yet, clause will be stored in loaded_clauses_");
+        throw PonoException("Frames not initialized yet, clause will be stored in loaded_clauses_");
       }
     } else {
       logger.log(2, "Clause {} fails to cover reachable states at F1, skipping", clause);
