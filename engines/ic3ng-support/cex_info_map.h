@@ -24,7 +24,10 @@ struct PerCexInfo {
 struct PerVarInfo {
   std::unordered_set<smt::Term> vars_noslice_in_cex;
   std::string vars_noslice_canonical_string;
+
   unsigned ref_count; // we want to know, if the CTIs are often about a certain vars or not
+                      // this is not used for memory management
+                      // because once a cex is generated, it will not be deleted anyway
 
   bool related_info_populated;
   smt::Term related_trans;

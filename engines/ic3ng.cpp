@@ -149,6 +149,8 @@ void IC3ng::initialize() {
 
   lowest_frame_touched_ = frames.size() - 1;
 
+  // build the initial aiger
+  build_initial_aiger();
 }
 
 void IC3ng::append_frame()
@@ -179,6 +181,31 @@ static bool set_intersect(const smt::UnorderedTermSet & a, const smt::UnorderedT
   return false;
 }
 
+
+// reduce predecessor by unsat core reduction
+void IC3ng::get_min_pred(
+  const smt::Term &bad_next, /* bad (over current version of variables) */
+  const smt::Term & prev_asmpt, // maybe nullptr if not needed
+  unsigned prevFidx, // fidx
+  std::unordered_map<smt::Term,std::vector<std::pair<int,int>>> & varlist_slice)
+{
+  smt::UnorderedTermSet varset;
+  smt::get_free_symbols(bad_next, varset);
+
+  // for each free symbol, get its assignment from the solver
+  // and then construct the terms ((_ extract x x) Var) = ((_ extract x x) Val)
+  // then use unsat core reduction
+  
+  
+
+  // finally, if no assumptions, remove all inputs
+
+  
+
+  #error TODO
+}
+
+
 // F /\ T /\ not(p)
 // F /\ T /\ cube    sat?   
 
@@ -208,10 +235,17 @@ ic3_rel_ind_check_result IC3ng::rel_ind_check( unsigned prevFidx,
     return ic3_rel_ind_check_result(true, NULL);
   } // now get the state
 
+
   //  c = a /\ b
   // predecessor generalization is implemented through partial model
   // not good enough
   std::unordered_map<smt::Term,std::vector<std::pair<int,int>>> varlist_slice;
+  // use unsatcore reduction
+  get_min_pred(bad_next_to_assert, 
+    cex_to_block ? smart_not(cex_to_block->to_expr(solver_)) : nullptr,
+    prevFidx, varlist_slice);
+
+#if 0
   std::unordered_map<smt::Term,std::vector<std::pair<int,int>>> input_asts_slices = {
     {bad_next_to_assert, { {0,0} }}
   };
@@ -250,6 +284,7 @@ ic3_rel_ind_check_result IC3ng::rel_ind_check( unsigned prevFidx,
   } // end of has assumption
 
   partial_model_getter.GetVarListForAsts_in_bitlevel(input_asts_slices, varlist_slice);
+#endif
   // after this step varlist_slice may contain 
   // 1. current state var , 2. current input var
   // 3. next input var (it should not contain next state var)
@@ -257,6 +292,7 @@ ic3_rel_ind_check_result IC3ng::rel_ind_check( unsigned prevFidx,
   // if there is assumption, we can only remove 3
   
   cut_vars_curr(varlist_slice, !has_assumptions); // // if we don't have assumptions we can cut current input
+  #error "TODO: change the interface here as well"
   Model * prev_ex = new_model(varlist_slice);
   solver_->pop();
 

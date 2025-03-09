@@ -40,10 +40,10 @@ Model * ModelLemmaManager::new_model(const std::unordered_map <smt::Term,std::ve
   return cube_allocation_pool.back();
 }
 
-void ModelLemmaManager::register_new_model(Model * m) {
-  assert (m);
-  cube_allocation_pool.push_back(m);
-}
+// void ModelLemmaManager::register_new_model(Model * m) {
+//   assert (m);
+//   cube_allocation_pool.push_back(m);
+// }
 
 
 Lemma * ModelLemmaManager::new_lemma(

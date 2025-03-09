@@ -40,9 +40,12 @@ namespace pono
     public:
     
     Lemma(const smt::Term & expr, Model * cex, LCexOrigin origin) : expr_(expr), 
-      cex_(cex),  origin_(origin) { }
+      cex_(cex),  origin_(origin) {
+        #error "fix cube"
+       }
     
     inline smt::Term  expr() const { return expr_; }
+    inline const cube_t & cube() const { return cube_; }
     inline Model *  cex() const { return cex_; }
     inline std::string to_string() const { return expr()->to_string(); }
     inline LCexOrigin origin() const { return origin_; }
@@ -60,7 +63,12 @@ namespace pono
 
     protected:
     // the expression : for btor
+    // the expr should be not(Conj(var==val)) for var,val in cube
     smt::Term expr_;
+
+    // a map: term->term, var == val
+    cube_t cube_;
+
     // the cex it blocks
     Model*  cex_;
     // status tracking
@@ -82,8 +90,9 @@ public:
   virtual smt::SmtSolver & solver() = 0;
 
 protected:
+  // [deprecated]
   // Model * new_model();
-  void register_new_model(Model *);
+  // void register_new_model(Model *);
   Model * new_model(const std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> & varset);
   // Model * new_model_replace_var(
   //   const std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> & varset,

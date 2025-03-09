@@ -35,6 +35,7 @@
 #include "smt-switch/utils.h"
 #include "ic3ng-support/lemma.h"
 #include "ic3ng-support/priority_queue.h"
+#include "ic3ng-support/aiger.hpp"
 #include "utils/partial_model.h"
 
 
@@ -140,6 +141,34 @@ namespace pono
     void reduce_unsat_core_linear_backwards(const smt::Term & F_and_T,
       smt::TermList &conjs, smt::TermList & conjs_nxt);
 
+    // reduce predecessor by unsat core reduction
+    void get_min_pred(
+      const smt::Term &bad_next, /* bad (over current version of variables) */
+      const smt::Term & prev_asmpt, // maybe nullptr if not needed
+      unsigned prevFidx, // fidx
+      std::unordered_map<smt::Term,std::vector<std::pair<int,int>>> & varlist_slice);
+
+    // this aiger contains the latch as input, initialized in `initialize`
+    // so, you don't need to build from scratch, you can start by copying this 
+    // aiger
+    aiger_cxx::Aiger initial_aiger;
+    // statevar_to_aiglit_map is to cache the map, so you don't need rebuild this part
+    // when building internal_nodes_to_aiglit_map
+    std::unordered_map<smt::Term, unsigned>  statevar_to_aiglit_map;
+    // a literal -> term map
+    smt::TermVec initial_lit2term_map; // lit 0 is for false
+    // will update  initial_aiger, statevar_to_aiglit_map, lit2term_map
+    void build_initial_aiger(); // called in `initialize`
+
+    void load_aiger_internal_nodes(const std::string & fname);
+    // You may only want to dump the last frame?
+    void dump_clause_to_aiger(const std::string & fname);
+    // stored the terms for internal nodes and the map to aig lit
+    std::unordered_map<smt::Term, unsigned>  internal_nodes_to_aiglit_map; 
+    // the aiger that we loaded
+    aiger_cxx::Aiger loaded_aiger;
+
+
     // \neg C /\ F /\ C
     //           F /\ p
     ic3_rel_ind_check_result rel_ind_check( unsigned prevFidx, 
@@ -193,6 +222,19 @@ namespace pono
       }
       return term;
     }
+
+  smt::Term IC3ng::bv_to_bool(const smt::Term & t) {
+    smt::Sort sort = t->get_sort();
+    if (sort->get_sort_kind() == smt::BV) {
+      if (sort->get_width() != 1) {
+        throw PonoException("Can't convert non-width 1 bitvector to bool.");
+      }
+      return solver_->make_term(
+        smt::Equal, t, solver_->make_term(1, solver_->make_sort(smt::BV, 1)));
+    } else {
+      return t;
+    }
+  }
 
   }; // end of class IC3ng
 
