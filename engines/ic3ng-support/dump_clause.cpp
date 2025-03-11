@@ -63,7 +63,7 @@ void IC3ng::build_initial_aiger() {
 //   return (term_depth(l.first) < term_depth(r.first));
 // }
 
-
+#if 0  // TODO
 // warning: this will change `loaded_aiger` because I don't want
 // to make another copy
 void IC3ng::dump_clause_to_aiger(const std::string & fname) {
@@ -77,10 +77,12 @@ void IC3ng::dump_clause_to_aiger(const std::string & fname) {
   // work on the last frame
   const auto & last_frame = frames.back();
   for (Lemma * l : last_frame) {
+    #error Not all lemmas are needed
     const auto & cube = l->cube();
     // unordered_map to vector
     std::vector<std::pair<smt::Term, smt::Term>> var_val_pairs;
     for (const auto & var_val_pair : cube) {
+      #error you don't have cubes, but eq ...
       var_val_pairs.push_back(var_val_pair);
     }
     auto term_sort_comparator = [&](const std::pair<smt::Term, smt::Term> & l, const std::pair<smt::Term, smt::Term> & r) -> bool {
@@ -89,6 +91,7 @@ void IC3ng::dump_clause_to_aiger(const std::string & fname) {
       return (this->internal_nodes_to_aiglit_map.at(l.first)) < (this->internal_nodes_to_aiglit_map.at(r.first));
     };
 
+    #error better sorting
     // elements with smaller depth come first
     std::sort(var_val_pairs.begin(), var_val_pairs.end(), term_sort_comparator);
     assert(!var_val_pairs.empty());
@@ -114,6 +117,7 @@ void IC3ng::dump_clause_to_aiger(const std::string & fname) {
   }
   loaded_aiger.writeToFile(aiger_cxx::Mode::Binary, fname );
 } // end of dump_clause_to_aiger
+#endif // TODO
 
 void IC3ng::load_aiger_internal_nodes(const std::string & fname) {
   aiger_cxx::Aiger new_aiger;
@@ -141,11 +145,11 @@ void IC3ng::load_aiger_internal_nodes(const std::string & fname) {
     assert(rhs1_var < lit2term_map.size());
 
     // need the conversion, o.w. some smtsolvers would complain
-    auto rhs0_term = bv_to_bool(initial_lit2term_map.at(rhs0_var));
+    auto rhs0_term = bv_to_bool(lit2term_map.at(rhs0_var));
     if (rhs0_sign)
       rhs0_term = smart_not(rhs0_term);
 
-    auto rhs1_term = bv_to_bool(initial_lit2term_map.at(rhs1_var));
+    auto rhs1_term = bv_to_bool(lit2term_map.at(rhs1_var));
     if (rhs1_sign)
       rhs1_term = smart_not(rhs1_term);
     lit2term_map.push_back(smart_and(smt::TermVec({rhs0_term, rhs1_term})));

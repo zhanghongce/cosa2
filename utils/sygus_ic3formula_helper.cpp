@@ -93,8 +93,10 @@ bool reduce_unsat_core_to_fixedpoint(
 
   // exit if the formula is unsat without assumptions.
   smt::Result r = reducer_->check_sat();
-  if (r.is_unsat())
+  if (r.is_unsat()) {
+    core_inout.clear();
     return true;
+  }
 
   bool first_round = true;
   while(true) {
@@ -126,8 +128,10 @@ void reduce_unsat_core_to_fixedpoint(
 
   // exit if the formula is unsat without assumptions.
   smt::Result r = reducer_->check_sat();
-  if (r.is_unsat())
+  if (r.is_unsat()) {
+    core_inout.clear();
     return;
+  }
 
   while(true) {
     r = reducer_->check_sat_assuming_set(core_inout);
@@ -265,8 +269,10 @@ void reduce_unsat_core_linear_rev(
 
   // exit if the formula is unsat without assumptions.
   smt::Result r = reducer_->check_sat();
-  if (r.is_unsat())
+  if (r.is_unsat()) {
+    assumption_list.clear();
     return;
+  }
 
   r = reducer_->check_sat_assuming_list(assumption_list);
   assert(r.is_unsat());

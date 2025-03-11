@@ -136,15 +136,15 @@ unsigned IC3ng::extend_predicates(Model *cex, smt::TermVec & conj_inout) {
   //   you can also cache the result of which p to consider for a given variable set
   
   // make sure newly added preds are put in the beginning of conj_inout
-
+  
   auto model_info_pos = model_info_map_.find(cex);
   if (model_info_pos == model_info_map_.end()) {
-    PerVarInfo * var_info_ = cex->get_per_var_info();
+    PerSlicedVarInfo * var_info_ = cex->get_per_slicedvar_info();
     if (!var_info_->related_info_populated) {
       // TODO: setup related info
       // based on structural varset check
       const smt::UnorderedTermSet & vars_in_cex =
-        cex->get_per_var_info()->vars_noslice_in_cex;
+        cex->get_varset_unslice();
 
       for (const auto & p : loaded_predicates_) {
         smt::UnorderedTermSet vars_in_pred;

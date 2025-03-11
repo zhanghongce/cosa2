@@ -76,9 +76,9 @@ namespace pono
     std::ofstream debug_fout;
     bool has_assumptions;
     // this is used to cut input
-    void cut_vars_curr(std::unordered_map<smt::Term,std::vector<std::pair<int,int>>> & v, bool cut_curr_input);
+    // void cut_vars_curr(std::unordered_map<smt::Term,std::vector<std::pair<int,int>>> & v, bool cut_curr_input);
 
-    PartialModelGen partial_model_getter;
+    // PartialModelGen partial_model_getter;
 
     // will only keep those not pushed yet
     std::vector<frame_t> frames;
@@ -122,6 +122,7 @@ namespace pono
     void add_lemma_to_frame(Lemma * lemma, unsigned fidx);
 
     // will also cancel out other frame labels
+    void disable_all_labels();
     void assert_frame(unsigned fidx);
     bool frame_implies(unsigned fidx, const smt::Term & expr);
 
@@ -140,13 +141,15 @@ namespace pono
 
     void reduce_unsat_core_linear_backwards(const smt::Term & F_and_T,
       smt::TermList &conjs, smt::TermList & conjs_nxt);
-
+    
+    void SortCube(std::vector<std::pair<smt::Term, smt::Term>> & inout, bool descending);
     // reduce predecessor by unsat core reduction
     void get_min_pred(
       const smt::Term &bad_next, /* bad (over current version of variables) */
-      const smt::Term & prev_asmpt, // maybe nullptr if not needed
       unsigned prevFidx, // fidx
-      std::unordered_map<smt::Term,std::vector<std::pair<int,int>>> & varlist_slice);
+      smt::UnorderedTermSet & slicedvars,
+      smt::UnorderedTermSet & noslicevars,
+      smt::TermVec & eqs);
 
     // this aiger contains the latch as input, initialized in `initialize`
     // so, you don't need to build from scratch, you can start by copying this 
@@ -223,7 +226,7 @@ namespace pono
       return term;
     }
 
-  smt::Term IC3ng::bv_to_bool(const smt::Term & t) {
+  smt::Term bv_to_bool(const smt::Term & t) {
     smt::Sort sort = t->get_sort();
     if (sort->get_sort_kind() == smt::BV) {
       if (sort->get_width() != 1) {
