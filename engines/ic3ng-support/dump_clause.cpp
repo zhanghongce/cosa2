@@ -63,6 +63,26 @@ void IC3ng::build_initial_aiger() {
 //   return (term_depth(l.first) < term_depth(r.first));
 // }
 
+
+// a simple helper function
+bool IC3ng::extract_neg_from_val(const smt::Term & val) {
+  if (val == solver_true_)
+    return false;
+  if (val == solver_false_)
+    return true;
+  if (val->get_op().prim_op == smt::Extract) {
+    auto slice = val->get_op().idx0;
+    assert(slice == val->get_op().idx1);
+    auto internal_val = *(val->begin());
+    assert(internal_val->is_value());
+    auto strval = internal_val->to_string();
+    auto ch = strval.at(strval.length()-1-slice);
+    assert(ch == '0' || ch == '1');
+    return (ch == '0');
+  }
+  assert(false); // not handled
+}
+
 // warning: this will change `loaded_aiger` because I don't want
 // to make another copy
 void IC3ng::dump_clause_to_aiger(const std::string & fname) {
@@ -84,7 +104,6 @@ void IC3ng::dump_clause_to_aiger(const std::string & fname) {
     // unordered_map to vector
     std::vector<std::pair<smt::Term, smt::Term>> var_val_pairs;
     for (const auto & eq : cube) {
-
       smt::Term slice_symb;
       smt::Term val;
       if(eq->get_op().prim_op == smt::PrimOp::Equal) {
@@ -132,7 +151,8 @@ void IC3ng::dump_clause_to_aiger(const std::string & fname) {
     { // computing prev_lit
       const auto & [var,val] = *(var_val_pairs.begin());
       unsigned lit = internal_nodes_to_aiglit_map.at(var);
-      bool neg = (val->to_int() == 0 );
+      bool neg = extract_neg_from_val(val);
+      // bool neg = (val->to_int() == 0 );
       prev_lit = neg ? aiger_cxx::aiger_not(lit) : lit;
     }
     // in case of a single-literal cube, then this loop will be skipped
@@ -140,7 +160,7 @@ void IC3ng::dump_clause_to_aiger(const std::string & fname) {
     for (unsigned idx = 1; idx < var_val_pairs.size(); ++ idx) {
       const auto & [var,val] = var_val_pairs.at(idx);
       unsigned lit = internal_nodes_to_aiglit_map.at(var);
-      bool neg = (val->to_int() == 0 );
+      bool neg = extract_neg_from_val(val);
       unsigned this_lit = neg ? aiger_cxx::aiger_not(lit) : lit;
       unsigned lhs_lit = loaded_aiger.nextUnusedLiteral();
       loaded_aiger.addAnd(lhs_lit, prev_lit, this_lit);

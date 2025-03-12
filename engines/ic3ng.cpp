@@ -843,6 +843,11 @@ ProverResult IC3ng::step(int i)
     return ProverResult::UNKNOWN;
   }
 
+  // try to dump aiger here
+  if (frames.back().size() > 50) {
+    dump_clause_to_aiger("frame_" + std::to_string(frames.size()) + ".aig" );
+  }
+
   
   // `last_frame_reaches_bad` will add to proof obligation
   while (last_frame_reaches_bad()) {

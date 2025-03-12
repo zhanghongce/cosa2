@@ -165,6 +165,8 @@ namespace pono
     void build_initial_aiger(); // called in `initialize`
 
     void load_aiger_internal_nodes(const std::string & fname);
+    // a simple helper function
+    bool extract_neg_from_val(const smt::Term & t);
     // You may only want to dump the last frame?
     void dump_clause_to_aiger(const std::string & fname);
     // stored the terms for internal nodes and the map to aig lit

@@ -610,20 +610,26 @@ bool Aiger::isReencoded() const
   for (const auto & sym : inputs) {
     max_val += 2;
     unsigned tmp = sym.lit;
-    if (max_val != tmp) return false;
+    if (max_val != tmp)
+      return false;
   }
   // For latches:
   for (const auto & sym : latches) {
     max_val += 2;
     unsigned tmp = sym.lit;
-    if (max_val != tmp) return false;
+    if (max_val != tmp)
+      return false;
   }
   unsigned lhs_expected = maxInputOrLatch() + 2;
   for (const auto & gate : ands) {
-    if (gate.lhs <= max_val) return false;
-    if (gate.lhs != lhs_expected) return false;
-    if (gate.lhs < gate.rhs0) return false;
-    if (gate.rhs0 < gate.rhs1) return false;
+    if (gate.lhs <= max_val)
+      return false;
+    if (gate.lhs != lhs_expected)
+      return false;
+    if (gate.lhs < gate.rhs0)
+      return false;
+    if (gate.rhs0 < gate.rhs1)
+      return false;
     lhs_expected += 2;
   }
   return true;
@@ -795,23 +801,24 @@ void Aiger::reencode()
   // Reconstruct AND–gates.
   unsigned j = 0;
   for (unsigned i = 0; i < ands.size(); i++) {
-    AigerAnd gate = ands[i];
+    const AigerAnd & gate = ands[i];
     unsigned newLhs = code[gate.lhs];
-    if (!newLhs) {  // it seems that this would not happen?
-      assert(false);
+    if (!newLhs) { 
+      // if ANG gate is not in used, it seems that
+      // it will have 0, so we should skip it
       continue;
     }
     unsigned newRhs0 = code[gate.rhs0];
     unsigned newRhs1 = code[gate.rhs1];
     // Place the gate at index j.
-    if (newRhs0 < newRhs1) std::swap(newRhs0, newRhs1);
+    if (newRhs0 < newRhs1)
+      std::swap(newRhs0, newRhs1);
     assert(newLhs > newRhs0);
     assert(newRhs0 >= newRhs1);
-    gate.lhs = newLhs;
-    gate.rhs0 = newRhs0;
-    gate.rhs1 = newRhs1;
-    if (j < i) ands[j] = gate;
-    j++;
+    AigerAnd & gate_j = ands.at(j++);
+    gate_j.lhs = newLhs;
+    gate_j.rhs0 = newRhs0;
+    gate_j.rhs1 = newRhs1;
   }
   ands.resize(j);
 
