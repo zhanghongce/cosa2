@@ -90,6 +90,7 @@ namespace pono
     smt::TermVec frame_labels_;  ///< labels to activate frames
     // useful terms
     smt::Term solver_true_;
+    smt::Term solver_false_;
 
     smt::Sort boolsort_;
 

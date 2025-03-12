@@ -63,7 +63,6 @@ void IC3ng::build_initial_aiger() {
 //   return (term_depth(l.first) < term_depth(r.first));
 // }
 
-#if 0  // TODO
 // warning: this will change `loaded_aiger` because I don't want
 // to make another copy
 void IC3ng::dump_clause_to_aiger(const std::string & fname) {
@@ -77,23 +76,57 @@ void IC3ng::dump_clause_to_aiger(const std::string & fname) {
   // work on the last frame
   const auto & last_frame = frames.back();
   for (Lemma * l : last_frame) {
-    #error Not all lemmas are needed
+    // just to filter out those from init/constraint
+    // TODO: maybe allow sideloaded here?
+    if (!l->origin().is_must_block() && !l->origin().is_may_block())
+      continue; // actually may block is not in use
     const auto & cube = l->cube();
     // unordered_map to vector
     std::vector<std::pair<smt::Term, smt::Term>> var_val_pairs;
-    for (const auto & var_val_pair : cube) {
-      #error you don't have cubes, but eq ...
-      var_val_pairs.push_back(var_val_pair);
-    }
-    auto term_sort_comparator = [&](const std::pair<smt::Term, smt::Term> & l, const std::pair<smt::Term, smt::Term> & r) -> bool {
-      // we can simply check their lit in internal_nodes_to_aiglit_map
-      // this is not an acurrate depth, but it is an approximation (deeper nodes tend to have larger lit)
-      return (this->internal_nodes_to_aiglit_map.at(l.first)) < (this->internal_nodes_to_aiglit_map.at(r.first));
-    };
+    for (const auto & eq : cube) {
 
-    #error better sorting
-    // elements with smaller depth come first
-    std::sort(var_val_pairs.begin(), var_val_pairs.end(), term_sort_comparator);
+      smt::Term slice_symb;
+      smt::Term val;
+      if(eq->get_op().prim_op == smt::PrimOp::Equal) {
+        auto lhs = *(eq->begin());
+        auto rhs = *(++(eq->begin()));
+        auto noslice_lhs = (lhs->get_op().prim_op == smt::PrimOp::Extract) ? *(lhs->begin()) : lhs;
+        auto noslice_rhs = (rhs->get_op().prim_op == smt::PrimOp::Extract) ? *(rhs->begin()) : rhs;
+        assert(noslice_lhs->is_symbol() || noslice_rhs->is_symbol());
+        slice_symb = noslice_lhs->is_symbol() ? lhs : rhs;
+        val = noslice_lhs->is_symbol() ? rhs : lhs;
+      } else if (eq->get_op().prim_op == smt::PrimOp::Not || eq->get_op().prim_op == smt::PrimOp::BVNot) {
+        slice_symb = *(eq->begin());
+        val = solver_false_;
+      } else {
+        slice_symb = eq;
+        val = solver_true_;
+      }
+      var_val_pairs.push_back(std::make_pair(slice_symb,val));
+    }
+    { // let's sort var_val_pairs
+      // by creating a index vector, this ensures that we will only call
+      // the evaluation function internal_nodes_to_aiglit_map n times
+      // otherwise, whenever you compare two elements, you will be calling
+      // the comparison twice, which is O(nlogn) times of indexing
+      std::vector<std::pair<unsigned, unsigned>> depth2idx_map;
+      depth2idx_map.reserve(var_val_pairs.size());
+      for (size_t idx = 0; idx < var_val_pairs.size(); ++ idx) {
+        depth2idx_map.push_back(std::make_pair(
+          internal_nodes_to_aiglit_map.at(var_val_pairs.at(idx).first),
+          idx));
+      }
+      // elements with smaller depth come first
+      std::sort(depth2idx_map.begin(), depth2idx_map.end());
+      { // and then reconstruct
+        decltype(var_val_pairs) var_val_pairs_sorted;
+        var_val_pairs_sorted.reserve(var_val_pairs.size());
+        for (const auto & p : depth2idx_map)
+          var_val_pairs_sorted.push_back(var_val_pairs.at(p.second));
+        var_val_pairs.swap(var_val_pairs_sorted);
+      }
+    } // finish sorting var_val_pairs
+
     assert(!var_val_pairs.empty());
     unsigned prev_lit;
     { // computing prev_lit
@@ -117,7 +150,6 @@ void IC3ng::dump_clause_to_aiger(const std::string & fname) {
   }
   loaded_aiger.writeToFile(aiger_cxx::Mode::Binary, fname );
 } // end of dump_clause_to_aiger
-#endif // TODO
 
 void IC3ng::load_aiger_internal_nodes(const std::string & fname) {
   aiger_cxx::Aiger new_aiger;

@@ -85,6 +85,7 @@ void IC3ng::initialize() {
 
   boolsort_ = solver_->make_sort(smt::BOOL);
   solver_true_ = solver_->make_term(true);
+  solver_false_ = solver_->make_term(false);
   Prover::initialize();
   check_ts();
 
@@ -277,8 +278,6 @@ void IC3ng::get_min_pred(
   for (const auto & v_val : sliced_pairs)
     slice_pair_to_reduce.push_back(solver_->make_term(smt::Equal, v_val.first, v_val.second));
   
-
-  std::cout <<"context level:" <<solver_->get_context_level() << std::endl;
   // build F/\ not(bad)
   solver_->push();
   // assert_frame(prevFidx);
@@ -621,7 +620,7 @@ void IC3ng::inductive_generalization(unsigned fidx, Model *cex, LCexOrigin origi
   if (all_conjs.size() == 1) { // a short-cut
     auto cex_expr = smart_not(smart_and(all_conjs));
     D(3,"[ig] F{} get lemma:{}", fidx+1, cex_expr->to_string());
-    auto lemma = new_lemma(cex_expr, cex, origin);
+    auto lemma = new_lemma(cex_expr, cex, origin, std::move(all_conjs)); // it does not matter whether we have the NOT 
     add_lemma_to_frame(lemma,fidx+1);
     return;
   }
@@ -712,7 +711,7 @@ void IC3ng::inductive_generalization(unsigned fidx, Model *cex, LCexOrigin origi
 
     D(1,"[ig] F{} get lemma size:{}", fidx+1, conjs_list.size());
     D(3,"[ig] F{} get lemma:{}", fidx+1, cex_expr->to_string());
-    auto lemma = new_lemma(cex_expr, cex, origin);
+    auto lemma = new_lemma(cex_expr, cex, origin, smt::TermVec(conjs_list.begin(),conjs_list.end()) );
     add_lemma_to_frame(lemma,fidx+1);
   } // end for each round
 } // end of inductive_generalization

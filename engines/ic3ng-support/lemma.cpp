@@ -61,8 +61,10 @@ Model * ModelLemmaManager::new_model(
 
 
 Lemma * ModelLemmaManager::new_lemma(
-  const smt::Term & expr, Model * cex, LCexOrigin origin) {
-  lemma_allocation_pool.push_back(new Lemma(expr, cex, origin));
+  const smt::Term & expr, Model * cex, LCexOrigin origin, smt::TermVec && cube) {
+  if (origin.is_must_block() || origin.is_may_block())
+    assert(!cube.empty()); // this cannot be the default empty
+  lemma_allocation_pool.push_back(new Lemma(expr, std::move(cube), cex, origin));
   return lemma_allocation_pool.back();
 }
 

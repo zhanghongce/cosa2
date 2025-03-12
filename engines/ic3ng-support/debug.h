@@ -1,5 +1,5 @@
 #pragma once
-#define DEBUG_IC3
+// #define DEBUG_IC3
 
 #ifdef DEBUG_IC3
 #define D(...) logger.log(__VA_ARGS__)
