@@ -209,6 +209,12 @@ void IC3ng::disable_all_labels() {
     solver_->assert_formula(smart_not(frame_labels_.at(idx)));
 }
 
+void IC3ng::assert_init() {
+  solver_->assert_formula(init_label_);
+  for (unsigned idx = 1; idx < frame_labels_.size(); ++idx)
+    solver_->assert_formula(smart_not(frame_labels_.at(idx)));
+}
+
 void IC3ng::assert_frame(unsigned fidx) {
   assert(fidx < frame_labels_.size());
   for (unsigned idx = 0; idx < frame_labels_.size(); ++idx) {

@@ -65,10 +65,14 @@ void IC3ng::build_initial_aiger() {
 
 
 // a simple helper function
-bool IC3ng::extract_neg_from_val(const smt::Term & val) {
+bool IC3ng::extract_bit_from_val(const smt::Term & val) {
   if (val == solver_true_)
-    return false;
+    return true;
   if (val == solver_false_)
+    return false;
+  if (val == solver_0_1)
+    return false;
+  if (val == solver_1_1)
     return true;
   if (val->get_op().prim_op == smt::Extract) {
     auto slice = val->get_op().idx0;
@@ -82,6 +86,25 @@ bool IC3ng::extract_neg_from_val(const smt::Term & val) {
   }
   assert(false); // not handled
 }
+
+// // a simple helper function
+// bool IC3ng::extract_neg_from_val(const smt::Term & val) {
+//   if (val == solver_true_)
+//     return false;
+//   if (val == solver_false_)
+//     return true;
+//   if (val->get_op().prim_op == smt::Extract) {
+//     auto slice = val->get_op().idx0;
+//     assert(slice == val->get_op().idx1);
+//     auto internal_val = *(val->begin());
+//     assert(internal_val->is_value());
+//     auto strval = internal_val->to_string();
+//     auto ch = strval.at(strval.length()-1-slice);
+//     assert(ch == '0' || ch == '1');
+//     return (ch == '0');
+//   }
+//   assert(false); // not handled
+// }
 
 // warning: this will change `loaded_aiger` because I don't want
 // to make another copy

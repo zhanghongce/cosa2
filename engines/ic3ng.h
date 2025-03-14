@@ -91,8 +91,11 @@ namespace pono
     // useful terms
     smt::Term solver_true_;
     smt::Term solver_false_;
+    smt::Term solver_1_1;
+    smt::Term solver_0_1;
 
     smt::Sort boolsort_;
+    smt::Sort bv1_sort_;
 
     virtual void check_ts();
     smt::Term get_trans_for_vars(const smt::UnorderedTermSet & vars);
@@ -124,6 +127,7 @@ namespace pono
 
     // will also cancel out other frame labels
     void disable_all_labels();
+    void assert_init();
     void assert_frame(unsigned fidx);
     bool frame_implies(unsigned fidx, const smt::Term & expr);
 
@@ -139,9 +143,15 @@ namespace pono
     bool push_lemma_to_new_frame(); // will use lowest_frame_touched_ to start from
     void validate_inv();
     void inductive_generalization(unsigned fidx, Model *cex, LCexOrigin origin);
-
     void reduce_unsat_core_linear_backwards(const smt::Term & F_and_T,
       smt::TermList &conjs, smt::TermList & conjs_nxt);
+
+
+    // another version of it, let's see how it works?
+    bool ic3_down(smt::TermList & conjs_list, smt::TermList & conjs_next, 
+      const smt::Term & Trans, unsigned fidx,
+      std::unordered_map<smt::Term, size_t> & conjnxt_to_idx_map, smt::TermVec all_conjs_curr);
+    void inductive_generalization_mic(unsigned fidx, Model *cex, LCexOrigin origin);
     
     void SortCube(std::vector<std::pair<smt::Term, smt::Term>> & inout, bool descending);
     // reduce predecessor by unsat core reduction
@@ -166,7 +176,8 @@ namespace pono
 
     void load_aiger_internal_nodes(const std::string & fname);
     // a simple helper function
-    bool extract_neg_from_val(const smt::Term & t);
+    bool extract_neg_from_val(const smt::Term & t) { return extract_bit_from_val(t) == false; }
+    bool extract_bit_from_val(const smt::Term & val);
     // You may only want to dump the last frame?
     void dump_clause_to_aiger(const std::string & fname);
     // stored the terms for internal nodes and the map to aig lit

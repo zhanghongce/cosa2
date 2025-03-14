@@ -1,5 +1,5 @@
 /*********************                                                  */
-/*! \file ic3bits.cpp
+/*! \file ic3ng.cpp
 ** \verbatim
 ** Top contributors (to current version):
 **   Hongce Zhang
@@ -86,6 +86,12 @@ void IC3ng::initialize() {
   boolsort_ = solver_->make_sort(smt::BOOL);
   solver_true_ = solver_->make_term(true);
   solver_false_ = solver_->make_term(false);
+
+  bv1_sort_ = solver_->make_sort(smt::BV, 1);
+  solver_1_1 = solver_->make_term(1, bv1_sort_);
+  solver_0_1 = solver_->make_term(0, bv1_sort_);;
+
+
   Prover::initialize();
   check_ts();
 
@@ -182,162 +188,9 @@ static bool set_intersect(const smt::UnorderedTermSet & a, const smt::UnorderedT
   return false;
 }
 
-static size_t TermScore(const smt::Term & t) {
-  auto e = (t->get_op().prim_op == smt::PrimOp::Not ||
-            t->get_op().prim_op == smt::PrimOp::BVNot) ? *(t->begin()): t;
-  unsigned slice = 0;
-  if (e->get_op().prim_op == smt::PrimOp::Extract) {
-    slice = e->get_op().idx0;
-    auto c = *(e->begin());
-    slice += c->get_sort()->get_width();
-  }
-  return slice;
-}
-
-void IC3ng::SortCube(std::vector<std::pair<smt::Term, smt::Term>> & inout, bool descending) {
-  // we don't want to sort the term themselves
-  // we don't want to invoke TermScore function more than once for a term
-  std::vector<std::pair<size_t,size_t>> complexity_index_pair;
-  std::vector<size_t> non_statevar_idx;
-  size_t idx = 0;
-  for (const auto & t : inout) { /* score: slice + width */
-
-    auto c = (t.first->get_op().prim_op == smt::PrimOp::Extract) ? *(t.first->begin()) : t.first;
-    if (actual_statevars_.find(c) == actual_statevars_.end()) { // if it is a input
-      non_statevar_idx.push_back(idx++);
-      continue;
-    }
-    complexity_index_pair.push_back({ TermScore(t.first) ,idx++});
-  }
-
-  // HZ: it seems that ascending sorting will put lower bits first
-
-  //  0: ((_ extract 0 0) x)
-  //  1: ((_ extract 2 2) x)
-  // ....
-
-#ifdef DEBUG_IC3
-  std::cout << "Before sorting cube:\n";
-  unsigned i = 0;
-  for (const auto & e : inout)
-    std::cout << " " << i++ << ": " << e.first->to_string() << " = " << e.second->to_string() << "\n";
-  std::cout << "------------------\n";
-#endif
-
-  // sort in descending order (the `first` is compared first), so term-index with 
-  // the highest score will rank first
-  if(descending) // from greater to smaller
-    std::sort(complexity_index_pair.begin(), complexity_index_pair.end(), std::greater<>());
-  else // from smaller to greater
-    std::sort(complexity_index_pair.begin(), complexity_index_pair.end(), std::less<>());
-    
-
-  // now map back to termvec
-  std::vector<std::pair<smt::Term, smt::Term>> sorted_term;
-  for (const auto & cpl_idx_pair : complexity_index_pair)
-    sorted_term.push_back(inout.at(cpl_idx_pair.second));
-  for (auto input_idx : non_statevar_idx) // always put input to the end
-    sorted_term.push_back(inout.at(input_idx));
-  
-  inout.swap(sorted_term); // this is the same as inout = sorted_term, but faster
-} // end of SortCube
-
-
-// reduce predecessor by unsat core reduction
-void IC3ng::get_min_pred(
-  const smt::Term &bad_next, /* bad (over current version of variables) */
-  unsigned prevFidx, // fidx
-  smt::UnorderedTermSet & slicedvars,
-  smt::UnorderedTermSet & noslicevars,
-  smt::TermVec & eqs)
-{
-  smt::UnorderedTermSet varset;
-  smt::get_free_symbols(bad_next, varset);
-
-  std::vector<std::pair<smt::Term, smt::Term>> sliced_pairs;
-  for (const auto & v : varset) {
-    auto val = solver_->get_value(v);
-    auto sk = v->get_sort()->get_sort_kind();
-    assert(sk == smt::BV || sk == smt::BOOL);
-    if ( sk == smt::BV ) {
-      auto width = v->get_sort()->get_width();
-      if (width > 1) {
-        for (unsigned idx = 0; idx < width; ++idx) {
-          auto sliced_var = solver_->make_term(smt::Op(smt::Extract, idx, idx), v);
-          auto sliced_val = solver_->make_term(smt::Op(smt::Extract, idx, idx), val);
-          sliced_pairs.push_back(std::make_pair(sliced_var, sliced_val ));
-        }
-        continue; // next variable
-      } // else
-    } // else
-    sliced_pairs.push_back(std::make_pair(v, val));
-  } // end for each var
-  solver_->pop(); // old values are no longer needed
-  SortCube(sliced_pairs, false);
-  smt::TermList slice_pair_to_reduce;
-  for (const auto & v_val : sliced_pairs)
-    slice_pair_to_reduce.push_back(solver_->make_term(smt::Equal, v_val.first, v_val.second));
-  
-  // build F/\ not(bad)
-  solver_->push();
-  // assert_frame(prevFidx);
-  auto not_bad = smart_not(bad_next);
-  auto res = syntax_analysis::reduce_unsat_core_to_fixedpoint(not_bad, slice_pair_to_reduce, solver_);
-  assert(res); // must be unsat
-  // we don't even need to push pop twice...
-  assert(!slice_pair_to_reduce.empty());
-  syntax_analysis::reduce_unsat_core_linear_rev(not_bad, slice_pair_to_reduce, solver_);
-  assert(!slice_pair_to_reduce.empty());
-  solver_->pop();
-
-  // finally, if no assumptions, remove all inputs
-  for (const auto & eq : slice_pair_to_reduce) {
-    smt::Term slice_symb;
-    smt::Term symb;
-    if(eq->get_op().prim_op == smt::PrimOp::Equal) {
-      auto lhs = *(eq->begin());
-      auto rhs = *(++(eq->begin()));
-      auto noslice_lhs = (lhs->get_op().prim_op == smt::PrimOp::Extract) ? *(lhs->begin()) : lhs;
-      auto noslice_rhs = (rhs->get_op().prim_op == smt::PrimOp::Extract) ? *(rhs->begin()) : rhs;
-      assert(noslice_lhs->is_symbol() || noslice_rhs->is_symbol());
-      symb = noslice_lhs->is_symbol() ? noslice_lhs : noslice_rhs;
-      slice_symb = noslice_lhs->is_symbol() ? lhs : rhs;
-    } else if (eq->get_op().prim_op == smt::PrimOp::Not || eq->get_op().prim_op == smt::PrimOp::BVNot) {
-      slice_symb = symb = *(eq->begin());
-      symb = (symb->get_op().prim_op == smt::PrimOp::Extract) ? *(symb->begin()) : symb;
-      assert(symb->is_symbol());
-    } else {
-      slice_symb = eq;
-      symb = (slice_symb->get_op().prim_op == smt::PrimOp::Extract) ? *(slice_symb->begin()) : slice_symb;
-      assert(symb->is_symbol());
-    }
-    if(!ts_.is_curr_var(symb))
-      continue; // definitely remove 
-    if (!has_assumptions && actual_statevars_.find(symb) == actual_statevars_.end() )
-      continue; // if no assumptions and symb is actually an input, then remove it
-    slicedvars.insert(slice_symb);
-    noslicevars.insert(symb);
-    eqs.push_back(eq);
-  }
-  assert(!slicedvars.empty());
-  assert(!noslicevars.empty());
-  assert(!eqs.empty());
-
-
-#ifdef DEBUG_IC3
-  std::cout << "After sorting cube:\n";
-  unsigned i = 0;
-  for (const auto & eq : eqs) {
-    std::cout << " " << i++ << ": " << eq->to_string() << "\n";
-  }
-  std::cout << "------------------\n";
-#endif
-} // end of get_min_pred
-
 
 // F /\ T /\ not(p)
 // F /\ T /\ cube    sat?   
-
 ic3_rel_ind_check_result IC3ng::rel_ind_check( unsigned prevFidx, 
   const smt::Term & bad_next_trans_subst_,
   Model * cex_to_block,
@@ -491,7 +344,7 @@ bool IC3ng::recursive_block_all_in_queue() {
       // TODO make a lemma, to explain why F(i) /\ T => not MODEL
       
       D(2, "[recursive_block] Not reachable on F{}", fcex->fidx);
-      inductive_generalization(fcex->fidx-1, fcex->cex, fcex->cex_origin);
+      inductive_generalization_mic(fcex->fidx-1, fcex->cex, fcex->cex_origin);
       proof_goals.pop();
 
       if (lowest_frame_touched_ > fcex->fidx)
@@ -514,318 +367,25 @@ bool IC3ng::recursive_block_all_in_queue() {
 
 
 void IC3ng::dump_invariants(std::ostream & os) const {
-    if (frames.empty()) {
-        os << "No frames available.\n";
-        return;
-    }
-
-    D(1, "Starting to dump invariants from the last frame");
-    
-    const auto & last_frame = frames.back();
-    os << "Dumping invariants from the last frame:\n";
-    for (const Lemma * lemma : last_frame) {
-        // os << "Clause: " << lemma->to_string() << "\n";
-        // if (lemma->cex()) {
-        //     os << "Model: " << lemma->cex()->to_string() << "\n";
-        // }
-        D(2, "Clause: {}", lemma->to_string());
-    }
-    
-    D(1, "Finished dumping {} lemmas", last_frame.size());
-}
-
-static void SortLemma(smt::TermVec & inout, bool descending) {
-  // we don't want to sort the term themselves
-  // we don't want to invoke TermScore function more than once for a term
-  std::vector<std::pair<size_t,size_t>> complexity_index_pair;
-  size_t idx = 0;
-  for (const auto & t : inout) {
-    complexity_index_pair.push_back({ TermScore(t) ,idx});
-    ++ idx;
+  if (frames.empty()) {
+      os << "No frames available.\n";
+      return;
   }
 
-  // HZ: it seems that descending sorting will put lower bits first
-  //       unegated first
-  //       negated second
-
-  //  0: ((_ extract 0 0) x)
-  //  1: ((_ extract 2 2) x)
-  // ....
-  // 10: (bvnot ((_ extract 1 1) x))
-#ifdef DEBUG_IC3
-  std::cout << "Before sorting:\n";
-  unsigned i = 0;
-  for (const auto & e : inout)
-    std::cout << " " << i++ << ": " << e->to_string() << "\n";
-  std::cout << "------------------\n";
-#endif
-
-  // sort in descending order (the `first` is compared first), so term-index with 
-  // the highest score will rank first
-  if(descending) // from greater to smaller
-    std::sort(complexity_index_pair.begin(), complexity_index_pair.end(), std::greater<>());
-  else // from smaller to greater
-    std::sort(complexity_index_pair.begin(), complexity_index_pair.end(), std::less<>());
-    
-
-  // now map back to termvec
-  smt::TermVec sorted_term;
-  for (const auto & cpl_idx_pair : complexity_index_pair) {
-    sorted_term.push_back(inout.at(cpl_idx_pair.second));
-  }
-  inout.swap(sorted_term); // this is the same as inout = sorted_term, but faster
-
-
-} // end of SortLemma
-
-// ( ( not(S) /\ F /\ T ) \/ init_prime ) /\ ( cube' )
-//   cube (v[0]=1 /\ v[1]=0 /\ ...)
-void IC3ng::inductive_generalization(unsigned fidx, Model *cex, LCexOrigin origin) {
-
-  auto F = get_frame_formula(fidx);
-  auto T = get_trans_for_vars(cex->get_varset_unslice()); // find the update F for vars in set...
-  auto F_and_T = smart_and<smt::TermVec>({F,T});
-
-
-  smt::TermVec all_conjs = cex->to_expr_conj();
-  // HZ: TODO a better way is to check, if the vars are appearing too often
-  // if so, we extend the predicates
-  // otherwise, we will not use word-level preds
-
-
-  // TODO: sort conjs
-  SortLemma(all_conjs, options_.ic3base_sort_lemma_descending);
-
-
-  auto npred = extend_predicates(cex, all_conjs); // IC3INN
-  //  conjs.erase(conjs.begin()+1);
-  //  TODO: you may need more than 1 round (if not word-level pred used)
-  smt::UnorderedTermSet pred_vars, pred_vars_nxt;
-  for (size_t idx = 0; idx < npred; ++ idx) {
-    smt::get_free_symbols( all_conjs.at(idx), pred_vars );
-  }
-  for (const auto & v : pred_vars)
-    pred_vars_nxt.emplace(ts_.next(v));
-
-
-#ifdef DEBUG_IC3
-  std::cout << "After sorting:\n";
-  unsigned i = 0;
-  for (const auto & e : all_conjs)
-    std::cout << " " << i++ << ": " << e->to_string() << "\n";
-  std::cout << "------------------\n";
-#endif
-
-  assert(!all_conjs.empty());
-  if (all_conjs.size() == 1) { // a short-cut
-    auto cex_expr = smart_not(smart_and(all_conjs));
-    D(3,"[ig] F{} get lemma:{}", fidx+1, cex_expr->to_string());
-    auto lemma = new_lemma(cex_expr, cex, origin, std::move(all_conjs)); // it does not matter whether we have the NOT 
-    add_lemma_to_frame(lemma,fidx+1);
-    return;
-  }
-
-  // Next, if we have more than 1 clause...
-  smt::TermVec allconjs_nxt;
-  std::unordered_map<smt::Term, size_t> conjnxt_to_idx_map; // use this map to identify more easily its index
-  for (size_t idx = 0; idx < all_conjs.size(); ++idx) {
-    allconjs_nxt.push_back(ts_.next(all_conjs.at(idx)));
-    conjnxt_to_idx_map.emplace(allconjs_nxt.back(), idx);
-  }
-  std::vector<bool> conjs_used(all_conjs.size(), false); // initialized: all un-used
-
-  unsigned max_round = options_.ic3ng_indgen_max_round; // default 3
-  if (options_.ic3ng_indgen_multilemma_on_predicates_only && npred == 0)
-    max_round = 1; // if we have no predicates, then just one round
-
-  for (unsigned rnd = 0 ; rnd < max_round; ++ rnd) {
-    // we start from all_conjs, and generate the conjs and conj_nxt for this round
-    smt::TermList conjs_list;
-    smt::TermList conjs_nxt;
-    for (size_t idx = 0; idx < all_conjs.size(); ++idx) {
-      if (!conjs_used[idx]) {
-        conjs_list.push_back(all_conjs.at(idx));
-        conjs_nxt.push_back(allconjs_nxt.at(idx));
-      }
-    }
-    // we need to test here, if the remaining ones are still good enough to block the CTI
-    auto cex_expr = smart_not(smart_and(conjs_list));
-    smt::Term base = 
-      smart_or<smt::TermVec>(
-        {smart_and<smt::TermVec>(  {cex_expr, F_and_T} ) , init_prime_ } );
-    solver_->push();
-    disable_all_labels();
-    bool succ = syntax_analysis::reduce_unsat_core_to_fixedpoint(base, conjs_nxt, solver_);
-    solver_->pop();
-    if (!succ) { // the remaining ones are not enough, we should stop
-      D(3,"[ig] not enough pred remained, skipped @ rnd{}.", rnd);
-      assert(rnd != 0); // you should never fail at the first attempt!
-      break;
-    }
-
-    conjs_list.clear(); // update conjs_list
-    for (const auto & c : conjs_nxt)
-      conjs_list.push_back(all_conjs.at(conjnxt_to_idx_map.at(c)));
-
-    if (conjs_nxt.size() > 1) {
-      solver_->push();
-      disable_all_labels();
-      // syntax_analysis::reduce_unsat_core_linear_rev(base, conjs_nxt, solver_);
-      reduce_unsat_core_linear_backwards(F_and_T, conjs_list, conjs_nxt);
-      solver_->pop();
-    }
-
-    // strategy #2: find those variables in provided lemmas, and try to through them away
-    bool disabled_any = false;
-    for (const auto & cj_nxt : conjs_nxt) {
-      auto to_disable_idx = conjnxt_to_idx_map.at(cj_nxt);
-      if (to_disable_idx < npred) continue; // no need to disable those external preds
-      smt::UnorderedTermSet cj_vars;
-      smt::get_free_symbols(cj_nxt,cj_vars);
-      for (const auto & v : cj_vars)
-        if (pred_vars_nxt.find(v) != pred_vars_nxt.end()) {
-          conjs_used[to_disable_idx] = true;
-          disabled_any = true;
-          break;
-        }
-    }
-
-    // Design Choice here: should we disable all or just one, and which one?
-    // strategy #1: using the last one, but is there a better way?
-    if (!disabled_any) {
-      auto to_disable_idx = conjnxt_to_idx_map.at(conjs_nxt.back());
-      conjs_used[to_disable_idx] = true;
-    }
-
-    cex_expr = smart_not(smart_and(conjs_list));
-
-#ifdef DEBUG_IC3
-    std::cout << rnd << " Kept:\n";
-    for (const auto & e : conjs_nxt) {
-      std::cout << conjnxt_to_idx_map.at(e) << " : " << e->to_string() << std::endl;
-      if (conjnxt_to_idx_map.at(e) < npred)
-        std::cout << "Used!\n";
-    }
-    std::cout << "------------------\n";
-#endif
-
-    D(1,"[ig] F{} get lemma size:{}", fidx+1, conjs_list.size());
-    D(3,"[ig] F{} get lemma:{}", fidx+1, cex_expr->to_string());
-    auto lemma = new_lemma(cex_expr, cex, origin, smt::TermVec(conjs_list.begin(),conjs_list.end()) );
-    add_lemma_to_frame(lemma,fidx+1);
-  } // end for each round
-} // end of inductive_generalization
-
-
-
-// a helper function : the rev version
-// it goes from the end to the beginning
-void remove_and_move_to_next_backward(smt::TermList & pred_set_prev, smt::TermList::iterator & pred_pos_rev,
-  smt::TermList & pred_set, smt::TermList::iterator & pred_pos,
-  const smt::UnorderedTermSet & unsatcore) {
-
-  assert(pred_set.size() == pred_set_prev.size());
-  assert(pred_pos != pred_set.end());
-  assert(pred_pos_rev != pred_set_prev.end());
-
-  auto pred_iter = pred_set.end(); // pred_pos;
-  auto pred_pos_new = pred_set.end();
-
-  auto pred_iter_prev = pred_set_prev.end();
-  auto pred_pos_new_prev = pred_set_prev.end();
-
-  pred_pos_new--;
-  pred_pos_new_prev--;
-
-  bool reached = false;
-  bool next_pos_found = false;
-
-  while( pred_iter != pred_set.begin() ) {
-    pred_iter--;
-    pred_iter_prev--;
-    
-    if (!reached && pred_iter == pred_pos) {
-      reached = true;
-    }
-    
-    if (unsatcore.find(*pred_iter) == unsatcore.end()) {
-      // assert (reached); OK, this can happen.
-      // it is possible that a previously unremoveable one now is removable
-      // because the pre-set is also changed (it becomes more restrictive
-      // after you remove another one)
-      pred_iter = pred_set.erase(pred_iter);
-      pred_iter_prev = pred_set_prev.erase(pred_iter_prev);
-    } else {
-      if (reached && ! next_pos_found) {
-        pred_pos_new = pred_iter;
-        pred_pos_new ++;
-
-        pred_pos_new_prev = pred_iter_prev;
-        pred_pos_new_prev++;
-
-        next_pos_found = true;
-      }
-    }
-  } // end of while
-
-  assert(reached);
-  if (! next_pos_found) {
-    assert (pred_iter == pred_set.begin());
-    assert (pred_iter_prev == pred_set_prev.begin());
-
-    pred_pos_new = pred_iter;
-    pred_pos_new_prev = pred_iter_prev;
-  }
-  pred_pos = pred_pos_new;
-  pred_pos_rev = pred_pos_new_prev;
-} // remove_and_move_to_next
-
-// 1. check if init /\ (conjs-removed)  is unsat
-// 2. if so, check ( ( not(conjs-removed) /\ F /\ T ) /\ ( conjs-removed )' is unsat?
-void IC3ng::reduce_unsat_core_linear_backwards(const smt::Term & F_and_T,
-  smt::TermList &conjs, smt::TermList & conjs_nxt) {
+  D(1, "Starting to dump invariants from the last frame");
   
-  auto to_remove_pos_prev = conjs.end(); // prev means on the predicates with current version of variables
-  auto to_remove_pos_next = conjs_nxt.end(); // next means over the predicates with the next version of variables
-
-  assert(conjs.size() == conjs_nxt.size());
-
-  while(to_remove_pos_prev != conjs.begin()) {
-    to_remove_pos_prev--; // firstly, point to the last one
-    to_remove_pos_next--; // synchronously point to the corresponding one in the next set
-
-    if (conjs.size() == 1) // no need to reduce anymore, if we only have 1 left
-      continue;
-
-    smt::Term term_to_remove = *to_remove_pos_prev;
-    smt::Term term_to_remove_next = *to_remove_pos_next;
-
-    auto pos_after_conj = conjs.erase(to_remove_pos_prev); // let's try to remove it
-    auto pos_after_conj_nxt = conjs_nxt.erase(to_remove_pos_next);
-    // the return value is the pointer to the element after the removed one
-
-    auto cex_expr = smart_not(smart_and(conjs));
-    auto base = smart_or<smt::TermVec>(
-        { smart_and<smt::TermVec>(  {cex_expr, F_and_T} ) , init_prime_ } );
-
-    solver_->push();
-    solver_->assert_formula(base);
-    smt::Result r = solver_->check_sat_assuming_list(conjs_nxt);
-
-    to_remove_pos_prev = conjs.insert(pos_after_conj, term_to_remove); // will insert before pos_after_conj
-    to_remove_pos_next = conjs_nxt.insert(pos_after_conj_nxt, term_to_remove_next);
-    if (r.is_sat()) {
-      solver_->pop();
-      continue;
-    } // else { // if unsat, we can remove
-    smt::UnorderedTermSet core_set;
-    solver_->get_unsat_assumptions(core_set);
-    // below function will update assumption_list and to_remove_pos
-    remove_and_move_to_next_backward(conjs, to_remove_pos_prev, conjs_nxt, to_remove_pos_next, core_set);
-    solver_->pop();
-  } // end of while
+  const auto & last_frame = frames.back();
+  os << "Dumping invariants from the last frame:\n";
+  for (const Lemma * lemma : last_frame) {
+    // os << "Clause: " << lemma->to_string() << "\n";
+    // if (lemma->cex()) {
+    //     os << "Model: " << lemma->cex()->to_string() << "\n";
+    // }
+    D(2, "Clause: {}", lemma->to_string());
+  }
+  
+  D(1, "Finished dumping {} lemmas", last_frame.size());
 }
-
 
 
 ProverResult IC3ng::step(int i)
