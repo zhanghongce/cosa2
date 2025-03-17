@@ -39,3 +39,4 @@ __pycache__
 frame_*.aig
 how 501a621 --stat
 tmp/
+.aider.chat.history.md
