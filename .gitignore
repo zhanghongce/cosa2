@@ -34,3 +34,8 @@
 build
 deps
 __pycache__
+
+0001-update-bitwuzla-fix-trivial-issue-in-next-label.-Upd.patch
+frame_*.aig
+how 501a621 --stat
+tmp/

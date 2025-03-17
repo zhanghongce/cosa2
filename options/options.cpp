@@ -79,6 +79,7 @@ enum optionIndex
   IC3SA_INTERP,
   IC3NG_ALWAYS_MULTILEMMA,
   IC3NG_MULTILEMMA_NUM,
+  IC3NG_DUMP_AIGER,
   PRINT_WALL_TIME,
   BMC_BOUND_START,
   BMC_BOUND_STEP,
@@ -484,13 +485,20 @@ const option::Descriptor usage[] = {
     Arg::Numeric,
     "  --ic3ng-multi-lemma-num \tNumber of lemmas to generate"
     "(default: 3)" },
-    { PRINT_WALL_TIME,
+  { IC3NG_DUMP_AIGER,
+    0,
+    "",
+    "ic3ng-dump-aiger",
+    Arg::None,
+    "  --ic3ng-dump-aiger \tDump AIGER file for each frame in IC3NG"
+    },
+  { PRINT_WALL_TIME,
     0,
     "",
     "print-wall-time",
     Arg::None,
     "  --print-wall-time \tPrint wall clock time of entire execution" },
-    { BMC_BOUND_START,
+  { BMC_BOUND_START,
     0,
     "",
     "bmc-bound-start",
@@ -498,7 +506,7 @@ const option::Descriptor usage[] = {
     "  --bmc-bound-start \tBound (unrolling depth) to start "
     "cex search in BMC (default: 0)"
     },
-    { BMC_BOUND_STEP,
+  { BMC_BOUND_STEP,
     0,
     "",
     "bmc-bound-step",
@@ -803,6 +811,7 @@ ProverResult PonoOptions::parse_and_set_options(int argc,
         case IC3SA_INTERP: ic3sa_interp_ = true; break;
         case IC3NG_ALWAYS_MULTILEMMA: ic3ng_indgen_multilemma_on_predicates_only = false; break;
         case IC3NG_MULTILEMMA_NUM: ic3ng_indgen_max_round = atoi(opt.arg); break;
+        case IC3NG_DUMP_AIGER: dump_aiger_ = true; break;
         case PRINT_WALL_TIME: print_wall_time_ = true; break;
         case BMC_BOUND_START: bmc_bound_start_ = atoi(opt.arg); break;  
         case BMC_BOUND_STEP: bmc_bound_step_ = atoi(opt.arg);

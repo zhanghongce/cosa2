@@ -344,7 +344,8 @@ bool IC3ng::recursive_block_all_in_queue() {
       // TODO make a lemma, to explain why F(i) /\ T => not MODEL
       
       D(2, "[recursive_block] Not reachable on F{}", fcex->fidx);
-      inductive_generalization_mic(fcex->fidx-1, fcex->cex, fcex->cex_origin);
+      // inductive_generalization_mic(fcex->fidx-1, fcex->cex, fcex->cex_origin);
+      inductive_generalization(fcex->fidx-1, fcex->cex, fcex->cex_origin);
       proof_goals.pop();
 
       if (lowest_frame_touched_ > fcex->fidx)
@@ -404,7 +405,7 @@ ProverResult IC3ng::step(int i)
   }
 
   // try to dump aiger here
-  if (frames.back().size() > 50) {
+  if (frames.back().size() > 50 && options_.dump_aiger_) {
     dump_clause_to_aiger("frame_" + std::to_string(frames.size()) + ".aig" );
   }
 
