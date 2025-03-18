@@ -34,6 +34,16 @@ static size_t TermScore(const smt::Term & t) {
   return slice;
 }
 
+// Helper function to check if two sets have a non-empty intersection
+static bool set_intersect(const smt::UnorderedTermSet & a, const smt::UnorderedTermSet & b) {
+  const auto & smaller = a.size() < b.size() ? a : b;
+  const auto & other = a.size() < b.size() ? b : a;
+  for (const auto & e : smaller)
+    if (other.find(e) != other.end())
+      return true;
+  return false;
+}
+
 void IC3ng::SortCube(std::vector<std::pair<smt::Term, smt::Term>> & inout, bool descending) {
   // we don't want to sort the term themselves
   // we don't want to invoke TermScore function more than once for a term
@@ -93,6 +103,39 @@ void IC3ng::get_min_pred(
 {
   smt::UnorderedTermSet varset;
   smt::get_free_symbols(bad_next, varset);
+
+  // Handle transitive closure of variables through assumptions
+  if (has_assumptions) {
+    // Perform transitive closure until no new variables are added
+    bool changed;
+    size_t initial_size = varset.size();
+#ifdef DEBUG_IC3
+    std::cout << "Starting transitive closure with " << initial_size << " variables" << std::endl;
+#endif
+    do {
+      changed = false;
+      for (size_t cidx = 0; cidx < constraints_curr_var_.size(); ++cidx) {
+        const auto & cnstr_vars = vars_in_constraints_.at(cidx);
+        // Check if the current constraint shares variables with our varset
+        bool intersect = set_intersect(cnstr_vars, varset);
+        if (intersect) {
+          // Add all variables from this constraint to our varset
+          for (const auto & v : cnstr_vars) {
+            auto res = varset.emplace(v);
+            if (res.second) { // If a new variable was successfully added
+              changed = true;
+#ifdef DEBUG_IC3
+              std::cout << "Added variable from constraint " << cidx << ": " << v->to_string() << std::endl;
+#endif
+            }
+          }
+        }
+      }
+    } while (changed); // Continue until no new variables are added
+#ifdef DEBUG_IC3
+    std::cout << "Transitive closure complete: " << initial_size << " -> " << varset.size() << " variables" << std::endl;
+#endif
+  }
 
   std::vector<std::pair<smt::Term, smt::Term>> sliced_pairs;
   for (const auto & v : varset) {
