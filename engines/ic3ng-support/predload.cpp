@@ -124,6 +124,54 @@ bool static has_intersection(const smt::UnorderedTermSet & a, const smt::Unorder
   return false;
 }
 
+
+void IC3ng::clear_cex_info() {
+  // for each cex we stored, clear its related predicates
+  model_info_map_.clear();
+  // clear sliced var info
+  for (const auto & str_slicevar_ptr : cube_slicedvar_info_allocation_pool) {
+    auto slicedvar_ptr = str_slicevar_ptr.second;
+    slicedvar_ptr->preds_w_related_vars.clear();
+    slicedvar_ptr->preds_w_subset_vars.clear();
+    slicedvar_ptr->related_info_populated = false;
+  }
+}
+
+
+void IC3ng::sort_pred_in_extend_predicates(smt::TermVec & inout) {
+  // we don't want to sort the term themselves
+  // we don't want to invoke TermScore function more than once for a term
+  std::vector<std::pair<size_t,size_t>> complexity_index_pair;
+  size_t idx = 0;
+  for (const auto & t : inout) {
+    auto pos = internal_nodes_to_aiglit_map.find(t);
+    if (pos == internal_nodes_to_aiglit_map.end())
+      pos = internal_nodes_to_aiglit_map.find(smart_not(t));
+    assert(pos != internal_nodes_to_aiglit_map.end()); // you should always find it
+    complexity_index_pair.push_back({ pos->second, idx});
+    ++ idx;
+  }
+  // sort in descending order (the `first` is compared first), so term-index with 
+  // the highest score will rank first
+  std::sort(complexity_index_pair.begin(), complexity_index_pair.end(), std::greater<>());
+
+  // now map back to termvec
+  smt::TermVec sorted_term;
+  for (const auto & cpl_idx_pair : complexity_index_pair) {
+    sorted_term.push_back(inout.at(cpl_idx_pair.second));
+  }
+  inout.swap(sorted_term); // this is the same as inout = sorted_term, but faster
+} // end of SortPredicates
+
+static bool is_symbol_or_extract_symbol(const smt::Term & t) {
+  if (t->is_symbol())
+    return true;
+  if (t->get_op().prim_op == smt::PrimOp::Extract) {
+    if( (*t->begin())->is_symbol() )
+      return true;
+  }
+  return false;
+}
 // s 00 a 0001 b 0011
 // s ==00 ->  a > b   a == b a>=b 
 unsigned IC3ng::extend_predicates(Model *cex, smt::TermVec & conj_inout) {
@@ -144,11 +192,24 @@ unsigned IC3ng::extend_predicates(Model *cex, smt::TermVec & conj_inout) {
       // TODO: setup related info
       // based on structural varset check
       const smt::UnorderedTermSet & vars_in_cex =
-        cex->get_varset_unslice();
+        cex->get_varset_sliced();
 
+      // check loaded_predicates_
       for (const auto & p : loaded_predicates_) {
         smt::UnorderedTermSet vars_in_pred;
-        smt::get_free_symbolic_consts(p, vars_in_pred);
+        smt::get_matching_terms(p, vars_in_pred, is_symbol_or_extract_symbol);
+        
+        if(is_subset(vars_in_pred, vars_in_cex))
+          var_info_->preds_w_subset_vars.push_back(p);
+        else if(has_intersection(vars_in_pred, vars_in_cex))
+          var_info_->preds_w_related_vars.push_back(p);
+      }
+
+      // check internal_nodes_to_aiglit_map
+      for (const auto & p : loaded_preds_from_aiger_) {
+        smt::UnorderedTermSet vars_in_pred;
+        smt::get_matching_terms(p, vars_in_pred, is_symbol_or_extract_symbol);
+        
         if(is_subset(vars_in_pred, vars_in_cex))
           var_info_->preds_w_subset_vars.push_back(p);
         else if(has_intersection(vars_in_pred, vars_in_cex))
@@ -166,21 +227,32 @@ unsigned IC3ng::extend_predicates(Model *cex, smt::TermVec & conj_inout) {
         auto r = solver_->check_sat_assuming({p});
         if (r.is_unsat())
           predicates_to_use.push_back(smart_not(p));
+        else {
+          r = solver_->check_sat_assuming({smart_not(p)});
+          if (r.is_unsat())
+            predicates_to_use.push_back(p);
+        }
       }
       if (predicates_to_use.empty()) {
         for (const auto & p : var_info_->preds_w_related_vars) {
           auto r = solver_->check_sat_assuming({p});
           if (r.is_unsat())
             predicates_to_use.push_back(smart_not(p));
+          else {
+            r = solver_->check_sat_assuming({smart_not(p)});
+            if (r.is_unsat())
+              predicates_to_use.push_back(p);
+          }
         }
       } // end of if predicates_to_use.empty()
       solver_->pop();
     }
     // TODO: from preds_w_subset_vars -> PerCexInfo::preds_to_use
     //  solve sat?
+    sort_pred_in_extend_predicates(predicates_to_use);
     auto res = model_info_map_.emplace(cex, PerCexInfo(std::move(predicates_to_use)));
     model_info_pos = res.first;
-  }
+  } // end of if not found in model_info_map_
   auto preds = model_info_pos->second.preds_to_use;
   auto num_preds = preds.size();
   preds.insert(preds.end(), conj_inout.begin(), conj_inout.end() );

@@ -174,6 +174,7 @@ set(SOURCES
   "${PROJECT_SOURCE_DIR}/engines/ic3ng-support/dump_clause.cpp"
   "${PROJECT_SOURCE_DIR}/engines/ic3ng-support/predgen.cpp"
   "${PROJECT_SOURCE_DIR}/engines/ic3ng-support/indgen.cpp"
+  "${PROJECT_SOURCE_DIR}/engines/ic3ng-support/aiger_simplify.cpp"
   "${PROJECT_SOURCE_DIR}/engines/ic3ng.cpp"
   "${PROJECT_SOURCE_DIR}/frontends/btor2_encoder.cpp"
   "${PROJECT_SOURCE_DIR}/frontends/smv_encoder.cpp"

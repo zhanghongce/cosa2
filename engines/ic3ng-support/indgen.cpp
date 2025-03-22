@@ -13,7 +13,7 @@
 **/
 
 
-
+#include "utils/logger.h"
 #include "engines/ic3ng.h"
 #include "engines/ic3ng-support/debug.h"
 #include "utils/container_shortcut.h"
@@ -23,9 +23,12 @@ namespace pono
 {
 
 
-static size_t TermScore(const smt::Term & t) {
+static size_t TermScoreVar(const smt::Term & t) {
+  // remove NOT
   auto e = (t->get_op().prim_op == smt::PrimOp::Not ||
             t->get_op().prim_op == smt::PrimOp::BVNot) ? *(t->begin()): t;
+  // if it is just a variable: 0
+  // otherwise, slice+width
   unsigned slice = 0;
   if (e->get_op().prim_op == smt::PrimOp::Extract) {
     slice = e->get_op().idx0;
@@ -41,34 +44,15 @@ static void SortLemma(smt::TermVec & inout, bool descending) {
   std::vector<std::pair<size_t,size_t>> complexity_index_pair;
   size_t idx = 0;
   for (const auto & t : inout) {
-    complexity_index_pair.push_back({ TermScore(t) ,idx});
+    complexity_index_pair.push_back({ TermScoreVar(t) ,idx});
     ++ idx;
   }
-
-  // HZ: it seems that descending sorting will put lower bits first
-  //       unegated first
-  //       negated second
-
-  //  0: ((_ extract 0 0) x)
-  //  1: ((_ extract 2 2) x)
-  // ....
-  // 10: (bvnot ((_ extract 1 1) x))
-#ifdef DEBUG_IC3
-  std::cout << "Before sorting:\n";
-  unsigned i = 0;
-  for (const auto & e : inout)
-    std::cout << " " << i++ << ": " << e->to_string() << "\n";
-  std::cout << "------------------\n";
-#endif
-
   // sort in descending order (the `first` is compared first), so term-index with 
   // the highest score will rank first
   if(descending) // from greater to smaller
     std::sort(complexity_index_pair.begin(), complexity_index_pair.end(), std::greater<>());
   else // from smaller to greater
     std::sort(complexity_index_pair.begin(), complexity_index_pair.end(), std::less<>());
-    
-
   // now map back to termvec
   smt::TermVec sorted_term;
   for (const auto & cpl_idx_pair : complexity_index_pair) {
@@ -76,6 +60,8 @@ static void SortLemma(smt::TermVec & inout, bool descending) {
   }
   inout.swap(sorted_term); // this is the same as inout = sorted_term, but faster
 } // end of SortLemma
+
+
 
 // ( ( not(S) /\ F /\ T ) \/ init_prime ) /\ ( cube' )
 //   cube (v[0]=1 /\ v[1]=0 /\ ...)
@@ -107,7 +93,7 @@ void IC3ng::inductive_generalization(unsigned fidx, Model *cex, LCexOrigin origi
     pred_vars_nxt.emplace(ts_.next(v));
 
 
-#ifdef DEBUG_IC3
+#ifdef DEBUG_IC3_INDGEN
   std::cout << "After sorting:\n";
   unsigned i = 0;
   for (const auto & e : all_conjs)
@@ -197,7 +183,7 @@ void IC3ng::inductive_generalization(unsigned fidx, Model *cex, LCexOrigin origi
     }
 
 
-#ifdef DEBUG_IC3
+#ifdef DEBUG_IC3_INDGEN
     std::cout << rnd << " Kept:\n";
     for (const auto & e : conjs_nxt) {
       std::cout << conjnxt_to_idx_map.at(e) << " : " << e->to_string() << std::endl;
@@ -438,6 +424,16 @@ void IC3ng::inductive_generalization_mic(unsigned fidx, Model *cex, LCexOrigin o
 
   auto npred = extend_predicates(cex, all_conjs); // IC3INN
 
+#ifdef DEBUG_IC3_INDGEN
+  std::cout << "# pred: " << npred << std::endl;
+  std::cout << "After sorting:\n";
+  unsigned i = 0;
+  for (const auto & e : all_conjs)
+    std::cout << " " << i++ << ": " << e->to_string() << "\n";
+  std::cout << "------------------\n";
+#endif
+  
+
   assert(!all_conjs.empty());
   if (all_conjs.size() == 1) { // a short-cut
     auto cex_expr = smart_not(smart_and(all_conjs));
@@ -501,7 +497,24 @@ void IC3ng::inductive_generalization_mic(unsigned fidx, Model *cex, LCexOrigin o
       smt::UnorderedTermSet remaining(conjs_nxt_copy.begin(), conjs_nxt_copy.end());
       remove_and_move_to_next_backward(conjs_list, to_remove_pos_curr_term, conjs_nxt, to_remove_pos_next_term, remaining);
       }
-    } // end of while    
+  } // end of while    
+
+#ifdef DEBUG_IC3_INDGEN
+  std::cout << " Kept:\n";
+  for (const auto & e : conjs_nxt) {
+    std::cout << conjnxt_to_idx_map.at(e) << " : " << e->to_string() << std::endl;
+    if (conjnxt_to_idx_map.at(e) < npred)
+      std::cout << "Used!\n";
+  }
+  std::cout << "------------------\n";
+
+  for (const auto & e : conjs_nxt) {
+    if (conjnxt_to_idx_map.at(e) < npred) {
+      std::cout << "[IG] Pred is used!\n";
+      break;
+    }
+  }
+#endif
 
   auto cex_expr = smart_not(smart_and(conjs_list));
   D(1,"[ig] F{} get lemma size:{}", fidx+1, conjs_list.size());

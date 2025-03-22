@@ -1,9 +1,12 @@
 #pragma once
-// #define DEBUG_IC3
+#define DEBUG_IC3
 
 #ifdef DEBUG_IC3
 #define D(...) logger.log(__VA_ARGS__)
 #define LOGCAT (std::cout)
+// #define DEBUG_IC3_PREDGEN 1
+#define DEBUG_IC3_INDGEN 1
+
 
 #else
 #define  D(...) do{}while(0)

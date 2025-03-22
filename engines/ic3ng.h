@@ -174,14 +174,23 @@ namespace pono
     // will update  initial_aiger, statevar_to_aiglit_map, lit2term_map
     void build_initial_aiger(); // called in `initialize`
 
+    void clear_cex_info();
+    void aiger_simplify(const std::string & inputfname, const std::string & outfname);
     void load_aiger_internal_nodes(const std::string & fname);
     // a simple helper function
-    bool extract_neg_from_val(const smt::Term & t) { return extract_bit_from_val(t) == false; }
-    bool extract_bit_from_val(const smt::Term & val);
+    bool extract_neg_from_val(const smt::Term & t) const { return extract_bit_from_val(t) == false; }
+    bool extract_bit_from_val(const smt::Term & val) const;
+    
+    bool is_neg(const smt::Term & t, smt::Term & e, bool & neg) const;
+    // bool extract_lit(const smt::Term & t, unsigned & lit, smt::Term & e) const;
+    unsigned traverse_eq_build_aiger(
+        aiger_cxx::Aiger & aiger,
+        const smt::Term & eq );
     // You may only want to dump the last frame?
     void dump_clause_to_aiger(const std::string & fname);
     // stored the terms for internal nodes and the map to aig lit
     std::unordered_map<smt::Term, unsigned>  internal_nodes_to_aiglit_map; 
+    smt::TermVec  loaded_preds_from_aiger_; 
     // the aiger that we loaded
     aiger_cxx::Aiger loaded_aiger;
 
@@ -195,6 +204,7 @@ namespace pono
     
     // return value: the predicates added
     unsigned extend_predicates(Model *cex, smt::TermVec & conj_inout);
+    void sort_pred_in_extend_predicates(smt::TermVec &);
     smt::TermVec loaded_predicates_;
     std::unordered_map<Model *, PerCexInfo> model_info_map_;
 

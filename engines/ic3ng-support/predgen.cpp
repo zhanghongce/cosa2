@@ -38,15 +38,8 @@ void IC3ng::SortCube(std::vector<std::pair<smt::Term, smt::Term>> & inout, bool 
   // we don't want to sort the term themselves
   // we don't want to invoke TermScore function more than once for a term
   std::vector<std::pair<size_t,size_t>> complexity_index_pair;
-  std::vector<size_t> non_statevar_idx;
   size_t idx = 0;
   for (const auto & t : inout) { /* score: slice + width */
-
-    auto c = (t.first->get_op().prim_op == smt::PrimOp::Extract) ? *(t.first->begin()) : t.first;
-    if (actual_statevars_.find(c) == actual_statevars_.end()) { // if it is a input
-      non_statevar_idx.push_back(idx++);
-      continue;
-    }
     complexity_index_pair.push_back({ TermScore(t.first) ,idx++});
   }
 
@@ -56,7 +49,7 @@ void IC3ng::SortCube(std::vector<std::pair<smt::Term, smt::Term>> & inout, bool 
   //  1: ((_ extract 2 2) x)
   // ....
 
-#ifdef DEBUG_IC3
+#ifdef DEBUG_IC3_PREDGEN
   std::cout << "Before sorting cube:\n";
   unsigned i = 0;
   for (const auto & e : inout)
@@ -76,8 +69,6 @@ void IC3ng::SortCube(std::vector<std::pair<smt::Term, smt::Term>> & inout, bool 
   std::vector<std::pair<smt::Term, smt::Term>> sorted_term;
   for (const auto & cpl_idx_pair : complexity_index_pair)
     sorted_term.push_back(inout.at(cpl_idx_pair.second));
-  for (auto input_idx : non_statevar_idx) // always put input to the end
-    sorted_term.push_back(inout.at(input_idx));
   
   inout.swap(sorted_term); // this is the same as inout = sorted_term, but faster
 } // end of SortCube
@@ -95,7 +86,9 @@ void IC3ng::get_min_pred(
   smt::get_free_symbols(bad_next, varset);
 
   std::vector<std::pair<smt::Term, smt::Term>> sliced_pairs;
+  std::vector<std::pair<smt::Term, smt::Term>> sliced_pairs_input;
   for (const auto & v : varset) {
+    auto & vec = actual_statevars_.find(v) == actual_statevars_.end() ? sliced_pairs_input : sliced_pairs;
     auto val = solver_->get_value(v);
     auto sk = v->get_sort()->get_sort_kind();
     assert(sk == smt::BV || sk == smt::BOOL);
@@ -105,22 +98,26 @@ void IC3ng::get_min_pred(
         for (unsigned idx = 0; idx < width; ++idx) {
           auto sliced_var = solver_->make_term(smt::Op(smt::Extract, idx, idx), v);
           auto sliced_val = solver_->make_term(smt::Op(smt::Extract, idx, idx), val);
-          sliced_pairs.push_back(std::make_pair(sliced_var, sliced_val ));
+          vec.push_back(std::make_pair(sliced_var, sliced_val ));
         }
         continue; // next variable
       } // else
     } // else
-    sliced_pairs.push_back(std::make_pair(v, val));
+    vec.push_back(std::make_pair(v, val));
   } // end for each var
   solver_->pop(); // old values are no longer needed
   SortCube(sliced_pairs, false);
   smt::TermList slice_pair_to_reduce;
   for (const auto & v_val : sliced_pairs)
     slice_pair_to_reduce.push_back(solver_->make_term(smt::Equal, v_val.first, v_val.second));
+  for (const auto & v_val : sliced_pairs_input)
+   slice_pair_to_reduce.push_back(solver_->make_term(smt::Equal, v_val.first, v_val.second));
   
   // build F/\ not(bad)
   solver_->push();
   // assert_frame(prevFidx);
+  disable_all_labels();
+  solver_->assert_formula(all_constraints_);
   auto not_bad = smart_not(bad_next);
   auto res = syntax_analysis::reduce_unsat_core_to_fixedpoint(not_bad, slice_pair_to_reduce, solver_);
   assert(res); // must be unsat
@@ -164,7 +161,7 @@ void IC3ng::get_min_pred(
   assert(!eqs.empty());
 
 
-#ifdef DEBUG_IC3
+#ifdef DEBUG_IC3_PREDGEN
   std::cout << "After sorting cube:\n";
   unsigned i = 0;
   for (const auto & eq : eqs) {

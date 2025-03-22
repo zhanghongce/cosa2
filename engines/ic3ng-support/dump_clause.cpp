@@ -65,7 +65,7 @@ void IC3ng::build_initial_aiger() {
 
 
 // a simple helper function
-bool IC3ng::extract_bit_from_val(const smt::Term & val) {
+bool IC3ng::extract_bit_from_val(const smt::Term & val) const {
   if (val == solver_true_)
     return true;
   if (val == solver_false_)
@@ -106,6 +106,117 @@ bool IC3ng::extract_bit_from_val(const smt::Term & val) {
 //   assert(false); // not handled
 // }
 
+
+bool IC3ng::is_neg(const smt::Term & t, smt::Term & e, bool & neg) const {
+  bool is_neg_op = false;
+  neg = false;
+  if (t->get_op().prim_op == smt::PrimOp::Not || t->get_op().prim_op == smt::PrimOp::BVNot) {
+    is_neg_op = true;
+    neg = true;
+    e = *(t->begin());
+  } else if (t->get_op().prim_op == smt::PrimOp::Equal) {
+    auto lhs = *(t->begin());
+    auto rhs = *(++(t->begin()));
+    auto noslice_lhs = (lhs->get_op().prim_op == smt::PrimOp::Extract) ? *(lhs->begin()) : lhs;
+    auto noslice_rhs = (rhs->get_op().prim_op == smt::PrimOp::Extract) ? *(rhs->begin()) : rhs;
+    assert(noslice_lhs->is_value() || noslice_rhs->is_value());
+    auto val = noslice_lhs->is_value() ? lhs : rhs;
+    e = noslice_lhs->is_value() ? rhs : lhs;
+    neg = extract_neg_from_val(val);
+    is_neg_op = true;
+  } else
+    e = t;
+  return is_neg_op;
+}
+
+// bool IC3ng::extract_lit(const smt::Term & t, unsigned & lit, smt::Term & e) const {
+//   bool neg = false;
+//   if (t->get_op().prim_op == smt::PrimOp::Not || t->get_op().prim_op == smt::PrimOp::BVNot) {
+//     neg = true;
+//     e = *(t->begin());
+//   } else if (t->get_op().prim_op == smt::PrimOp::Equal) {
+//     auto lhs = *(t->begin());
+//     auto rhs = *(++(t->begin()));
+//     auto noslice_lhs = (lhs->get_op().prim_op == smt::PrimOp::Extract) ? *(lhs->begin()) : lhs;
+//     auto noslice_rhs = (rhs->get_op().prim_op == smt::PrimOp::Extract) ? *(rhs->begin()) : rhs;
+//     assert(noslice_lhs->is_value() || noslice_rhs->is_value());
+//     auto val = noslice_lhs->is_value() ? lhs : rhs;
+//     e = noslice_lhs->is_value() ? rhs : lhs;
+//     neg = extract_neg_from_val(val);
+//   } else
+//     e = t;
+//   auto pos = internal_nodes_to_aiglit_map.find(e);
+//   if (pos == internal_nodes_to_aiglit_map.end())
+//     return false;
+//   lit = pos->second;
+//   assert(!aiger_cxx::aiger_sign(lit));
+//   if (neg)
+//     lit = aiger_cxx::aiger_not(lit);
+//   return true;
+// }
+
+unsigned IC3ng::traverse_eq_build_aiger(
+    aiger_cxx::Aiger & aiger,
+    const smt::Term & eq
+  ) {
+  // ==0, ==1
+  // term, visited
+  std::vector<std::pair<smt::Term, bool>> stack;
+  stack.push_back(std::make_pair(eq, false));
+  while(!stack.empty()) {
+    auto & top = stack.back();
+    if (top.second) { // we arrive at the node from bottom up
+    
+      auto pos = internal_nodes_to_aiglit_map.find(top.first);
+      if (pos != internal_nodes_to_aiglit_map.end()) {
+        stack.pop_back();
+        continue;
+      } // else
+      smt::Term no_neg;
+      bool negated; // is_neg also handle ==1
+      if (is_neg(top.first, no_neg, negated)) {
+        pos = internal_nodes_to_aiglit_map.find(no_neg);
+        assert(pos != internal_nodes_to_aiglit_map.end());
+        auto lit = pos->second;
+        if (negated)
+          lit = aiger_cxx::aiger_not(lit);
+        internal_nodes_to_aiglit_map.emplace(top.first, lit);
+      } else {
+        assert(top.first->get_op().prim_op == smt::PrimOp::And || top.first->get_op().prim_op == smt::PrimOp::BVAnd);
+        std::vector<unsigned> and_lit;
+        for(auto cpos = top.first->begin(); cpos != top.first->end(); ++cpos) {
+          auto res_child_lit = internal_nodes_to_aiglit_map.at(*cpos);
+          and_lit.push_back(res_child_lit);
+        }
+        assert(and_lit.size() == 2);
+        unsigned lhs_lit = aiger.nextUnusedLiteral();
+        aiger.addAnd(lhs_lit, and_lit[0], and_lit[1]);
+        internal_nodes_to_aiglit_map.emplace(no_neg, lhs_lit);
+      }
+      stack.pop_back();      
+    } else { // not visited
+      auto pos = internal_nodes_to_aiglit_map.find(top.first);
+      if (pos != internal_nodes_to_aiglit_map.end()) {
+        stack.pop_back();
+        continue;
+      } // else
+      top.second = true;
+      smt::Term no_neg;
+      bool negated; // is_neg also handle ==1
+      if (is_neg(top.first, no_neg, negated)) {
+        stack.push_back(std::make_pair(no_neg, false));
+      } else {
+        assert(no_neg->get_op().prim_op == smt::PrimOp::And || no_neg->get_op().prim_op == smt::PrimOp::BVAnd);
+        for(auto pos = no_neg->begin(); pos != no_neg->end(); ++pos)
+          stack.push_back(std::make_pair(*pos, false));
+      }
+    } // end of if not visited
+  } // end of while stack not empty
+
+  unsigned lit = internal_nodes_to_aiglit_map.at(eq);
+  return lit;
+} // end of traverse_eq_build_aiger
+
 // warning: this will change `loaded_aiger` because I don't want
 // to make another copy
 void IC3ng::dump_clause_to_aiger(const std::string & fname) {
@@ -117,83 +228,37 @@ void IC3ng::dump_clause_to_aiger(const std::string & fname) {
   // let's not worry about clean-up logic not in COI, since ABC/Yosys can do this for us
 
   // work on the last frame
-  const auto & last_frame = frames.back();
-  for (Lemma * l : last_frame) {
+  // for (const auto & curr_frame : frames)  {
+  const auto & curr_frame = frames.back();
+  for (Lemma * l : curr_frame) {
     // just to filter out those from init/constraint
     // TODO: maybe allow sideloaded here?
     if (!l->origin().is_must_block() && !l->origin().is_may_block())
       continue; // actually may block is not in use
     const auto & cube = l->cube();
-    // unordered_map to vector
-    std::vector<std::pair<smt::Term, smt::Term>> var_val_pairs;
+    std::vector<unsigned> cube_lits;
     for (const auto & eq : cube) {
-      smt::Term slice_symb;
-      smt::Term val;
-      if(eq->get_op().prim_op == smt::PrimOp::Equal) {
-        auto lhs = *(eq->begin());
-        auto rhs = *(++(eq->begin()));
-        auto noslice_lhs = (lhs->get_op().prim_op == smt::PrimOp::Extract) ? *(lhs->begin()) : lhs;
-        auto noslice_rhs = (rhs->get_op().prim_op == smt::PrimOp::Extract) ? *(rhs->begin()) : rhs;
-        assert(noslice_lhs->is_symbol() || noslice_rhs->is_symbol());
-        slice_symb = noslice_lhs->is_symbol() ? lhs : rhs;
-        val = noslice_lhs->is_symbol() ? rhs : lhs;
-      } else if (eq->get_op().prim_op == smt::PrimOp::Not || eq->get_op().prim_op == smt::PrimOp::BVNot) {
-        slice_symb = *(eq->begin());
-        val = solver_false_;
-      } else {
-        slice_symb = eq;
-        val = solver_true_;
-      }
-      var_val_pairs.push_back(std::make_pair(slice_symb,val));
+      cube_lits.push_back(
+        traverse_eq_build_aiger(loaded_aiger, eq ));
     }
-    { // let's sort var_val_pairs
-      // by creating a index vector, this ensures that we will only call
-      // the evaluation function internal_nodes_to_aiglit_map n times
-      // otherwise, whenever you compare two elements, you will be calling
-      // the comparison twice, which is O(nlogn) times of indexing
-      std::vector<std::pair<unsigned, unsigned>> depth2idx_map;
-      depth2idx_map.reserve(var_val_pairs.size());
-      for (size_t idx = 0; idx < var_val_pairs.size(); ++ idx) {
-        depth2idx_map.push_back(std::make_pair(
-          internal_nodes_to_aiglit_map.at(var_val_pairs.at(idx).first),
-          idx));
-      }
-      // elements with smaller depth come first
-      std::sort(depth2idx_map.begin(), depth2idx_map.end());
-      { // and then reconstruct
-        decltype(var_val_pairs) var_val_pairs_sorted;
-        var_val_pairs_sorted.reserve(var_val_pairs.size());
-        for (const auto & p : depth2idx_map)
-          var_val_pairs_sorted.push_back(var_val_pairs.at(p.second));
-        var_val_pairs.swap(var_val_pairs_sorted);
-      }
-    } // finish sorting var_val_pairs
+    assert(!cube_lits.empty());
+    // sort cube
+    std::sort(cube_lits.begin(), cube_lits.end()); // ascending
 
-    assert(!var_val_pairs.empty());
-    unsigned prev_lit;
-    { // computing prev_lit
-      const auto & [var,val] = *(var_val_pairs.begin());
-      unsigned lit = internal_nodes_to_aiglit_map.at(var);
-      bool neg = extract_neg_from_val(val);
-      // bool neg = (val->to_int() == 0 );
-      prev_lit = neg ? aiger_cxx::aiger_not(lit) : lit;
-    }
-    // in case of a single-literal cube, then this loop will be skipped
-    // it should work fine as well
-    for (unsigned idx = 1; idx < var_val_pairs.size(); ++ idx) {
-      const auto & [var,val] = var_val_pairs.at(idx);
-      unsigned lit = internal_nodes_to_aiglit_map.at(var);
-      bool neg = extract_neg_from_val(val);
-      unsigned this_lit = neg ? aiger_cxx::aiger_not(lit) : lit;
+    unsigned output_lit = cube_lits[0];
+    for (unsigned idx = 1; idx < cube_lits.size(); ++ idx) {
+      unsigned rhs1 = cube_lits[idx];
       unsigned lhs_lit = loaded_aiger.nextUnusedLiteral();
-      loaded_aiger.addAnd(lhs_lit, prev_lit, this_lit);
-      prev_lit = lhs_lit;
+      loaded_aiger.addAnd(lhs_lit, output_lit, rhs1);
+      output_lit = lhs_lit;
     }
-    loaded_aiger.addOutput( prev_lit, "" );
-  }
+    loaded_aiger.addOutput( output_lit, "" );
+  } // foreach lemma in the frame
+  // } // foreach frame
   loaded_aiger.writeToFile(aiger_cxx::Mode::Binary, fname );
 } // end of dump_clause_to_aiger
 
+// the output is stored in internal_nodes_to_aiglit_map
 void IC3ng::load_aiger_internal_nodes(const std::string & fname) {
   aiger_cxx::Aiger new_aiger;
   auto error = new_aiger.readFromFile(fname);
@@ -203,13 +268,14 @@ void IC3ng::load_aiger_internal_nodes(const std::string & fname) {
   internal_nodes_to_aiglit_map = statevar_to_aiglit_map;
   // build a literal -> term map
   smt::TermVec lit2term_map = initial_lit2term_map; // lit 0 is for false
+  loaded_preds_from_aiger_.clear();
 
   const auto & andgates = new_aiger.getAnds();
   for (const auto & andgate : andgates) {
     auto lhs = andgate.lhs;
     assert(!aiger_cxx::aiger_sign(lhs));
     auto varidx = aiger_cxx::aiger_lit2var(lhs);
-    assert(lhs == lit2term_map.size());
+    assert(varidx == lit2term_map.size());
     auto rhs0_var  = aiger_cxx::aiger_lit2var(andgate.rhs0);
     bool rhs0_sign = aiger_cxx::aiger_sign(andgate.rhs0);
 
@@ -227,7 +293,10 @@ void IC3ng::load_aiger_internal_nodes(const std::string & fname) {
     auto rhs1_term = bv_to_bool(lit2term_map.at(rhs1_var));
     if (rhs1_sign)
       rhs1_term = smart_not(rhs1_term);
-    lit2term_map.push_back(smart_and(smt::TermVec({rhs0_term, rhs1_term})));
+    auto term4aignode = smart_and(smt::TermVec({rhs0_term, rhs1_term}));
+    lit2term_map.push_back(term4aignode);
+    internal_nodes_to_aiglit_map.emplace(term4aignode, lhs);
+    loaded_preds_from_aiger_.push_back(term4aignode);
   }
   // HZ: we don't really care about the clauses
   // no need to rewrite existing ones, because they are equivalent anyway
