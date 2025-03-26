@@ -11,6 +11,7 @@ namespace pono {
 void IC3ng::set_helper_term_predicates(const smt::TermVec & preds) {
 
   solver_->push();
+  disable_all_labels();
     for (const auto & p : preds) {
       if (!(p->get_sort()->get_sort_kind() == smt::SortKind::BOOL ||
           (p->get_sort()->get_sort_kind() == smt::SortKind::BV && 
@@ -51,6 +52,7 @@ void IC3ng::set_helper_term_clauses(const smt::TermVec & clauses) {
     // check init =>  c? 
     // HZ: the clause we load should contain a "NOT" itself
     solver_->push();
+    disable_all_labels();
     solver_->assert_formula(ts_.init());
     solver_->assert_formula(smart_not(clause));
     auto r = solver_->check_sat();
@@ -64,6 +66,7 @@ void IC3ng::set_helper_term_clauses(const smt::TermVec & clauses) {
     // HZ: no need to have clause in the previous frame
     //     because init => clause
     solver_->push();
+    disable_all_labels();
     solver_->assert_formula(ts_.init());
     solver_->assert_formula(ts_.trans());
     smt::Term next_clause = ts_.next(clause);
@@ -222,6 +225,7 @@ unsigned IC3ng::extend_predicates(Model *cex, smt::TermVec & conj_inout) {
     smt::TermVec predicates_to_use;
     {
       solver_->push();
+      disable_all_labels();
       solver_->assert_formula(cex->to_expr(solver_));
       for (const auto & p : var_info_->preds_w_subset_vars) {
         auto r = solver_->check_sat_assuming({p});

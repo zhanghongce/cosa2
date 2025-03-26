@@ -292,6 +292,7 @@ void IC3ng::reduce_unsat_core_linear_backwards(const smt::Term & F_and_T,
         { smart_and<smt::TermVec>(  {cex_expr, F_and_T} ) , init_prime_ } );
 
     solver_->push();
+    disable_all_labels();
     solver_->assert_formula(base);
     smt::Result r = solver_->check_sat_assuming_list(conjs_nxt);
 
