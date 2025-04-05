@@ -400,16 +400,18 @@ ProverResult IC3ng::step(int i)
     return ProverResult::UNKNOWN;
   }
 
-  // try to dump aiger here
-  if (frames.back().size() > 50 || frames.size() > 5 ) {
-    auto fname_in = "frame_" + std::to_string(frames.size()) + ".aig";
-    auto fname_out = "frame_" + std::to_string(frames.size()) + ".opt.aig";
-    dump_clause_to_aiger( fname_in );
-    aiger_simplify(fname_in, fname_out);
-    load_aiger_internal_nodes (fname_out); // loaded in internal_nodes_to_aiglit_map
-    std::cout << "loaded " << loaded_preds_from_aiger_.size() << " preds." << std::endl;
-    // clear this so, it will rebuild the predicates for counterexamples
-    clear_cex_info();
+  if (options_.ic3ng_update_inn) {
+    // try to dump aiger here
+    if (frames.back().size() > 50 || frames.size() > 5 ) {
+      auto fname_in = "frame_" + std::to_string(frames.size()) + ".aig";
+      auto fname_out = "frame_" + std::to_string(frames.size()) + ".opt.aig";
+      dump_clause_to_aiger( fname_in );
+      aiger_simplify(fname_in, fname_out);
+      load_aiger_internal_nodes (fname_out); // loaded in internal_nodes_to_aiglit_map
+      std::cout << "loaded " << loaded_preds_from_aiger_.size() << " preds." << std::endl;
+      // clear this so, it will rebuild the predicates for counterexamples
+      clear_cex_info();
+    }
   }
 
   

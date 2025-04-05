@@ -79,6 +79,7 @@ enum optionIndex
   IC3SA_INTERP,
   IC3NG_ALWAYS_MULTILEMMA,
   IC3NG_MULTILEMMA_NUM,
+  IC3NG_INN_UPDATE,
   PRINT_WALL_TIME,
   BMC_BOUND_START,
   BMC_BOUND_STEP,
@@ -484,6 +485,13 @@ const option::Descriptor usage[] = {
     Arg::Numeric,
     "  --ic3ng-multi-lemma-num \tNumber of lemmas to generate"
     "(default: 3)" },
+    { IC3NG_INN_UPDATE,
+      0,
+      "",
+      "ic3ng-update-inn",
+      Arg::None,
+      "  --ic3ng-update-inn \tCall ABC to update internal signals"
+      "(default: false)" },
     { PRINT_WALL_TIME,
     0,
     "",
@@ -803,6 +811,7 @@ ProverResult PonoOptions::parse_and_set_options(int argc,
         case IC3SA_INTERP: ic3sa_interp_ = true; break;
         case IC3NG_ALWAYS_MULTILEMMA: ic3ng_indgen_multilemma_on_predicates_only = false; break;
         case IC3NG_MULTILEMMA_NUM: ic3ng_indgen_max_round = atoi(opt.arg); break;
+        case IC3NG_INN_UPDATE: ic3ng_update_inn = true; break;
         case PRINT_WALL_TIME: print_wall_time_ = true; break;
         case BMC_BOUND_START: bmc_bound_start_ = atoi(opt.arg); break;  
         case BMC_BOUND_STEP: bmc_bound_step_ = atoi(opt.arg);

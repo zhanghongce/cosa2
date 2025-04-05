@@ -151,7 +151,12 @@ void IC3ng::get_min_pred(
     }
     if(!ts_.is_curr_var(symb))
       continue; // definitely remove 
-    if (!has_assumptions && actual_statevars_.find(symb) == actual_statevars_.end() )
+    // I doubt if we need this, rIC3 is not using input
+    // But I don't understand why it is OKAY to do so 
+    // if you find INV CHECK/ CEX CHECK failure
+    // might use !has_assumptions 
+    // !has_assumptions &&
+    if (actual_statevars_.find(symb) == actual_statevars_.end() )
       continue; // if no assumptions and symb is actually an input, then remove it
     slicedvars.insert(slice_symb);
     noslicevars.insert(symb);

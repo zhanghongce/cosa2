@@ -115,6 +115,7 @@ class PonoOptions
         ic3sa_func_refine_(default_ic3sa_func_refine_),
         ic3ng_indgen_multilemma_on_predicates_only(default_ic3ng_indgen_multilemma_on_predicates_only),
         ic3ng_indgen_max_round(default_ic3ng_indgen_max_round),
+        ic3ng_update_inn(default_ic3ng_update_inn),
         profiling_log_filename_(default_profiling_log_filename_),
         pseudo_init_prop_(default_pseudo_init_prop_),
         assume_prop_(default_assume_prop_),
@@ -218,6 +219,7 @@ class PonoOptions
   bool ic3ng_indgen_multilemma_on_predicates_only; ///< should we always try to indgen for multiple lemmas?
                                                    ///or just when we have multiple predicates
   unsigned int ic3ng_indgen_max_round; ///< max number of lemmas to try. default 3
+  bool ic3ng_update_inn;
   std::string profiling_log_filename_;
   bool pseudo_init_prop_;  ///< replace init and prop with boolean state vars
   bool assume_prop_;       ///< assume property in pre-state
@@ -336,6 +338,7 @@ private:
   static const bool default_ic3sa_func_refine_ = true;
   static const bool default_ic3ng_indgen_multilemma_on_predicates_only = true;
   static const unsigned int default_ic3ng_indgen_max_round = 3;
+  static const bool default_ic3ng_update_inn = false;
   static const std::string default_profiling_log_filename_;
   static const bool default_pseudo_init_prop_ = false;
   static const bool default_assume_prop_ = false;

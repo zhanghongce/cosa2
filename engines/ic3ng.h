@@ -199,8 +199,6 @@ namespace pono
     // stored the terms for internal nodes and the map to aig lit
     std::unordered_map<smt::Term, unsigned>  internal_nodes_to_aiglit_map; 
     smt::TermVec  loaded_preds_from_aiger_; 
-    // the aiger that we loaded
-    aiger_cxx::Aiger loaded_aiger;
 
 
     // \neg C /\ F /\ C
