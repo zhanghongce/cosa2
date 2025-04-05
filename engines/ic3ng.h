@@ -108,7 +108,7 @@ namespace pono
     smt::UnorderedTermSet no_next_vars_nxt_; //  the next state of inputs
     
     smt::TermVec constraints_curr_var_;
-    std::vector<smt::UnorderedTermSet>  vars_in_constraints_;
+    smt::UnorderedTermSet  vars_in_constraints_; // pre-computed by initialize
     smt::Term all_constraints_; // all constraints
     smt::Term init_prime_;
     smt::UnorderedTermMap nxt_state_updates_; // a map from prime var -> next
@@ -166,17 +166,25 @@ namespace pono
     // so, you don't need to build from scratch, you can start by copying this 
     // aiger
     aiger_cxx::Aiger initial_aiger;
+    // this contains the aiger loaded. This is updated by `load_aiger_internal_nodes`
+    // and used by aiger_simulate
+    aiger_cxx::Aiger loaded_aiger;
     // statevar_to_aiglit_map is to cache the map, so you don't need rebuild this part
     // when building internal_nodes_to_aiglit_map
     std::unordered_map<smt::Term, unsigned>  statevar_to_aiglit_map;
-    // a literal -> term map
-    smt::TermVec initial_lit2term_map; // lit 0 is for false
+    // a literal -> term map: contains only the state vars
+    smt::TermVec initial_lit2term_map; // index 0 is for false
+    // lit2term_map has not just the state vars, including other nodes as well. (actually it is var2term
+    // because we use its var id)
+    smt::TermVec lit2term_map; // this is updated every time you use `load_aiger_internal_nodes`
     // will update  initial_aiger, statevar_to_aiglit_map, lit2term_map
     void build_initial_aiger(); // called in `initialize`
 
     void clear_cex_info();
     void aiger_simplify(const std::string & inputfname, const std::string & outfname);
     void load_aiger_internal_nodes(const std::string & fname);
+    void aiger_simulate(); 
+
     // a simple helper function
     bool extract_neg_from_val(const smt::Term & t) const { return extract_bit_from_val(t) == false; }
     bool extract_bit_from_val(const smt::Term & val) const;

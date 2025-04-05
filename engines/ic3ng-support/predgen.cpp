@@ -81,13 +81,14 @@ void IC3ng::get_min_pred(
   smt::UnorderedTermSet & slicedvars,
   smt::UnorderedTermSet & noslicevars,
   smt::TermVec & eqs)
-{
-  smt::UnorderedTermSet varset;
+{ // starting from vars in constraints
+  smt::UnorderedTermSet varset = vars_in_constraints_;
   smt::get_free_symbols(bad_next, varset);
 
   std::vector<std::pair<smt::Term, smt::Term>> sliced_pairs;
   std::vector<std::pair<smt::Term, smt::Term>> sliced_pairs_input;
   for (const auto & v : varset) {
+    // if it is inputvar, put in sliced_pairs, ow. sliced_pairs_input
     auto & vec = actual_statevars_.find(v) == actual_statevars_.end() ? sliced_pairs_input : sliced_pairs;
     auto val = solver_->get_value(v);
     auto sk = v->get_sort()->get_sort_kind();
@@ -117,8 +118,8 @@ void IC3ng::get_min_pred(
   solver_->push();
   // assert_frame(prevFidx);
   disable_all_labels();
-  solver_->assert_formula(all_constraints_);
-  auto not_bad = smart_not(bad_next);
+  // let's try if s /\ i /\ i' /\ not(bad /\ cons /\ cons' ) work
+  auto not_bad = smart_not(smart_and(smt::TermVec({bad_next, all_constraints_})));
   auto res = syntax_analysis::reduce_unsat_core_to_fixedpoint(not_bad, slice_pair_to_reduce, solver_);
   assert(res); // must be unsat
   // we don't even need to push pop twice...

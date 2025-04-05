@@ -110,26 +110,23 @@ void IC3ng::initialize() {
       nxt_state_updates_.emplace(ts_.next(sv), s_updates.at(sv));
   }
 
-  has_assumptions = false;
+  has_assumptions = !ts_.constraints().empty();
   assert(!nxt_state_updates_.empty());
 
   for (const auto & c_initnext : ts_.constraints()) {
     // if (!c_initnext.second)
     //  continue; // should not matter
-    has_assumptions = true;
     assert(ts_.no_next(c_initnext.first));
     // if (no_next) {
     constraints_curr_var_.push_back(c_initnext.first);
-    vars_in_constraints_.push_back({});
-    smt::get_free_symbolic_consts(constraints_curr_var_.back(), vars_in_constraints_.back());
+    smt::get_free_symbolic_consts(constraints_curr_var_.back(), vars_in_constraints_);
 
     // translate input_var to next input_var
     // but the state var ...
     // we will get to next anyway
     constraints_curr_var_.push_back(
       next_trans_replace(ts_.next(c_initnext.first)));
-    vars_in_constraints_.push_back({});
-    smt::get_free_symbolic_consts(constraints_curr_var_.back(), vars_in_constraints_.back());
+    smt::get_free_symbolic_consts(constraints_curr_var_.back(), vars_in_constraints_);
     // } // else skip
   }
   all_constraints_ = has_assumptions ? smart_and(constraints_curr_var_) : solver_true_;

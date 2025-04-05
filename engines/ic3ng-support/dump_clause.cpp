@@ -258,19 +258,32 @@ void IC3ng::dump_clause_to_aiger(const std::string & fname) {
   loaded_aiger.writeToFile(aiger_cxx::Mode::Binary, fname );
 } // end of dump_clause_to_aiger
 
+
+void IC3ng::aiger_simulate() {
+  #error TODO
+  // assert cex->expr,
+  // for the input of this aiger
+    // if it is a sliced variable, extract its value,
+    // otherwise use X value
+    // perform ternary simulation
+    // for each non-X node, if it is needed, we add its term
+
+  // simulate the aiger based on cex
+}
+
 // the output is stored in internal_nodes_to_aiglit_map
 void IC3ng::load_aiger_internal_nodes(const std::string & fname) {
-  aiger_cxx::Aiger new_aiger;
-  auto error = new_aiger.readFromFile(fname);
+  loaded_aiger = aiger_cxx::Aiger(); // clear the old aiger
+  auto error = loaded_aiger.readFromFile(fname);
   if (!error.empty())
     throw PonoException("unable to load aiger " + fname);
   // rebuild internal_nodes_to_aiglit_map
   internal_nodes_to_aiglit_map = statevar_to_aiglit_map;
   // build a literal -> term map
-  smt::TermVec lit2term_map = initial_lit2term_map; // lit 0 is for false
+  lit2term_map = initial_lit2term_map; // reset to the original 
   loaded_preds_from_aiger_.clear();
 
-  const auto & andgates = new_aiger.getAnds();
+  const auto & andgates = loaded_aiger.getAnds();
   for (const auto & andgate : andgates) {
     auto lhs = andgate.lhs;
     assert(!aiger_cxx::aiger_sign(lhs));
@@ -298,6 +311,7 @@ void IC3ng::load_aiger_internal_nodes(const std::string & fname) {
     internal_nodes_to_aiglit_map.emplace(term4aignode, lhs);
     loaded_preds_from_aiger_.push_back(term4aignode);
   }
+  #error please check if `internal_nodes_to_aiglit_map` and `lit2term_map` matches the loaded aiger!!!
   // HZ: we don't really care about the clauses
   // no need to rewrite existing ones, because they are equivalent anyway
   // the point is, can we get some useful internal nodes from LS?
