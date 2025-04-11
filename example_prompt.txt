@@ -1,0 +1,67 @@
+Find the relation ship between these variable
+
+```
+outputu_1_buf
+outputu_2_buf
+outputx_1_buf
+outputx_2_buf
+outputy_1_buf
+outputy_2_buf
+u1.ap_CS_fsm
+u1.p_0423_0_reg_81
+u1.p_0426_0_reg_72
+u1.t1_V_reg_91
+u2.add_ln214_reg_229
+u2.ap_CS_fsm
+u2.p_0423_0_reg_91
+u2.p_0426_0_reg_82
+u2.t1_V_reg_101
+u2.u_var_V_2_reg_219
+u2.y_var_V_1_reg_224
+vu_1_buf
+vu_2_buf
+vx_1_buf
+vx_2_buf
+vy_1_buf
+vy_2_buf
+```
+
+You need to make some predicates to summarize the system behavior
+
+STRICT OUTPUT FORMAT:
+- ONLY output define-fun declarations and its comments
+- NO other text or commands allowed
+- NO markdown formatting, such as code blocks, because the later file will be parsed by a SMT2 parser
+- NO set-logic, check-sat, or exit commands
+- EXACTLY follow this format:
+
+; <comment describing the predicate>
+(define-fun |predicate.N| ((x (_ BitVec N)) (y (_ BitVec M))) Bool
+<predicate_body>)
+
+You should get the N and M from the BTOR2 file, every variable should have their bit vector width specified
+
+Example of valid output:
+; x <= 61
+(define-fun |predicate.0| ((x (_ BitVec 6)) (y (_ BitVec 6))) Bool
+(bvule x (_ bv61 6)))
+; y <= 63
+(define-fun |predicate.1| ((x (_ BitVec 6)) (y (_ BitVec 6))) Bool
+(bvule y (_ bv63 6)))
+; y = x + 2
+(define-fun |predicate.2| ((x (_ BitVec 6)) (y (_ BitVec 6))) Bool
+(= y (bvadd x (_ bv2 6))))
+
+REQUIREMENTS:
+- Generate predicates for key assertions, bounds, and variable relationships, which will facilitate the model checking process convergent faster
+- Generate top-5 predicates for each file if you can generate more than 5, do not generate too many if you think those are not necessary
+- Variable name should strictly follow the name in the BTOR2 file, do not make up new names
+- Use correct bit vector widths, according to the BTOR2 file
+- DO NOT MAKEUP THE FAKE VARIABLES, such as "unused", "dummy", etc. THE NAME SHOULD BE EXACTLY THE SAME AS THE VARIABLES IN THE BTOR2 FILE
+- Start predicate numbering from 0
+- Include only brief comments describing each predicate
+- Be careful of the brackets, you are easily confused by them, they should be properly paired
+
+ANY OUTPUT NOT MATCHING THIS EXACT FORMAT WILL BE REJECTED.
+
+Generated predicates should have more diversity, but the variable in predicates should have been found on the list I gave to you. 
