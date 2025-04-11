@@ -1,0 +1,11 @@
+read_verilog -formal counter1.v counter2.v top.v
+prep -top top
+flatten
+memory -nordff
+setundef -undriven -init -expose
+sim -clock ap_clk -reset ap_rst -rstlen 1 -n 1 -w top
+delete -output
+techmap
+abc -fast -g AND
+write_aiger  -zinit counter.aig
+

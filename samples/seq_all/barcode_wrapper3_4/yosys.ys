@@ -1,0 +1,6 @@
+read_verilog -formal barcode_4.v barcode_2.v top.v
+prep -top top
+flatten
+setundef -undriven -init -expose
+sim -clock ap_clk -reset ap_rst -rstlen 1 -n 1 -w top
+write_btor  -s barcode.btor2

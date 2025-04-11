@@ -1,0 +1,7 @@
+read_verilog -formal kalman_2_3_1.v kalman_1_2_2.v top.v
+prep -top top
+flatten
+setundef -undriven -init -expose
+sim -clock ap_clk -reset ap_rst -rstlen 1 -n 1 -w top
+write_btor  -s kalman.btor2
+

@@ -1,0 +1,7 @@
+read_verilog -formal ellipf1_2.v ellipf1_2_1.v top.v
+prep -top top
+flatten
+setundef -undriven -init -expose
+sim -clock ap_clk -reset ap_rst -rstlen 1 -n 1 -w top
+write_btor  -s ellipf.btor2
+

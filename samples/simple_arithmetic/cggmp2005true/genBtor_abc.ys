@@ -1,0 +1,10 @@
+read_verilog -formal cggmp2005true.v
+prep -top top
+flatten
+memory -nordff
+setundef -undriven -init -expose
+sim -clock clk  -reset rst -n 1 -w top
+delete -output
+techmap
+abc -fast -g AND
+write_aiger -zinit cggmp2005true.aig
