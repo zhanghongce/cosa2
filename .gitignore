@@ -40,3 +40,7 @@ additional_materials/
 .aider*
 .cursorrules
 .vscode/launch.json
+samples/spi_0.aig
+.gitignore
+samples/simple_arithmetic/1.c/1_smaller.c.aig
+samples/spi_1.aig
