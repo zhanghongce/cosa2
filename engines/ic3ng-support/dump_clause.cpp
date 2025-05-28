@@ -23,7 +23,7 @@ void IC3ng::build_initial_aiger() {
 
   unsigned aig_encoding_counter = 2;
   for (const auto & sv : ts_.statevars()) {
-    if( sv->get_sort()->get_sort_kind() == smt::BOOL ) {
+    if( sv->get_sort()->get_sort_kind() == smt::BOOL) {
       initial_aiger.addInput(aig_encoding_counter, sv->to_string().c_str());
       statevar_to_aiglit_map.emplace(sv, aig_encoding_counter);
       initial_lit2term_map.push_back(sv);
@@ -33,7 +33,7 @@ void IC3ng::build_initial_aiger() {
       auto width = sv->get_sort()->get_width();
       for (unsigned i = 0; i<width; ++i) {
         auto name = sv->to_string()+"["+std::to_string(i)+"]";
-        auto term = solver_->make_term(smt::Op(smt::Extract,i,i),sv);
+        auto term = width == 1 ? sv : solver_->make_term(smt::Op(smt::Extract,i,i),sv);
         initial_aiger.addInput(aig_encoding_counter, name.c_str());
         statevar_to_aiglit_map.emplace(term, aig_encoding_counter);
         aig_encoding_counter += 2;
