@@ -62,7 +62,7 @@ static void SortLemma(smt::TermVec & inout, bool descending) {
 } // end of SortLemma
 
 
-
+#if 0
 // ( ( not(S) /\ F /\ T ) \/ init_prime ) /\ ( cube' )
 //   cube (v[0]=1 /\ v[1]=0 /\ ...)
 void IC3ng::inductive_generalization(unsigned fidx, Model *cex, LCexOrigin origin) {
@@ -200,6 +200,7 @@ void IC3ng::inductive_generalization(unsigned fidx, Model *cex, LCexOrigin origi
     add_lemma_to_frame(lemma,fidx+1);
   } // end for each round
 } // end of inductive_generalization
+#endif
 
 // a helper function : the rev version
 // it goes from the end to the beginning
@@ -312,6 +313,8 @@ void IC3ng::reduce_unsat_core_linear_backwards(const smt::Term & F_and_T,
 
 // ---------------------- BELOW is another method --------------------------- //
 
+// remove from conjs_list those elements that are not in (core1 union core2)
+// and also remove its next state version from conjs_next
 static void update_list_based_on_core(smt::TermList & conjs_list, smt::TermList & conjs_next, 
   // core1 and core1 are all on current variables
   const smt::TermList & core1, const smt::TermList & core2)
@@ -348,23 +351,27 @@ bool IC3ng::ic3_down(smt::TermList & conjs_list, smt::TermList & conjs_next,
     assert_frame(fidx);
     solver_->assert_formula(smart_not(smart_and(conjs_list)));
     solver_->assert_formula(Trans);
-    res = solver_->check_sat_assuming_list(conjs_next);
+    res = solver_->check_sat_assuming_list(conjs_next); 
     if (res.is_unsat()) {
       // yes, we can remove, 
       smt::UnorderedTermSet unsatcore_next;
-      solver_->get_unsat_assumptions(unsatcore_next);
+      solver_->get_unsat_assumptions(unsatcore_next); // unsatcore_next would be a subset of conjs_nxt
       solver_->pop();
       // map cores to curr state version
       smt::TermList unsatcore_curr;
       for (const auto & t : unsatcore_next) // map to curr
         unsatcore_curr.push_back(all_conjs_curr.at(conjnxt_to_idx_map.at(t)));
       // now we need to make sure, this has no intersection with init 
+      // (init /\ the remaining conjs)  should be unsat
       solver_->push();
       assert_init();
       auto init_check = solver_->check_sat_assuming_list(unsatcore_curr);
       solver_->pop();
       if (init_check.is_sat()) {
+        // we are removing too many elements
         // let's fix this problem
+        //      init /\ the remaining conjs /\ all conjs       is still unsat
+        // reduce those in (all conjs)
         smt::TermList reduced_cube = conjs_list; // make a copy
         solver_->push();
         assert_init();
@@ -376,16 +383,18 @@ bool IC3ng::ic3_down(smt::TermList & conjs_list, smt::TermList & conjs_next,
         syntax_analysis::reduce_unsat_core_linear_rev(solver_true_, reduced_cube, solver_);
         assert(!reduced_cube.empty());
         solver_->pop();
-        // TODO: update conjs_list and conjs_nxt
+        // update conjs_list and conjs_nxt
+        // only keep those in `unsatcore_curr union reduced_cube`
         update_list_based_on_core(conjs_list, conjs_next, unsatcore_curr, reduced_cube);
         return true;
       } // end of 'amending core'
       // if we don't need amendment, then, we just update
+      // only keep those in `unsatcore_curr`
       update_list_based_on_core(conjs_list, conjs_next, unsatcore_curr, {});
-      // TODO: update conjs_list and conjs_nxt
       return true;
     } else {
-      // then we update conjs_list and conjs_next
+      // (2)  F(i) /\ not(conjs_list) /\ Trans /\ conjs_nxt is SAT
+      // then we extract the SAT assignment and update conjs_list and conjs_next
       for (auto pos = conjs_list.begin(), pos_next = conjs_next.begin();
           pos != conjs_list.end(); ) {
         const auto & t = *pos;
@@ -422,7 +431,6 @@ void IC3ng::inductive_generalization_mic(unsigned fidx, Model *cex, LCexOrigin o
   // TODO: sort conjs
   SortLemma(all_conjs, options_.ic3base_sort_lemma_descending);
 
-
   auto npred = extend_predicates(cex, all_conjs); // IC3INN
 
 #ifdef DEBUG_IC3_INDGEN
@@ -434,7 +442,6 @@ void IC3ng::inductive_generalization_mic(unsigned fidx, Model *cex, LCexOrigin o
   std::cout << "------------------\n";
 #endif
   
-
   assert(!all_conjs.empty());
   if (all_conjs.size() == 1) { // a short-cut
     auto cex_expr = smart_not(smart_and(all_conjs));
@@ -461,7 +468,7 @@ void IC3ng::inductive_generalization_mic(unsigned fidx, Model *cex, LCexOrigin o
     //}
   }
   // from the last element, try to remove from conjs_list and conjs_nxt and check
-  // (1) init /\ conj_list             (is unsat)   (disable all?)
+  // (1) init /\ conj_list             (is unsat)   (disable all)
   // (2) F(i) /\ not(conjs_list) /\ Trans /\ conjs_nxt   (is unsat)
   //          if unsat, use UNSAT core to further reduce and return
   //          if not, extract sat-value of elements in conjs_list, if the literal is not true, then remove it
@@ -498,7 +505,7 @@ void IC3ng::inductive_generalization_mic(unsigned fidx, Model *cex, LCexOrigin o
       smt::UnorderedTermSet remaining(conjs_nxt_copy.begin(), conjs_nxt_copy.end());
       remove_and_move_to_next_backward(conjs_list, to_remove_pos_curr_term, conjs_nxt, to_remove_pos_next_term, remaining);
       }
-  } // end of while    
+  } // end of while (going backwards through the constraints)
 
 #ifdef DEBUG_IC3_INDGEN
   std::cout << " Kept:\n";
