@@ -13,31 +13,6 @@ bool IC3ng::can_sat(const smt::Term & t) {
   return res.is_sat();
 }
 
-void IC3ng::cut_vars_curr(std::unordered_map<smt::Term,std::vector<std::pair<int,int>>> & v, bool cut_curr_input) {
-  auto pos = v.begin();
-  if (!cut_curr_input) { // then we only cut next input
-    while(pos != v.end()) {
-      // if has assumption
-      // will not remove input var
-      if(!ts_.is_curr_var(pos->first)) {
-        // assert it must be an input var
-        assert(no_next_vars_nxt_.find(pos->first) != no_next_vars_nxt_.end());
-        pos = v.erase(pos);
-      } else
-        ++pos;
-    }
-  } else { // if no assumption, will not keep input, erase everything but current var
-    while(pos != v.end()) {
-      if (actual_statevars_.find(pos->first) == actual_statevars_.end()) {
-        // if it is not a state variable, then remove
-        assert(no_next_vars_.find(pos->first) != no_next_vars_.end() ||
-               no_next_vars_nxt_.find(pos->first) != no_next_vars_nxt_.end());
-        pos = v.erase(pos);
-      } else
-        ++pos;
-    }
-  } // else : no assumption
-} // end of cut_vars_curr
 
 
 
@@ -204,6 +179,16 @@ void IC3ng::sanity_check_cex_is_correct(fcex_t * cex_at_cycle_0) {
   solver_->pop();
 } // end of sanity_check_cex_is_correct
 
+void IC3ng::disable_all_labels() {
+  for (unsigned idx = 0; idx < frame_labels_.size(); ++idx)
+    solver_->assert_formula(smart_not(frame_labels_.at(idx)));
+}
+
+void IC3ng::assert_init() {
+  solver_->assert_formula(init_label_);
+  for (unsigned idx = 1; idx < frame_labels_.size(); ++idx)
+    solver_->assert_formula(smart_not(frame_labels_.at(idx)));
+}
 
 void IC3ng::assert_frame(unsigned fidx) {
   assert(fidx < frame_labels_.size());

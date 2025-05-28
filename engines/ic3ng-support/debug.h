@@ -4,6 +4,8 @@
 #ifdef DEBUG_IC3
 #define D(...) logger.log(__VA_ARGS__)
 #define LOGCAT (std::cout)
+// #define DEBUG_IC3_PREDGEN 1
+
 
 #else
 #define  D(...) do{}while(0)

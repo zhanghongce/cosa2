@@ -76,6 +76,8 @@ enum optionIndex
   SYGUS_TERM_MODE,
   IC3SA_INITIAL_TERMS_LVL,
   IC3SA_INTERP,
+  IC3NG_ALWAYS_MULTILEMMA,
+  IC3NG_MULTILEMMA_NUM,
   PRINT_WALL_TIME,
   BMC_BOUND_START,
   BMC_BOUND_STEP,
@@ -460,6 +462,20 @@ const option::Descriptor usage[] = {
     Arg::None,
     "  --ic3sa-interp \tuse interpolants to find more terms during refinement "
     "(default: off)" },
+  { IC3NG_ALWAYS_MULTILEMMA,
+    0,
+    "",
+    "ic3ng-always-multi-lemma",
+    Arg::None,
+    "  --ic3ng-always-multi-lemma \twhether always generate multiple lemmas"
+    "(default: only when predicates are used)" },
+  { IC3NG_MULTILEMMA_NUM,
+    0,
+    "",
+    "ic3ng-multi-lemma-num",
+    Arg::Numeric,
+    "  --ic3ng-multi-lemma-num \tNumber of lemmas to generate"
+    "(default: 3)" },
     { PRINT_WALL_TIME,
     0,
     "",
@@ -776,6 +792,8 @@ ProverResult PonoOptions::parse_and_set_options(int argc,
           break;
         }
         case IC3SA_INTERP: ic3sa_interp_ = true; break;
+        case IC3NG_ALWAYS_MULTILEMMA: ic3ng_indgen_multilemma_on_predicates_only = false; break;
+        case IC3NG_MULTILEMMA_NUM: ic3ng_indgen_max_round = atoi(opt.arg); break;
         case PRINT_WALL_TIME: print_wall_time_ = true; break;
         case BMC_BOUND_START: bmc_bound_start_ = atoi(opt.arg); break;  
         case BMC_BOUND_STEP: bmc_bound_step_ = atoi(opt.arg);

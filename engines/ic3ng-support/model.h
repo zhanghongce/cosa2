@@ -18,14 +18,10 @@ struct ic3_rel_ind_check_result{
 
 
 // NOTE: the vars here could be (_ extract ...)
-typedef std::unordered_map<smt::Term, smt::Term> cube_t;
 struct Model {
 
-  static std::string compute_vars_noslice_canonical_string(
+  static std::string compute_vars_canonical_string(
     const std::unordered_set<smt::Term> & varset);
-  static void compute_varset_noslice(
-    const std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> & varset_slice,
-    std::unordered_set<smt::Term> & varset);  // will remove (_ extract )
 
 private: 
   // none cache version, usually
@@ -37,26 +33,26 @@ private:
 public:
   // the following use cache, NOTE: it does not contain NOT!!!
   smt::Term to_expr(smt::SmtSolver & btor_solver_);
-  void to_expr_conj(smt::SmtSolver & btor_solver_, smt::TermVec & out) const;
+  const smt::TermVec & to_expr_conj() const { return conjs; }
   std::string to_string() const;
   
   // these are pre-computed and stored in var_info_
-  std::string get_var_noslice_canonical_string() const { return var_info_->vars_noslice_canonical_string; }
-  const std::unordered_set<smt::Term> & get_varset_noslice() const {  return var_info_->vars_noslice_in_cex; }
+  std::string get_var_canonical_string() const { return var_info_->vars_canonical_string; }
+  const std::unordered_set<smt::Term> & get_varset_sliced() const {  return var_info_->slicedvars_in_cex; }
+  const std::unordered_set<smt::Term> & get_varset_unslice () const { 
+    return var_info_->unsliced_varinfo->vars_in_cex;
+  }
 
-  // these are computed
-  std::string get_var_canonical_string() const;
-  void get_varset(std::unordered_set<smt::Term> & varset) const;
 
   // constructors
   // Model() : expr_cached_(NULL) {}
-  Model(const Model &m) : cube(m.cube), expr_cached_(m.expr_cached_) {}
-  // from get value from a solver
-  Model(smt::SmtSolver & solver_, 
-    const std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> & varset_slice,
-    PerVarInfo * var_info_ptr);
+  // Model(const Model &m) : conjs(m.conjs), expr_cached_(m.expr_cached_) {}
+  // by default, move var_val_map to avoid copy
+  Model(smt::TermVec && eqs, 
+    PerSlicedVarInfo * var_info_ptr) : conjs(eqs) , var_info_(var_info_ptr) { var_info_ptr->unsliced_varinfo->ref_count++; }
   
-  PerVarInfo * get_per_var_info() const { return var_info_; }
+  PerSlicedVarInfo * get_per_slicedvar_info() const { return var_info_; }
+  PerUnslicedVarInfo * get_per_unslicedvar_info() const { return var_info_->unsliced_varinfo; }
   // Model(smt::SmtSolver & solver_, 
   //   const std::unordered_map <smt::Term,std::vector<std::pair<int,int>>> & varset_slice, // extract using these vars
   //   const std::unordered_map<smt::Term, smt::Term> & varmap // but use the map in here for the vars
@@ -67,11 +63,10 @@ public:
   //                                      // if v is a var, erase all containing the var
 
 protected:
-  cube_t cube;
+  smt::TermVec conjs;
   // cache expr result
   smt::Term expr_cached_;
-  PerVarInfo * var_info_;
-
+  PerSlicedVarInfo * var_info_;
 };
 
 std::ostream & operator<< (std::ostream & os, const Model & m);

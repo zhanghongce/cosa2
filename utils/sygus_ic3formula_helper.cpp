@@ -84,7 +84,7 @@ void IC3FormulaModel::get_varset(std::unordered_set<smt::Term> & varset) const {
   }
 }
 
-void reduce_unsat_core_to_fixedpoint(
+bool reduce_unsat_core_to_fixedpoint(
   const smt::Term & formula,
   smt::TermList & core_inout,
   const smt::SmtSolver & reducer_) {
@@ -93,21 +93,30 @@ void reduce_unsat_core_to_fixedpoint(
 
   // exit if the formula is unsat without assumptions.
   smt::Result r = reducer_->check_sat();
-  if (r.is_unsat())
-    return;
+  if (r.is_unsat()) {
+    core_inout.clear();
+    return true;
+  }
 
+  bool first_round = true;
   while(true) {
     r = reducer_->check_sat_assuming_list(core_inout);
-    assert(r.is_unsat());
+    if (r.is_sat()) {
+      assert(first_round);
+      return false;
+    }
+    first_round = false;
 
     smt::TermList core_out;
     reducer_->get_unsat_assumptions(core_out);
     if (core_inout.size() == core_out.size()) {
-      break; // fixed point is reached
+      return true; // fixed point is reached
     }
     assert(core_out.size() < core_inout.size());
     core_inout.swap(core_out);  // namely, core_inout = core_out,  but no need to copy
   }
+  assert(false); // should not reach this point
+  return true;
 }
 
 void reduce_unsat_core_to_fixedpoint(
@@ -119,8 +128,10 @@ void reduce_unsat_core_to_fixedpoint(
 
   // exit if the formula is unsat without assumptions.
   smt::Result r = reducer_->check_sat();
-  if (r.is_unsat())
+  if (r.is_unsat()) {
+    core_inout.clear();
     return;
+  }
 
   while(true) {
     r = reducer_->check_sat_assuming_set(core_inout);
@@ -258,8 +269,10 @@ void reduce_unsat_core_linear_rev(
 
   // exit if the formula is unsat without assumptions.
   smt::Result r = reducer_->check_sat();
-  if (r.is_unsat())
+  if (r.is_unsat()) {
+    assumption_list.clear();
     return;
+  }
 
   r = reducer_->check_sat_assuming_list(assumption_list);
   assert(r.is_unsat());
