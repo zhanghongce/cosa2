@@ -260,7 +260,7 @@ void IC3ng::dump_clause_to_aiger(const std::string & fname) {
 
 
 void IC3ng::aiger_simulate() {
-  #error TODO
+  // #error TODO
   // assert cex->expr,
   // for the input of this aiger
     // if it is a sliced variable, extract its value,
@@ -284,6 +284,10 @@ void IC3ng::load_aiger_internal_nodes(const std::string & fname) {
   loaded_preds_from_aiger_.clear();
 
   const auto & andgates = loaded_aiger.getAnds();
+
+  // Temporary vector to store (varidx, term) pairs for all internal nodes
+  std::vector<std::pair<unsigned, smt::Term>> varidx_term_vec;
+
   for (const auto & andgate : andgates) {
     auto lhs = andgate.lhs;
     assert(!aiger_cxx::aiger_sign(lhs));
@@ -298,7 +302,7 @@ void IC3ng::load_aiger_internal_nodes(const std::string & fname) {
     assert(rhs0_var < lit2term_map.size());
     assert(rhs1_var < lit2term_map.size());
 
-    // need the conversion, o.w. some smtsolvers would complain
+    // need the conversion, otherwise some smtsolvers would complain
     auto rhs0_term = bv_to_bool(lit2term_map.at(rhs0_var));
     if (rhs0_sign)
       rhs0_term = smart_not(rhs0_term);
@@ -309,12 +313,31 @@ void IC3ng::load_aiger_internal_nodes(const std::string & fname) {
     auto term4aignode = smart_and(smt::TermVec({rhs0_term, rhs1_term}));
     lit2term_map.push_back(term4aignode);
     internal_nodes_to_aiglit_map.emplace(term4aignode, lhs);
-    loaded_preds_from_aiger_.push_back(term4aignode);
+
+    // Store the (varidx, term) for later selection
+    varidx_term_vec.emplace_back(varidx, term4aignode);
   }
-  #error please check if `internal_nodes_to_aiglit_map` and `lit2term_map` matches the loaded aiger!!!
-  // HZ: we don't really care about the clauses
-  // no need to rewrite existing ones, because they are equivalent anyway
-  // the point is, can we get some useful internal nodes from LS?
+
+  // Sort the vector by varidx in descending order (larger varidx is closer to the root in topological order)
+  std::sort(varidx_term_vec.begin(), varidx_term_vec.end(),
+            [](const std::pair<unsigned, smt::Term> &a, const std::pair<unsigned, smt::Term> &b) {
+              return a.first > b.first;
+            });
+
+  // Select the top 10% largest varidx nodes as predicates
+  size_t num_preds = varidx_term_vec.size() / 50;
+  if (num_preds == 0 && !varidx_term_vec.empty())
+    num_preds = 1; // always select at least one if available
+
+  loaded_preds_from_aiger_.clear();
+  for (size_t i = 0; i < num_preds; ++i) {
+    loaded_preds_from_aiger_.push_back(varidx_term_vec[i].second);
+  }
+
+  // #error please check if `internal_nodes_to_aiglit_map` and `lit2term_map` matches the loaded aiger!!!
+  // We do not care about the clauses here.
+  // No need to rewrite existing ones, because they are equivalent anyway.
+  // The point is, can we get some useful internal nodes from LS?
 } // end of load_aiger_internal_nodes
 
 } // end of namespace pono
