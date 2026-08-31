@@ -119,9 +119,9 @@ void IC3::predecessor_generalization(size_t i,
   // TODO: consider adding functional pre-image here
   //       not sure if it makes sense to have at the boolean level
 
-  TermVec red_cube_lits, rem_cube_lits;
+  TermVec red_cube_lits;
   reducer_.reduce_assump_unsatcore(
-      formula, cube_lits, red_cube_lits, &rem_cube_lits);
+      formula, cube_lits, red_cube_lits, NULL);
 
   // should need some assumptions
   // formula should not be unsat on its own
